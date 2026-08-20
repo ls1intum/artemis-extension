@@ -42,6 +42,8 @@ export class AuthFlowHandler {
             this._postMessage({ type: ExtensionMsg.ShowLoading, message: 'Checking stored credentials...' });
             this._postMessage({ type: ExtensionMsg.UpdateLoading, message: 'Loading user information...' });
 
+            const revision = this._authManager.currentCredentialRevision();
+
             let user;
             try {
                 user = await this._artemisApi.getCurrentUser();
@@ -51,12 +53,19 @@ export class AuthFlowHandler {
                 // problem, so keep the credentials: a blip (e.g. slow network
                 // at startup) must not log the user out.
                 if (userError instanceof ApiError && userError.status === 401) {
-                    logger.info('Stored credentials are invalid, clearing...', LogCategory.AUTH);
-                    await this._authManager.clear();
-
-                    const updater = this._getAuthContextUpdater();
-                    if (updater) {
-                        await updater(false);
+                    // The request layer (ArtemisApiService.makeRequest) also reacts to a 401 and may
+                    // already have cleared this exact credential itself, which moves the revision and
+                    // makes this clearIfUnchanged() report false even though nothing here is stale. Either
+                    // that clear landed or a newer sign-in superseded it; either way the credential this
+                    // check started with is gone, so only the update below is conditional on which one
+                    // happened - releasing the loading view below is not.
+                    const cleared = await this._authManager.clearIfUnchanged(revision);
+                    if (cleared) {
+                        logger.info('Stored credentials are invalid, clearing...', LogCategory.AUTH);
+                        const updater = this._getAuthContextUpdater();
+                        if (updater) {
+                            await updater(false);
+                        }
                     }
                 } else {
                     logger.warn('Could not verify stored credentials (server unreachable?); keeping them', LogCategory.AUTH, userError);

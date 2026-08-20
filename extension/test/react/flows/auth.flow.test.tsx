@@ -17,6 +17,13 @@ describe('Auth Flow', () => {
         // Clean any lingering message listeners between tests
     });
 
+    /** The attemptId the view sent with its most recent postMessage call for the given command. */
+    function lastAttemptId(mockApi: ReturnType<typeof createMockVsCodeApi>, command: string): number | undefined {
+        const calls = (mockApi.postMessage as ReturnType<typeof import('vitest').vi.fn>).mock.calls;
+        const match = calls.find((call) => (call[0] as Record<string, unknown>).command === command);
+        return (match?.[0] as { payload?: { attemptId?: number } } | undefined)?.payload?.attemptId;
+    }
+
     it('shows error message when login fails with invalid credentials', async () => {
         const user = userEvent.setup();
         const mockApi = createMockVsCodeApi();
@@ -26,11 +33,16 @@ describe('Auth Flow', () => {
         await user.type(screen.getByTestId('login-username'), 'wronguser');
         await user.click(screen.getByTestId('login-next'));
 
+        // The view now owns the indicator under this attempt's id, so the answer below must carry it too,
+        // otherwise the ownership guard correctly (and, here, inconveniently) ignores it as unowned.
+        const checkAttemptId = lastAttemptId(mockApi, 'checkLoginOptions');
+
         // Transition to Stage 1
         dispatchExtensionMessage({
             type: 'loginOptionsResult',
             loginMethod: 'PASSWORD',
             idpName: 'TUM Login',
+            attemptId: checkAttemptId,
         });
 
         // Stage 1: Enter password and submit
@@ -38,10 +50,15 @@ describe('Auth Flow', () => {
         await user.type(passwordInput, 'wrongpass');
         await user.click(screen.getByTestId('login-submit'));
 
-        // Simulate loading
+        // The id the view sent with the login command, so the progress update below is recognised as
+        // belonging to this attempt rather than being an unowned message the indicator must ignore.
+        const attemptId = lastAttemptId(mockApi, 'login');
+
+        // Simulate the extension reporting progress on this attempt.
         dispatchExtensionMessage({
-            type: 'showLoading',
+            type: 'updateLoading',
             message: 'Checking credentials...',
+            attemptId,
         });
 
         // Component strips trailing "..." from loading text
@@ -53,6 +70,7 @@ describe('Auth Flow', () => {
         dispatchExtensionMessage({
             type: 'loginError',
             error: 'Invalid username or password',
+            attemptId,
         });
 
         // Verify error displayed and form re-shown

@@ -6,6 +6,7 @@ import { ArtemisApiService } from '@extension/api';
 import { ArtemisWebviewProvider } from '@extension/provider/artemisWebviewProvider';
 import type { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
 import { AuthManager } from '@extension/services/auth';
+import { AuthCancellationService } from '@extension/services/auth/authCancellationService';
 import { OidcLoginService } from '@extension/services/auth/oidcLoginService';
 import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { TelemetryManager } from '@extension/services/telemetry';
@@ -136,12 +137,14 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         const mockTelemetry = new TelemetryManager();
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
 
+        const oidcLoginService = new OidcLoginService(mockContext, mockAuthManager, mockApiService);
         provider = new ArtemisWebviewProvider({
             extensionUri: vscode.Uri.file('/'),
             extensionContext: mockContext,
             authManager: mockAuthManager,
             artemisApi: mockApiService,
-            oidcLoginService: new OidcLoginService(mockContext, mockAuthManager, mockApiService),
+            oidcLoginService,
+            authCancellation: new AuthCancellationService(oidcLoginService),
             providerRegistry: createProviderRegistry(),
             websocketService: mockWebsocket,
             buildErrorCodeLensProvider: mockCodeLens,
@@ -202,12 +205,14 @@ suite('Panel hide/show state persistence', () => {
         const mockTelemetry = new TelemetryManager();
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
 
+        const oidcLoginService = new OidcLoginService(mockContext, mockAuthManager, mockApiService);
         provider = new ArtemisWebviewProvider({
             extensionUri: vscode.Uri.file('/'),
             extensionContext: mockContext,
             authManager: mockAuthManager,
             artemisApi: mockApiService,
-            oidcLoginService: new OidcLoginService(mockContext, mockAuthManager, mockApiService),
+            oidcLoginService,
+            authCancellation: new AuthCancellationService(oidcLoginService),
             providerRegistry: createProviderRegistry(),
             websocketService: mockWebsocket,
             buildErrorCodeLensProvider: mockCodeLens,

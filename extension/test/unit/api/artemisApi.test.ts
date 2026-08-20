@@ -26,6 +26,12 @@ suite('Artemis API Service Test Suite', () => {
         authManager = new AuthManager(context);
 
         authManager.getAuthHeaders = async () => ({ 'Authorization': 'Bearer test-token' });
+        // makeRequest() reads getAuthContext(), not getAuthHeaders(); the revision is read live so
+        // tests that store or clear real credentials still get a revision that matches the AuthManager's.
+        authManager.getAuthContext = async () => ({
+            headers: { 'Authorization': 'Bearer test-token' },
+            revision: authManager.currentCredentialRevision(),
+        });
 
         apiService = new TestableArtemisApiService(authManager);
 
@@ -112,6 +118,25 @@ suite('Artemis API Service Test Suite', () => {
             assert.strictEqual(error.status, 401);
             assert.ok(error.message.includes('Authentication failed'));
         }
+    });
+
+    test('a 401 from a request that read an older credential spares the newer one', async () => {
+        await authManager.storeArtemisCredentials('jwt=old', true);
+        let release!: () => void;
+        global.fetch = (async () => {
+            await new Promise<void>(resolve => { release = resolve; });
+            return { ok: false, status: 401, text: async () => '' } as any;
+        }) as any;
+
+        const pending = apiService.getCurrentUser();
+        await Promise.resolve();
+        // The user signs in again while the stale request is still in flight.
+        await authManager.storeArtemisCredentials('jwt=new', true);
+        release();
+
+        await assert.rejects(() => pending);
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=new',
+            'an old request being told its token is dead says nothing about the token the user has now');
     });
 
     test('should handle generic API error', async () => {
@@ -428,6 +453,48 @@ suite('Artemis API Service Test Suite', () => {
             'the candidate is handed back for the caller to validate and commit');
         assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined,
             'authenticate must not commit a credential it has not had checked');
+    });
+
+    test('an aborted signal cancels the authenticate request', async () => {
+        const controller = new AbortController();
+        let callCount = 0;
+        global.fetch = ((_url: any, init: any) => {
+            callCount++;
+            const signal: AbortSignal | undefined = init?.signal;
+            return new Promise((_resolve, reject) => {
+                signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+            });
+        }) as any;
+
+        const pending = apiService.authenticate('student', 'secret', true, controller.signal);
+        controller.abort();
+
+        await assert.rejects(() => pending, /Aborted/);
+        assert.strictEqual(callCount, 1);
+    });
+
+    test('a timeout does not abort the caller signal', async () => {
+        // The caller's controller distinguishes a user cancel from the 30s backstop. If the timeout
+        // aborted it too, a timed-out login would be silently swallowed as if the user had cancelled.
+        const controller = new AbortController();
+        global.fetch = ((_url: any, init: any) => {
+            const signal: AbortSignal | undefined = init?.signal;
+            return new Promise((_resolve, reject) => {
+                signal?.addEventListener('abort', () => reject(signal.reason as Error));
+            });
+        }) as any;
+
+        const clock = sinon.useFakeTimers();
+        try {
+            const pending = apiService.authenticate('student', 'secret', true, controller.signal);
+            pending.catch(() => { /* asserted below; only here to avoid an unhandled-rejection warning */ });
+            await clock.tickAsync(CONFIG.API.REQUEST_TIMEOUT_MS + 1000);
+
+            await assert.rejects(() => pending);
+            assert.strictEqual(controller.signal.aborted, false);
+        } finally {
+            clock.restore();
+        }
     });
 
     test('should check Iris health', async () => {

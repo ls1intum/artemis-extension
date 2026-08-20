@@ -9,6 +9,7 @@ import { CONFIG, resolveServerUrl } from '@extension/utils';
 import { generateCodeChallenge, generateCodeVerifier } from '@extension/utils/pkce';
 
 import type { AuthManager } from './authManager';
+import { LoginCancelledError } from './loginCancelledError';
 
 /**
  * How long a pending attempt stays redeemable locally.
@@ -57,10 +58,10 @@ function isPendingOidcLogin(value: unknown): value is PendingOidcLogin {
  *
  * - Last start wins. Starting a second attempt replaces the first, and concurrent OIDC logins from two
  *   windows are not supported.
- * - Cleanup is best effort. SecretStorage has no compare-and-delete, so the attempt id narrows the window
- *   in which a stale attempt's cleanup could discard a newer record without closing it, and a delete that
- *   fails during cancellation can leave a record a later callback could still redeem. A resolved `cancel()`
- *   is therefore not proof that no callback can arrive.
+ * - Cleanup is best effort. SecretStorage has no compare-and-delete, so a delete that fails during
+ *   cancellation can leave a record a later callback still finds. That record is not enough to redeem
+ *   the attempt, though: `invalidatedAttempts` remembers every cancelled attempt id for the life of this
+ *   host, so a stray callback for one is refused rather than signing the user back in.
  */
 export class OidcLoginService {
     /**
@@ -71,6 +72,22 @@ export class OidcLoginService {
      * in the window that is doing the completing.
      */
     private cancelGeneration = 0;
+
+    /** The attempt this host started, so a cancellation can name the one it retracts. */
+    private currentAttemptId?: string;
+
+    /**
+     * Attempts the user has retracted. Per attempt rather than a single flag, because a flag would be
+     * cleared by the next `start()`, and the cancelled attempt's callback could then still redeem its
+     * record. In memory, so this is a guarantee for as long as this host lives.
+     */
+    private readonly invalidatedAttempts = new Set<string>();
+
+    /**
+     * The most recent cancellation's cleanup. `start()` waits on it, so retracting one attempt and
+     * immediately beginning another cannot end with the older cancellation deleting the newer record.
+     */
+    private pendingCleanup: Promise<void> = Promise.resolve();
 
     constructor(
         private readonly context: vscode.ExtensionContext,
@@ -86,15 +103,27 @@ export class OidcLoginService {
      */
     public async start(rememberMe: boolean): Promise<void> {
         const attemptId = crypto.randomUUID();
+        this.currentAttemptId = attemptId;
         const codeVerifier = generateCodeVerifier();
         const codeChallenge = generateCodeChallenge(codeVerifier);
         const rawServerUrl = resolveServerUrl();
         const serverUrl = normalizeServerUrl(rawServerUrl) ?? rawServerUrl;
 
+        // Any cancellation still cleaning up belongs to the attempt this one replaces. Writing the new
+        // record first would let that cleanup delete it.
+        await this.pendingCleanup;
+
         await this.context.secrets.store(
             CONFIG.SECRET_KEYS.OIDC_PENDING_LOGIN,
             JSON.stringify({ attemptId, codeVerifier, rememberMe, startedAt: Date.now(), serverUrl }),
         );
+
+        if (this.invalidatedAttempts.has(attemptId)) {
+            // The user cancelled while the record was being written. Opening the browser now would hand
+            // them a sign-in they already retracted.
+            await this.discardAttempt(attemptId);
+            throw new LoginCancelledError();
+        }
 
         try {
             const url = `${rawServerUrl}/oauth2/authorization/oidc`
@@ -122,7 +151,34 @@ export class OidcLoginService {
         // Only a real cancellation moves the generation. Consuming a record on the way to redeeming it
         // deletes the same key but is emphatically not the user changing their mind.
         this.cancelGeneration++;
-        await this.deletePendingRecord();
+        if (this.currentAttemptId) {
+            // The generation alone only catches a cancellation that happens after `complete()` captured
+            // it. This catches one that happens before, while the record deletion is still in flight.
+            this.invalidatedAttempts.add(this.currentAttemptId);
+        }
+        // Chained onto whatever cleanup is already outstanding, not overwritten: two overlapping
+        // cancellations must both finish before `start()` is allowed to write a fresh record, or the
+        // older, slower deletion can land after the newer one and strand it. `deletePendingRecord` is
+        // used for both `then` handlers for the same reason `AuthManager.enqueue` does: a rejected
+        // predecessor must not poison the chain and strand every cleanup queued behind it.
+        this.pendingCleanup = this.pendingCleanup.then(
+            () => this.deletePendingRecord(),
+            () => this.deletePendingRecord(),
+        );
+        await this.pendingCleanup;
+    }
+
+    /**
+     * Whether the attempt this host most recently started is still one the user could plausibly be
+     * waiting on, rather than one they have explicitly retracted.
+     *
+     * Defaults to true when no attempt is tracked at all (a fresh host, or one that has just reloaded):
+     * the pending record can still be sitting in SecretStorage from before the reload, and the browser
+     * callback for it is exactly what this class exists to survive. Only a `cancel()` this host actually
+     * issued is treated as proof the current attempt is dead.
+     */
+    public hasLiveAttempt(): boolean {
+        return this.currentAttemptId === undefined || !this.invalidatedAttempts.has(this.currentAttemptId);
     }
 
     /** Remove the stored record without declaring the attempt cancelled. Best effort by design. */
@@ -147,9 +203,16 @@ export class OidcLoginService {
 
         const pending = await this.consumePending();
         if (!pending) {
+            if (!this.hasLiveAttempt()) {
+                // Nothing this host currently considers live could have produced this code, so whatever
+                // emptied the record already spoke for the user: a cancellation, most likely. Treating a
+                // late callback for it as a fresh failure would risk being read as news about a different,
+                // still-live attempt, since OIDC results are not id-matched in the webview.
+                throw new LoginCancelledError();
+            }
             throw new Error('This sign-in is no longer valid. Please start the login again.');
         }
-        this.assertStillWanted(generation, pending.serverUrl);
+        this.assertStillWanted(generation, pending);
 
         const rawToken = await this.artemisApi.exchangeCodeForToken(code, pending.codeVerifier);
         const token = this.authManager.formatToken(rawToken);
@@ -158,22 +221,42 @@ export class OidcLoginService {
 
         // Re-checked immediately before the commit rather than only up front. Both calls above resolve the
         // server URL when they run, so without this a token from the previous server could be stored
-        // against the new one, and a logout during the exchange would be undone.
-        this.assertStillWanted(generation, pending.serverUrl);
-        await this.authManager.storeArtemisCredentials(token, pending.rememberMe);
+        // against the new one, and a logout during the exchange would be undone. Distinct from the
+        // `stillWanted` predicate below: this one still tells a server switch apart from a cancellation,
+        // which matters here because nothing has been written yet for either to have to undo.
+        this.assertStillWanted(generation, pending);
+
+        const committed = await this.authManager.storeArtemisCredentials(
+            token,
+            pending.rememberMe,
+            () => this.isStillWanted(generation, pending),
+        );
+        if (!committed) {
+            throw new LoginCancelledError();
+        }
 
         return user;
     }
 
+    /** Whether this attempt is still the one the user is waiting for, on the server they are on. */
+    private isStillWanted(generation: number, pending: PendingOidcLogin): boolean {
+        if (this.cancelGeneration !== generation || this.invalidatedAttempts.has(pending.attemptId)) {
+            return false;
+        }
+        const rawServerUrl = resolveServerUrl();
+        const currentServerUrl = normalizeServerUrl(rawServerUrl) ?? rawServerUrl;
+        return pending.serverUrl === currentServerUrl;
+    }
+
     /** Throws unless this attempt is still the one the user is waiting for, on the server they are on. */
-    private assertStillWanted(generation: number, attemptServerUrl: string): void {
-        if (this.cancelGeneration !== generation) {
-            throw new Error('This sign-in was cancelled. Please start the login again.');
+    private assertStillWanted(generation: number, pending: PendingOidcLogin): void {
+        if (this.cancelGeneration !== generation || this.invalidatedAttempts.has(pending.attemptId)) {
+            throw new LoginCancelledError();
         }
 
         const rawServerUrl = resolveServerUrl();
         const currentServerUrl = normalizeServerUrl(rawServerUrl) ?? rawServerUrl;
-        if (attemptServerUrl !== currentServerUrl) {
+        if (pending.serverUrl !== currentServerUrl) {
             throw new Error('This sign-in belongs to a different Artemis server. Please start the login again.');
         }
     }

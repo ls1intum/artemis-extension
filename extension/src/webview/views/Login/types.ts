@@ -13,5 +13,3 @@ export interface LoginPersistedState {
 	username: string;
 	rememberMe: boolean;
 }
-
-export type LoginViewState = 'form' | 'loading';

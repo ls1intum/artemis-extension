@@ -8,6 +8,7 @@ import { ArtemisApiService } from '@extension/api';
 import { AppStateManager } from '@extension/controller/appStateManager';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import { AuthManager } from '@extension/services/auth';
+import { AuthCancellationService } from '@extension/services/auth/authCancellationService';
 import { OidcLoginService } from '@extension/services/auth/oidcLoginService';
 import { CONFIG } from '@extension/utils/constants';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
@@ -90,10 +91,12 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             navigateToStartPage: sandbox.stub().resolves(),
         };
 
+        const oidcLoginService = new OidcLoginService(mockContext, mockAuthManager, mockApiService);
         handler = new WebViewMessageHandler(
             mockAuthManager,
             mockApiService,
-            new OidcLoginService(mockContext, mockAuthManager, mockApiService),
+            oidcLoginService,
+            new AuthCancellationService(oidcLoginService),
             mockStateManager,
             actionHandler,
             mockContext,
@@ -110,7 +113,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             return {
                 type: 'command' as const,
                 command: 'login' as const,
-                payload: { username: 'student', password: 'pw', rememberMe: true },
+                payload: { username: 'student', password: 'pw', rememberMe: true, attemptId: 0 },
             };
         }
 

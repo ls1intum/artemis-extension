@@ -4,6 +4,7 @@ import * as sinon from 'sinon';
 
 import { ArtemisApiService } from '@extension/api/artemisApi';
 import { AuthManager } from '@extension/services/auth/authManager';
+import { LoginCancelledError } from '@extension/services/auth/loginCancelledError';
 import { OidcLoginService } from '@extension/services/auth/oidcLoginService';
 import { CONFIG } from '@extension/utils/constants';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
@@ -18,6 +19,13 @@ suite('OidcLoginService Test Suite', () => {
     let service: OidcLoginService;
     let sandbox: sinon.SinonSandbox;
     let configuredServerUrl: string;
+
+    /** A promise plus the lever that settles it, for parking a call at the boundary under test. */
+    function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+        let resolve!: (value: T) => void;
+        const promise = new Promise<T>(r => { resolve = r; });
+        return { promise, resolve };
+    }
 
     setup(() => {
         sandbox = sinon.createSandbox();
@@ -178,7 +186,7 @@ suite('OidcLoginService Test Suite', () => {
         });
         sandbox.stub(api, 'getCurrentUserWithToken').resolves({ id: 1, login: 'student' } as never);
 
-        await assert.rejects(() => service.complete('code'), /was cancelled/);
+        await assert.rejects(() => service.complete('code'), LoginCancelledError);
 
         assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined,
             'consuming the record is not enough: a later cancel has nothing left to delete');
@@ -207,5 +215,81 @@ suite('OidcLoginService Test Suite', () => {
         await service.complete('code');
 
         await assert.rejects(() => service.complete('code'), /no longer valid/);
+    });
+
+    test('cancel A, start B, then A comes back: A is refused and B still works', async () => {
+        // The scenario a per-service boolean passes and must not. cancelGeneration alone cannot see it
+        // either: complete() captures the already-incremented value as its own starting point, so the
+        // cancellation looks to it like it never happened.
+        await service.start(true);
+        const recordA = await context.secrets.get(PENDING_KEY);
+        await service.cancel();
+        await service.start(true);
+        const recordB = await context.secrets.get(PENDING_KEY);
+        sandbox.stub(api, 'exchangeCodeForToken').resolves('raw-jwt');
+        sandbox.stub(api, 'getCurrentUserWithToken').resolves({ id: 1, login: 'student' } as never);
+
+        // A's browser tab comes back: its record deletion had not landed yet.
+        await context.secrets.store(PENDING_KEY, recordA!);
+        await assert.rejects(() => service.complete('code-a'), LoginCancelledError);
+
+        // B was never retracted and must still be redeemable.
+        await context.secrets.store(PENDING_KEY, recordB!);
+        const user = await service.complete('code-b');
+        assert.strictEqual(user.login, 'student');
+    });
+
+    test('a cancel during the commit leaves the previous credential in place', async () => {
+        await authManager.storeArtemisCredentials('jwt=existing', true);
+        await writePending();
+        sandbox.stub(api, 'exchangeCodeForToken').resolves('raw-jwt');
+        sandbox.stub(api, 'getCurrentUserWithToken').resolves({ id: 1, login: 'student' } as never);
+        const originalStore = context.secrets.store.bind(context.secrets);
+        // Cancelled from inside the write, so this exercises the rollback rather than the pre-check.
+        // Guarded, because the rollback writes the previous value back through this same stub.
+        let stores = 0;
+        context.secrets.store = async (key: string, value: string) => {
+            await originalStore(key, value);
+            if (key === CONFIG.SECRET_KEYS.ARTEMIS_TOKEN && ++stores === 1) {
+                await service.cancel();
+            }
+        };
+
+        await assert.rejects(() => service.complete('code'), LoginCancelledError);
+        assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=existing');
+    });
+
+    test('a restart that overtakes a cancellation keeps its own record', async () => {
+        // The window the merged A/B test cannot reach: A's record deletion is still in flight when B
+        // starts. Without ordering, that deletion lands on B's record and B is left unredeemable.
+        await service.start(true);
+        const originalDelete = context.secrets.delete.bind(context.secrets);
+        const holdDelete = deferred<void>();
+        context.secrets.delete = async (key: string) => {
+            await holdDelete.promise;
+            await originalDelete(key);
+        };
+
+        const cancelling = service.cancel();
+        const starting = service.start(true);
+        holdDelete.resolve();
+        await Promise.all([cancelling, starting]);
+
+        assert.ok(await context.secrets.get(PENDING_KEY),
+            'the restart must not be left recordless by the cancellation it replaced');
+    });
+
+    test('a cancel during start neither opens the browser nor leaves a redeemable record', async () => {
+        (vscode.env.openExternal as sinon.SinonStub).resolves(true);
+        const originalStore = context.secrets.store.bind(context.secrets);
+        context.secrets.store = async (key: string, value: string) => {
+            await originalStore(key, value);
+            await service.cancel();
+        };
+
+        await assert.rejects(() => service.start(true), LoginCancelledError);
+
+        assert.ok((vscode.env.openExternal as sinon.SinonStub).notCalled);
+        assert.strictEqual(await context.secrets.get(PENDING_KEY), undefined);
     });
 });

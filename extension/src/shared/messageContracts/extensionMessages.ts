@@ -179,22 +179,24 @@ interface ExtensionMsgPayloads {
     viewInitError: { error: string };
 
     // Auth
-    loginSuccess: { username: string };
-    loginError: { error: string };
+    loginSuccess: { username: string; attemptId?: number };
+    loginError: { error: string; attemptId?: number };
     setServerUrl: { serverUrl: string };
     loginOptionsResult: {
         loginMethod: 'PASSWORD' | 'OIDC' | 'SAML2';
         /** Null for password accounts; the view falls back to its own label. */
         idpName?: string | null;
+        attemptId?: number;
     };
     loginOptionsError: {
         error?: string;
+        attemptId?: number;
     };
 
     // Loading
     showLoading: { message: string };
     hideLoading: undefined;
-    updateLoading: { message: string };
+    updateLoading: { message: string; subtext?: string; attemptId?: number };
 
     // Dashboard/Course
     archivedCoursesLoaded: { archivedCourses: ArchivedCourse[] };

@@ -9,7 +9,7 @@ import {
 import { ArtemisApiService } from '@extension/api';
 import type { DataCollectionHandle } from '@extension/dataCollection/types';
 import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider } from '@extension/provider';
-import { AuthManager, OidcLoginService } from '@extension/services/auth';
+import { AuthCancellationService, AuthManager, OidcLoginService } from '@extension/services/auth';
 import { ArtemisUriHandler } from '@extension/services/auth/artemisUriHandler';
 import { createOidcLoginCallback } from '@extension/services/auth/oidcLoginCallback';
 import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
@@ -157,6 +157,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	}));
 
 	const oidcLoginService = new OidcLoginService(context, authManager, artemisApiService);
+	const authCancellation = new AuthCancellationService(oidcLoginService);
 
 	const artemisWebviewProvider = new ArtemisWebviewProvider({
 		extensionUri: context.extensionUri,
@@ -164,6 +165,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		authManager,
 		artemisApi: artemisApiService,
 		oidcLoginService,
+		authCancellation,
 		providerRegistry,
 		websocketService: artemisWebsocketService,
 		buildErrorCodeLensProvider,
@@ -235,7 +237,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(registerAllCommands({
 		context, authManager, artemisApiService, artemisWebsocketService,
 		telemetryManager, artemisWebviewProvider, chatWebviewProvider,
-		updateAuthContext,
+		updateAuthContext, authCancellation,
 	}));
 
 	// Defensive safety net for future when-clause gating; no view reads this key.
@@ -338,18 +340,19 @@ export async function activate(context: vscode.ExtensionContext) {
 		// On Desktop the server URL is freely configurable. When it actually changes
 		// while the user is logged in, clear the stored credentials and return to the
 		// login view: a token issued by the previous server is not valid on a different
-		// one. The last URL is tracked so a no-op settings save does not log the user out.
-		let lastServerUrl = resolveServerUrl();
+		// one. Server identity is compared by normalized key (protocol, host, non-default
+		// port, path), so trailing slashes and default ports do not trigger a logout.
+		let lastServerKey = normalizeServerUrl(resolveServerUrl()) ?? resolveServerUrl();
 		context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async event => {
 			if (!event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SERVER_URL_KEY}`)) {
 				return;
 			}
 			const newServerUrl = resolveServerUrl();
-			if (newServerUrl === lastServerUrl) {
+			const serverKey = normalizeServerUrl(newServerUrl) ?? newServerUrl;
+			if (serverKey === lastServerKey) {
 				return;
 			}
-			lastServerUrl = newServerUrl;
-			const serverKey = normalizeServerUrl(newServerUrl) ?? newServerUrl;
+			lastServerKey = serverKey;
 			// Before the credential check on purpose: a server change while logged
 			// out must still drop the previous server's courses from every
 			// in-memory component.
@@ -360,22 +363,46 @@ export async function activate(context: vscode.ExtensionContext) {
 			// change never intends to preserve authentication, so it publishes
 			// anonymous and lets the login flow resolve the principal afterwards.
 			sessionIdentity.beginResolving(serverKey);
+			let revision: number | undefined;
 			try {
+				revision = authManager.currentCredentialRevision();
+
 				// Before the early return below: a pending attempt belongs to the previous server, and an
 				// unauthenticated user can have one just as easily as an authenticated one.
-				await oidcLoginService.cancel();
+				await authCancellation.cancelAll();
 
-				if (!(await authManager.hasAuthToken())) {
+				// A queued read, so it cannot catch a commit halfway through and mistake a transaction's
+				// temporary delete for "there is no credential".
+				const { headers } = await authManager.getAuthContext();
+				if (Object.keys(headers).length === 0) {
 					sessionIdentity.setAnonymous(serverKey);
 					return;
 				}
+
 				logger.info('Artemis server URL changed; clearing credentials stored for the previous server', LogCategory.CONFIG);
-				await authManager.clear();
+				const cleared = await authManager.clearIfUnchanged(revision);
+				if (!cleared) {
+					// A login for the new server committed while this was running. Its credential survives,
+					// so tearing down its UI here would leave the user signed in behind a login form.
+					// Session identity is left untouched for the same reason: that login's own
+					// `updateAuthContext(true)` already resolves the principal (or is in the middle of
+					// doing so), and calling `setAnonymous` here would either overwrite the result it just
+					// produced or bump `_attempt` and make it discard its own answer when it lands.
+					logger.info('Server change superseded by a newer sign-in', LogCategory.CONFIG);
+					return;
+				}
 				await updateAuthContext(false);
 				artemisWebviewProvider.showLogin();
 				vscode.window.showInformationMessage('Artemis server changed. Please log in again.');
 			} catch (error) {
 				logger.error('Failed to clear credentials after server URL change', LogCategory.AUTH, error);
+				// If a newer credential has landed since this listener started, don't interfere:
+				// that login's own `updateAuthContext(true)` already handles principal resolution,
+				// and calling `setAnonymous` here would either overwrite it or bump the attempt counter.
+				if (revision !== undefined && authManager.currentCredentialRevision() !== revision) {
+					logger.info('Server change superseded by a newer sign-in', LogCategory.CONFIG);
+					return;
+				}
 				// `anonymous`, not the `resolving` this catch would otherwise
 				// leave behind. `resolvePrincipal` may stay `resolving` on a
 				// failed token read because a later login retries it; nothing
