@@ -27,12 +27,23 @@ interface OidcLoginCallbackDeps {
  *   error would contradict the credential that was just stored, and would land after the success message.
  * - A cancellation is never reported as a failure. The user caused it; an error toast would contradict
  *   their own action.
+ * - A callback for an attempt nothing here still considers live is not reported either. The browser
+ *   echoes no id, so a stray one cannot be told apart from a real failure except by asking whether
+ *   anything is still waiting on an answer.
  */
 export function createOidcLoginCallback(deps: OidcLoginCallbackDeps): {
     onCode: (code: string) => Promise<void>;
     onError: (message: string) => Promise<void>;
 } {
     const onError = async (message: string): Promise<void> => {
+        // The browser echoes no id, so this cannot be attributed to a particular attempt. The best this
+        // can do is refuse to act when nothing is live at all: otherwise a browser tab left open from an
+        // attempt the user already retracted could cancel a newer one just by reporting late.
+        if (!deps.oidcLoginService.hasLiveAttempt()) {
+            logger.info('Ignoring an OIDC error for an attempt that is no longer live', LogCategory.AUTH);
+            return;
+        }
+
         // The attempt may still be pending if the browser reported the failure rather than the exchange.
         await deps.oidcLoginService.cancel();
 

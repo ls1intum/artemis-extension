@@ -236,6 +236,8 @@ suite('AuthCommandModule Test Suite', () => {
 
         assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined,
             'the write had already landed, so only a rollback can make this true');
+        assert.deepStrictEqual(await authManager.getAuthHeaders(), {},
+            'a candidate left behind in memory would still authenticate requests even with SecretStorage empty');
         assert.deepStrictEqual(sent.map(m => m.type), ['updateLoading'],
             'a retracted attempt reports no success');
     });

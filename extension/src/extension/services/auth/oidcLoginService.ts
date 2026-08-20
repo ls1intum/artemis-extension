@@ -156,8 +156,29 @@ export class OidcLoginService {
             // it. This catches one that happens before, while the record deletion is still in flight.
             this.invalidatedAttempts.add(this.currentAttemptId);
         }
-        this.pendingCleanup = this.deletePendingRecord();
+        // Chained onto whatever cleanup is already outstanding, not overwritten: two overlapping
+        // cancellations must both finish before `start()` is allowed to write a fresh record, or the
+        // older, slower deletion can land after the newer one and strand it. `deletePendingRecord` is
+        // used for both `then` handlers for the same reason `AuthManager.enqueue` does: a rejected
+        // predecessor must not poison the chain and strand every cleanup queued behind it.
+        this.pendingCleanup = this.pendingCleanup.then(
+            () => this.deletePendingRecord(),
+            () => this.deletePendingRecord(),
+        );
         await this.pendingCleanup;
+    }
+
+    /**
+     * Whether the attempt this host most recently started is still one the user could plausibly be
+     * waiting on, rather than one they have explicitly retracted.
+     *
+     * Defaults to true when no attempt is tracked at all (a fresh host, or one that has just reloaded):
+     * the pending record can still be sitting in SecretStorage from before the reload, and the browser
+     * callback for it is exactly what this class exists to survive. Only a `cancel()` this host actually
+     * issued is treated as proof the current attempt is dead.
+     */
+    public hasLiveAttempt(): boolean {
+        return this.currentAttemptId === undefined || !this.invalidatedAttempts.has(this.currentAttemptId);
     }
 
     /** Remove the stored record without declaring the attempt cancelled. Best effort by design. */
@@ -182,6 +203,13 @@ export class OidcLoginService {
 
         const pending = await this.consumePending();
         if (!pending) {
+            if (!this.hasLiveAttempt()) {
+                // Nothing this host currently considers live could have produced this code, so whatever
+                // emptied the record already spoke for the user: a cancellation, most likely. Treating a
+                // late callback for it as a fresh failure would risk being read as news about a different,
+                // still-live attempt, since OIDC results are not id-matched in the webview.
+                throw new LoginCancelledError();
+            }
             throw new Error('This sign-in is no longer valid. Please start the login again.');
         }
         this.assertStillWanted(generation, pending);

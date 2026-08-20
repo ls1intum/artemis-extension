@@ -213,6 +213,8 @@ suite('AuthManager credential transaction', () => {
 
         assert.strictEqual(await commit, false);
         assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), undefined);
+        assert.deepStrictEqual(await authManager.getAuthHeaders(), {},
+            'a candidate left behind in memory would still authenticate requests even with SecretStorage empty');
     });
 
     test('a cancellation during the delete branch restores the earlier opt-in', async () => {

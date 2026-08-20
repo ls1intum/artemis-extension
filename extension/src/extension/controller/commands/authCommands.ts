@@ -67,6 +67,8 @@ export class AuthCommandModule {
             const payload = getPayload<WebCmd<'startOidcLogin'>>(message);
             const rememberMe = payload.rememberMe ?? true;
 
+            // A password attempt in progress must not be able to commit once the user has moved to OIDC.
+            this.context.authCancellation.registerOidcStart();
             await this.context.oidcLoginService.start(rememberMe);
         } catch (error: unknown) {
             if (error instanceof LoginCancelledError) {

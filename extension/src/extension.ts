@@ -382,8 +382,11 @@ export async function activate(context: vscode.ExtensionContext) {
 				if (!cleared) {
 					// A login for the new server committed while this was running. Its credential survives,
 					// so tearing down its UI here would leave the user signed in behind a login form.
+					// Session identity is left untouched for the same reason: that login's own
+					// `updateAuthContext(true)` already resolves the principal (or is in the middle of
+					// doing so), and calling `setAnonymous` here would either overwrite the result it just
+					// produced or bump `_attempt` and make it discard its own answer when it lands.
 					logger.info('Server change superseded by a newer sign-in', LogCategory.CONFIG);
-					sessionIdentity.setAnonymous(serverKey);
 					return;
 				}
 				await updateAuthContext(false);

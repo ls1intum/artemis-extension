@@ -29,6 +29,7 @@ suite('OIDC login callback Test Suite', () => {
         authContextUpdates = [];
         sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined);
         sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined);
+        sandbox.stub(vscode.env, 'openExternal').resolves(true);
     });
 
     teardown(() => sandbox.restore());
@@ -105,5 +106,17 @@ suite('OIDC login callback Test Suite', () => {
         assert.strictEqual(messages.length, 1);
         assert.strictEqual(messages[0].type, 'loginError');
         assert.deepStrictEqual(authContextUpdates, []);
+    });
+
+    test('a browser error for an already-retracted attempt is not reported', async () => {
+        await service.start(true);
+        await service.cancel();
+        const cancel = sandbox.spy(service, 'cancel');
+
+        await build().onError('access_denied');
+
+        assert.ok(cancel.notCalled, 'the attempt is already gone; there is nothing left to retract');
+        assert.deepStrictEqual(messages, [], 'a browser error for an attempt the user already retracted is not news');
+        assert.ok((vscode.window.showErrorMessage as sinon.SinonStub).notCalled);
     });
 });
