@@ -4,6 +4,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+### Internal
+
+- **Release tooling:** Removed four shell scripts left over from before the release workflow existed. Nothing referenced them, the workflow does the tagging, release creation and packaging itself, and each carried a way to damage published state: one rewrote the minimum VS Code version back to 1.97, one deleted every GitHub release to recreate it.
+
 ## [0.5.0] - 2026-08-20
 
 ### Added
