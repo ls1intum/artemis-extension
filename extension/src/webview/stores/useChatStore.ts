@@ -29,7 +29,7 @@ type ContentState = NonNullable<WireIrisState['contentState']>;
 type ConversationSummary = NonNullable<WireIrisState['conversations']>[number];
 type DetectionUiState = WireIrisState['detectionState'];
 
-interface ChatState {
+export interface ChatState {
     /**
      * Flips to true on the first UpdateIrisState. Lets the renderer
      * distinguish "no conversation" from "snapshot pending" so the cold-mount
