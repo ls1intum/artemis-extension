@@ -24,6 +24,19 @@ export type WebSocketDisplayStatus =
     | 'reconnecting'
     | 'disconnected';
 
+/**
+ * One row of the service health panel. Produced by `healthCommands.ts` and
+ * rendered by both the Service Status view and the Login health panel, so it
+ * lives on the shared contract rather than being re-declared per consumer.
+ */
+export interface HealthCheckResult {
+    status: 'online' | 'offline' | 'unknown';
+    message: string;
+    endpoint: string;
+    httpStatus: number | null;
+    response: string | null;
+}
+
 /** All Extension->Webview message types (const object for string-literal compatibility) */
 export const ExtensionMsg = {
     // View initialization
@@ -429,13 +442,7 @@ interface ExtensionMsgPayloads {
     };
     gitIdentityInfo: { name: string; email: string };
     healthCheckResults: {
-        results: Record<string, {
-            status: 'online' | 'offline' | 'unknown';
-            message: string;
-            endpoint: string;
-            httpStatus: number | null;
-            response: string | null;
-        }>;
+        results: Record<string, HealthCheckResult>;
     };
 
     // Server-side problem statement rendering

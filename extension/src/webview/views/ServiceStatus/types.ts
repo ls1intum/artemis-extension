@@ -4,13 +4,7 @@ export interface ServiceStatusViewProps {
     vscodeApi: VsCodeApi;
 }
 
-export interface HealthCheckResult {
-    status: 'online' | 'offline' | 'unknown';
-    message: string;
-    endpoint: string;
-    httpStatus: number | null;
-    response: string | null;
-}
+export type { HealthCheckResult } from '@shared/messageContracts';
 
 /** Only serverUrl is durable; health results are transient and not persisted. */
 export interface ServiceStatusPersistedState {
