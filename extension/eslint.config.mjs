@@ -104,6 +104,34 @@ export default [{
         "@typescript-eslint/no-unsafe-argument": "error",
     },
 },
+// God-file guard.
+//
+// Past a certain length a file has stopped being one unit: nothing can be read
+// without scrolling, ownership blurs, and every later change pays the cost of
+// finding its way around. 1000 lines is deliberately generous, so tripping it
+// means the file is genuinely doing too much, not merely that it is long.
+//
+// Counting includes blank lines and comments, so the number ESLint reports is
+// the number the editor shows. (It matches `wc -l` for any file ending in a
+// newline, which every file here does; `wc -l` counts one fewer if the last
+// line is unterminated.)
+//
+// Raising the limit is not the fix. Splitting the file is.
+{
+    files: ["src/**/*.ts", "src/**/*.tsx"],
+    rules: {
+        "max-lines": ["error", { max: 1000, skipBlankLines: false, skipComments: false }],
+    },
+},
+// The one file still over the limit when the guard landed. Pinned to its exact
+// current length rather than rounded up, so it can only ever shrink: any line
+// added to it fails CI. Delete this entry once the view is split (#439).
+{
+    files: ["src/webview/views/IrisChat/IrisChatView.tsx"],
+    rules: {
+        "max-lines": ["error", { max: 1132, skipBlankLines: false, skipComments: false }],
+    },
+},
 // Layer boundary: webview (browser) code must not import extension-host or test modules.
 {
     files: ["src/webview/**/*.ts", "src/webview/**/*.tsx"],
