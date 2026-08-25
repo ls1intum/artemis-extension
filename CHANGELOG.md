@@ -9,7 +9,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Release tooling:** Removed four shell scripts left over from before the release workflow existed. Nothing referenced them, the workflow does the tagging, release creation and packaging itself, and each carried a way to damage published state: one rewrote the minimum VS Code version back to 1.97, one deleted every GitHub release to recreate it.
 - **Chat provider:** Split the Iris chat's webview provider, a 1528-line class, into the webview surface plus three collaborators: navigation, the send path, and Iris availability. Two duplicated rules went with it. No behaviour change.
 - **Chat view:** Split the Iris chat view, a 1132-line component, into the rendering plus four hooks and a module of pure screen-selection rules that now have their own tests. No behaviour change.
-- **God-file guard:** Lint now fails a file in `src/` over 1000 lines. Nothing in `src/` is above it.
+- **God-file guard:** Lint now fails a file in `src/` over 850 lines. A ratchet, not a target: it sits just above the largest file there and drops again whenever that number does.
 - **Dead code:** Removed three units that nothing reached. A score component no view ever rendered; a registry method for importing exercises from raw course data that no longer had a caller, along with the older `{ id, exercises }` input shape it tolerated; and two of the three copies of the service-health result type, which could have drifted apart from the message it travels in without the compiler noticing. Also removed a date helper and a re-export left unused by those deletions. No behaviour change.
 
 ## [0.5.0] - 2026-08-20
