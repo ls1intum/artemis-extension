@@ -10,7 +10,7 @@ import { ApiError, type IrisSettingsResponse } from '@extension/types';
 
 /**
  * What the availability check runs against. Derived from where the chat IS (see
- * `ChatWebviewProvider._availabilityContext`), not from any stored selection:
+ * `ChatAvailabilityCoordinator.context`), not from any stored selection:
  * Iris settings are a course-level question. Usually that is the open
  * conversation; a course whose Iris is switched off is entered without one, and
  * then the course itself is the context.
@@ -29,7 +29,7 @@ export interface AvailabilityContext {
  * unavailable, retry" banner. Conflating the two misleads students into
  * thinking their course turned Iris off whenever the network blips.
  */
-type IrisAvailability =
+export type IrisAvailability =
     | { kind: 'enabled' }
     | { kind: 'disabled' }
     | { kind: 'unavailable'; reason: string };

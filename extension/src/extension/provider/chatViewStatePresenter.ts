@@ -54,16 +54,16 @@ export class ChatViewStatePresenter {
         private readonly _postMessage: (msg: ExtensionToWebviewMessage) => void,
         /**
          * The Iris conversation service, or `undefined` when it was never
-         * constructed (e.g. no ArtemisApiService). A GETTER, not a value: the
-         * service is created in the provider's constructor, after the
-         * presenter, so a plain value here would capture `undefined` forever.
+         * constructed (e.g. no ArtemisApiService). A GETTER, not a value: it
+         * would work as a value in production, but the chat's white-box tests
+         * install a double after construction. See #440.
          */
         private readonly _getConversation: () => IrisConversationService | undefined,
         /**
          * The startup coordinator's latest published detection state. A
-         * getter, not a value, for the same reason `_getConversation` is: the
-         * coordinator is constructed after the presenter, so a plain value
-         * here would capture whatever it was at construction time forever.
+         * getter for a reason of its own, which production really does need:
+         * the coordinator REASSIGNS it on every `publishDetectionState`, so a
+         * captured value would freeze the snapshot at `'unsettled'`.
          */
         private readonly _getDetectionState: () => DetectionUiState,
     ) {}
