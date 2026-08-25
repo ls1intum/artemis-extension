@@ -123,15 +123,6 @@ export default [{
         "max-lines": ["error", { max: 1000, skipBlankLines: false, skipComments: false }],
     },
 },
-// The one file still over the limit when the guard landed. Pinned to its exact
-// current length rather than rounded up, so it can only ever shrink: any line
-// added to it fails CI. Delete this entry once the view is split (#439).
-{
-    files: ["src/webview/views/IrisChat/IrisChatView.tsx"],
-    rules: {
-        "max-lines": ["error", { max: 1132, skipBlankLines: false, skipComments: false }],
-    },
-},
 // Layer boundary: webview (browser) code must not import extension-host or test modules.
 {
     files: ["src/webview/**/*.ts", "src/webview/**/*.tsx"],
