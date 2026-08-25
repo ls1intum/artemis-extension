@@ -43,9 +43,12 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
     const store = useChatStore();
 
     const courseList = useCourseList(vscodeApi);
-    useIrisInboundMessages({ onCourseRefreshAnswered: courseList.noteRefreshAnswered });
-
+    // Hook order is effect order. The popovers' auto-close effects ran ahead of
+    // the inbound listener before the split, and the pending-echo timer ahead
+    // of the deferred resend; both orderings are preserved here and inside
+    // `useChatSend`.
     const popovers = useChatPopovers({ store, requestCourses: courseList.request });
+    useIrisInboundMessages({ onCourseRefreshAnswered: courseList.noteRefreshAnswered });
     const {
         sendBlocked, sendBlockedReason,
         handleSendMessage, handleRetry, handleRetryChatLoad, isRetryDisabled,

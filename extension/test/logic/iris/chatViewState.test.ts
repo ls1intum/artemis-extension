@@ -59,6 +59,30 @@ describe('deriveStartupState', () => {
         expect(state.startupPending).toBe(true);
         expect(state.isColdStart).toBe(false);
         expect(state.suppressOrdinaryShell).toBe(true);
+        expect(state.showCourseChooser).toBe(false);
+    });
+
+    it('treats an open conversation as "open" even with no course', () => {
+        // `nothingOpen` needs BOTH ids null. A session without a course is a
+        // real conversation, and every startup screen must stand down for it.
+        const state = deriveStartupState({ ...coldStart, currentSessionId: 7 }, true);
+
+        expect(state).toMatchObject({
+            isColdStart: false,
+            startupPending: false,
+            detectionUnavailable: false,
+            showCourseChooser: false,
+        });
+    });
+
+    it('lets a detected workspace exercise through the outage and waiting screens', () => {
+        // `workspaceExerciseId` narrows the cold start ONLY. A detection that
+        // failed, or has not answered, is still that regardless of what an
+        // earlier detection found.
+        const detected = { ...coldStart, workspaceExerciseId: 5 };
+
+        expect(deriveStartupState({ ...detected, detectionState: 'unavailable' }, false).detectionUnavailable).toBe(true);
+        expect(deriveStartupState({ ...detected, detectionState: 'unsettled' }, false).startupPending).toBe(true);
     });
 
     it('is not a cold start when a workspace exercise was detected', () => {
@@ -216,7 +240,39 @@ describe('deriveComposerPlaceholder', () => {
         );
 
         expect(text).toBe('Detecting your Artemis exercise failed. Retry above.');
-        expect(text).not.toContain('server');
+    });
+
+    it('names .noai when nothing else outranks it', () => {
+        const text = deriveComposerPlaceholder({ ...usable, isNoAiDetected: true }, noScreen);
+
+        expect(text).toBe('AI assistance is disabled (.noai detected)');
+    });
+
+    it('keeps its precedence when several reasons are true at once', () => {
+        // Each pair is reachable, and each would read wrong under the other
+        // ordering. Asserting them is what makes the if/else chain's order a
+        // rule rather than an accident.
+        expect(deriveComposerPlaceholder(
+            { ...usable, disabledMessage: 'off', currentSessionId: null },
+            { ...noScreen, showCourseChooser: true },
+        )).toBe('Iris chat is not available here');
+
+        expect(deriveComposerPlaceholder(
+            { ...usable, disabledMessage: 'off', unavailableMessage: 'unreachable' },
+            noScreen,
+        )).toBe('Iris chat is not available here');
+
+        // No conversation outranks .noai: "Choose a course" is the actionable
+        // one, and the .noai banner already states the other.
+        expect(deriveComposerPlaceholder(
+            { ...usable, currentSessionId: null, isNoAiDetected: true },
+            noScreen,
+        )).toBe('Choose a course to start chatting');
+
+        expect(deriveComposerPlaceholder(
+            { ...usable, isNoAiDetected: true, unavailableMessage: 'unreachable' },
+            noScreen,
+        )).toBe('AI assistance is disabled (.noai detected)');
     });
 
     it('offers the retry wording for a transient outage', () => {

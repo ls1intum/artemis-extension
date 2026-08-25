@@ -113,6 +113,26 @@ export function useChatSend(vscodeApi: VsCodeApi, store: ChatState) {
         handleSendMessage(failed.content);
     };
 
+    // Last resort for an echo the POST never settled. Deliberately above BOTH
+    // request timeouts that can run before a send settles: the POST (30s,
+    // CONFIG.API.REQUEST_TIMEOUT_MS) and, when that times out, the
+    // coordinator's reconciliation GET on the same budget. A shorter deadline
+    // would race a send that is still legitimately being resolved and put back
+    // the very duplicate this removes.
+    useEffect(() => {
+        const held = store.pendingEcho;
+        if (!held) { return; }
+        const timer = setTimeout(() => {
+            // Only the hold this timer was armed for. A settled hold replaced
+            // by a newer one before React ran the cleanup would otherwise be
+            // flushed by the old timer.
+            if (useChatStore.getState().pendingEcho === held) {
+                useChatStore.getState().flushPendingEcho();
+            }
+        }, 65_000);
+        return () => clearTimeout(timer);
+    }, [store.pendingEcho]);
+
     /**
      * The message a Retry deferred until the chat is reachable again. Held in a
      * ref, not in state: it must not trigger a render of its own.
@@ -154,26 +174,6 @@ export function useChatSend(vscodeApi: VsCodeApi, store: ChatState) {
         // recreated every render, so listing it would re-run this on every
         // render instead of on the transitions that matter.
     }, [store.unavailableMessage, sendBlocked]);
-
-    // Last resort for an echo the POST never settled. Deliberately above BOTH
-    // request timeouts that can run before a send settles: the POST (30s,
-    // CONFIG.API.REQUEST_TIMEOUT_MS) and, when that times out, the
-    // coordinator's reconciliation GET on the same budget. A shorter deadline
-    // would race a send that is still legitimately being resolved and put back
-    // the very duplicate this removes.
-    useEffect(() => {
-        const held = store.pendingEcho;
-        if (!held) { return; }
-        const timer = setTimeout(() => {
-            // Only the hold this timer was armed for. A settled hold replaced
-            // by a newer one before React ran the cleanup would otherwise be
-            // flushed by the old timer.
-            if (useChatStore.getState().pendingEcho === held) {
-                useChatStore.getState().flushPendingEcho();
-            }
-        }, 65_000);
-        return () => clearTimeout(timer);
-    }, [store.pendingEcho]);
 
     /**
      * Retry is meaningful only when the underlying cause has plausibly cleared
