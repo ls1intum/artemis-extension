@@ -9,11 +9,3 @@ export interface ProblemStatementProps {
     onTaskClick?: (task: { taskName: string; testIds: number[] }) => void;
     vscodeApi: VsCodeApi;
 }
-
-export interface ScoreInfoProps {
-    score: number | null;
-    maxScore: number;
-    bonusPoints?: number;
-    assessmentType?: string;
-    completionDate?: string;
-}

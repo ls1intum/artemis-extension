@@ -1,17 +1,9 @@
-import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
+import type { HealthCheckResult, WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 
 import type { CommandContext, CommandMap } from './types';
-
-interface HealthCheckResult {
-    status: 'online' | 'offline' | 'unknown';
-    message: string;
-    endpoint: string;
-    httpStatus: number | null;
-    response: string | null;
-}
 
 type HealthCheckResults = Record<string, HealthCheckResult>;
 

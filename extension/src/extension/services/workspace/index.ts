@@ -10,6 +10,5 @@ export {
     getWorkspaceRepositoryUrl,
     getWorkspaceStatus,
     normalizeRepositoryUrl,
-    toExerciseSource,
 } from './workspaceDetectionService';
 export * from './workspaceFileChecker';
