@@ -68,12 +68,12 @@ suite('ChatWebviewProvider reveal (conversation model)', () => {
 
     test('refuses a reveal whose navigation token is stale, without navigating or focusing', async () => {
         h = buildHarness();
-        const armed = h.provider.currentNavToken();
+        const armed = h.provider.proactive.currentNavToken();
 
         // The student navigates somewhere else while the reveal is being persisted.
         h.startNavigation();
 
-        const revealed = await h.provider.revealProactiveSessionForExercise(10, 7, 4711, 'Ex', armed);
+        const revealed = await h.provider.proactive.revealProactiveSessionForExercise(10, 7, 4711, 'Ex', armed);
 
         assert.strictEqual(revealed, false, 'a stale reveal must report that it did nothing');
         assert.strictEqual(h.navigateTo.callCount, 0, 'a stale reveal must not navigate');
@@ -86,23 +86,23 @@ suite('ChatWebviewProvider reveal (conversation model)', () => {
 
     test('reads the service request token, so a navigation that has started but not installed already invalidates a reveal', async () => {
         h = buildHarness();
-        const armed = h.provider.currentNavToken();
+        const armed = h.provider.proactive.currentNavToken();
 
         // A navigation is admitted but its detail request has not returned, so no
         // conversation has installed yet. `navigationGeneration` would still be
         // unchanged here; the request sequence is what moved.
         h.startNavigation();
 
-        assert.notStrictEqual(h.provider.currentNavToken(), armed, 'the token must move when a navigation starts');
+        assert.notStrictEqual(h.provider.proactive.currentNavToken(), armed, 'the token must move when a navigation starts');
         assert.strictEqual(
-            await h.provider.revealProactiveSessionForExercise(10, 7, 4711, 'Ex', armed),
+            await h.provider.proactive.revealProactiveSessionForExercise(10, 7, 4711, 'Ex', armed),
             false,
         );
     });
 
     test('navigates to the target conversation by course AND session', async () => {
         h = buildHarness();
-        const revealed = await h.provider.revealProactiveSessionForExercise(10, 7, 4711, 'Ex', h.provider.currentNavToken());
+        const revealed = await h.provider.proactive.revealProactiveSessionForExercise(10, 7, 4711, 'Ex', h.provider.proactive.currentNavToken());
 
         assert.strictEqual(revealed, true);
         assert.deepStrictEqual(
@@ -117,7 +117,7 @@ suite('ChatWebviewProvider reveal (conversation model)', () => {
         const navigateTo = sinon.stub().returns(new Promise<void>(r => { release = r; }));
         h = buildHarness({ navigateTo });
 
-        await h.provider.revealProactiveSessionForExercise(10, 7, 4711, 'Ex', h.provider.currentNavToken());
+        await h.provider.proactive.revealProactiveSessionForExercise(10, 7, 4711, 'Ex', h.provider.proactive.currentNavToken());
 
         assert.ok(
             h.focus.getCalls().some(c => c.args[0] === 'iris.chatView.focus'),
@@ -130,7 +130,7 @@ suite('ChatWebviewProvider reveal (conversation model)', () => {
         const navigateTo = sinon.stub().rejects(new Error('offline'));
         h = buildHarness({ navigateTo });
 
-        const revealed = await h.provider.revealProactiveSessionForExercise(10, 7, 4711, 'Ex', h.provider.currentNavToken());
+        const revealed = await h.provider.proactive.revealProactiveSessionForExercise(10, 7, 4711, 'Ex', h.provider.proactive.currentNavToken());
 
         assert.strictEqual(revealed, true, 'the reveal was accepted; the open failing later is a separate matter');
         await Promise.resolve();

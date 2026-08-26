@@ -67,7 +67,7 @@ suite('C8: ChatWebviewProvider proactive outcome routing', () => {
 
     test('with proactiveEpisodeId: routes to onEpisodeDismiss callback, NOT legacy setProactiveOutcome', (done) => {
         const onEpisodeDismiss = sinon.stub();
-        provider.setStruggleCallbacks({ onEpisodeDismiss });
+        provider.proactive.setStruggleCallbacks({ onEpisodeDismiss });
 
         (provider as unknown as { _handleMessage(msg: unknown): void })._handleMessage({
             type: 'command',
@@ -86,7 +86,7 @@ suite('C8: ChatWebviewProvider proactive outcome routing', () => {
 
     test('without proactiveEpisodeId: falls back to legacy setProactiveOutcome (no crash)', (done) => {
         const onEpisodeDismiss = sinon.stub();
-        provider.setStruggleCallbacks({ onEpisodeDismiss });
+        provider.proactive.setStruggleCallbacks({ onEpisodeDismiss });
 
         (provider as unknown as { _handleMessage(msg: unknown): void })._handleMessage({
             type: 'command',
@@ -140,7 +140,7 @@ suite('C8: ChatWebviewProvider proactive outcome routing', () => {
     test('with proactiveEpisodeId + RECOVERED ("Solved it"): routes to onEpisodeResolve, NOT onEpisodeDismiss', (done) => {
         const onEpisodeDismiss = sinon.stub();
         const onEpisodeResolve = sinon.stub();
-        provider.setStruggleCallbacks({ onEpisodeDismiss, onEpisodeResolve });
+        provider.proactive.setStruggleCallbacks({ onEpisodeDismiss, onEpisodeResolve });
 
         (provider as unknown as { _handleMessage(msg: unknown): void })._handleMessage({
             type: 'command',
@@ -157,7 +157,7 @@ suite('C8: ChatWebviewProvider proactive outcome routing', () => {
     });
 
     test('without proactiveEpisodeId + RECOVERED: legacy setProactiveOutcome persists RECOVERED', (done) => {
-        provider.setStruggleCallbacks({ onEpisodeDismiss: sinon.stub(), onEpisodeResolve: sinon.stub() });
+        provider.proactive.setStruggleCallbacks({ onEpisodeDismiss: sinon.stub(), onEpisodeResolve: sinon.stub() });
 
         (provider as unknown as { _handleMessage(msg: unknown): void })._handleMessage({
             type: 'command',

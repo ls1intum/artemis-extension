@@ -122,14 +122,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		postIntervention: (exerciseId, body) => artemisApiService.postStruggleIntervention(exerciseId, body),
 		isStudentProactiveOn: () => getProactiveLevel() !== 'off',
 		getProactiveLevel,
-		openProactiveSession: async (courseId, sessionId) => { await chatWebviewProvider?.openProactiveSession(courseId, sessionId); },
-		setProactiveBadge: on => chatWebviewProvider?.setProactiveBadge(on),
-		postOptimisticBubble: (text, messageId, episodeId) => chatWebviewProvider?.postOptimisticBubble(text, messageId, episodeId),
+		openProactiveSession: async (courseId, sessionId) => { await chatWebviewProvider?.proactive.openProactiveSession(courseId, sessionId); },
+		setProactiveBadge: on => chatWebviewProvider?.proactive.setProactiveBadge(on),
+		postOptimisticBubble: (text, messageId, episodeId) => chatWebviewProvider?.proactive.postOptimisticBubble(text, messageId, episodeId),
 		// State frame (not an event): the engine dedups by value, so a frame swallowed by the
 		// optional chain would never be re-sent. Safe only because the provider is constructed
 		// below before any slot transition can fire (alerts need the warmup; server events need
 		// the WS subscribe, which no-ops until connected).
-		postLiveEpisode: episodeId => chatWebviewProvider?.postLiveEpisode(episodeId),
+		postLiveEpisode: episodeId => chatWebviewProvider?.proactive.postLiveEpisode(episodeId),
 		// C2: reveal + episode-outcome API + webview reconcile (webview side stubbed until C3/C5 wires it)
 		revealAmbient: (exerciseId, episodeId, hintText, level, clientMessageId) =>
 			artemisApiService.revealAmbient(exerciseId, episodeId, hintText, level, clientMessageId),
@@ -147,9 +147,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (courseId === undefined || !title) { return undefined; }
 			return { courseId, title };
 		},
-		currentNavToken: () => chatWebviewProvider?.currentNavToken() ?? 0,
+		currentNavToken: () => chatWebviewProvider?.proactive.currentNavToken() ?? 0,
 		openRevealSession: async (courseId, exerciseId, sessionId, title, expectedNavToken) =>
-			(await chatWebviewProvider?.revealProactiveSessionForExercise(courseId, exerciseId, sessionId, title, expectedNavToken)) ?? false,
+			(await chatWebviewProvider?.proactive.revealProactiveSessionForExercise(courseId, exerciseId, sessionId, title, expectedNavToken)) ?? false,
 		notifyRevealUnavailable: () => {
 			void vscode.window.showWarningMessage("Can't open this Iris hint. Its exercise isn't available in the workspace.");
 		},
@@ -160,16 +160,16 @@ export async function activate(context: vscode.ExtensionContext) {
 		cancelOutstandingStruggleJob: (exerciseId, requestToken) =>
 			artemisApiService.cancelOutstandingStruggleJob(exerciseId, requestToken),
 		// C7: fold episode host->webview
-		foldEpisode: (episodeId, outcome, praise) => chatWebviewProvider?.postFoldEpisode(episodeId, outcome, praise),
+		foldEpisode: (episodeId, outcome, praise) => chatWebviewProvider?.proactive.postFoldEpisode(episodeId, outcome, praise),
 		// C4: stale-row suppression
-		postRemoveMessage: (id) => chatWebviewProvider?.postRemoveMessage(id),
+		postRemoveMessage: (id) => chatWebviewProvider?.proactive.postRemoveMessage(id),
 		deleteSupersededProactiveMessage: (exerciseId, messageId) =>
 			artemisApiService.deleteSupersededProactiveMessage(exerciseId, messageId),
 		// C5: offer-bubble transport (C6-C10 producers). Bubble + resolve go to the chat provider
 		// (like postOptimisticBubble / postRemoveMessage); the offer banner mirrors showNudgeBanner's
 		// reveal-if-hidden wrapper below so an offer shown while the sidebar is collapsed still surfaces.
-		postOfferBubble: (o) => chatWebviewProvider?.postOfferBubble(o),
-		resolveOfferBubble: (offerId, answered) => chatWebviewProvider?.resolveOfferBubble(offerId, answered),
+		postOfferBubble: (o) => chatWebviewProvider?.proactive.postOfferBubble(o),
+		resolveOfferBubble: (offerId, answered) => chatWebviewProvider?.proactive.resolveOfferBubble(offerId, answered),
 		// Reconnect-aware subscribe primitive for the per-user struggle topic. A
 		// reconnect is a fresh STOMP session, so we (re)subscribe on each connect.
 		subscribeStruggleTopic: (topic, onFrame) => {
@@ -404,7 +404,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	chatWebviewProvider.onDidChangeExerciseContext(({ exerciseId, exerciseRoot }) => {
 		struggleCoordinator.startExerciseSession(exerciseId, exerciseRoot);
 	});
-	chatWebviewProvider.setStruggleCallbacks({ onEpisodeDismiss: dismissEpisode, onEpisodeResolve: resolveEpisode });
+	chatWebviewProvider.proactive.setStruggleCallbacks({ onEpisodeDismiss: dismissEpisode, onEpisodeResolve: resolveEpisode });
 	// C3: in-session flag: toggle the slot's quiet/loud escalation branch as the chat view opens/closes.
 	if (setInSession) {
 		context.subscriptions.push(chatWebviewProvider.onDidChangePanelVisibility(open => setInSession(open)));
