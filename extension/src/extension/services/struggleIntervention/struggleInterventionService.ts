@@ -1,6 +1,5 @@
 import type { EpisodeHistoryEntry, EpisodeOutcomeLabel, SlotDebugSnapshot } from '@shared/messageContracts';
 
-import { ApiError } from '@extension/domain';
 import { isSafeAnchorPath } from '@extension/services/intervention/anchorPath';
 import { rebaseAnchorLine } from '@extension/services/intervention/anchorRebase';
 import type { AlertSink } from '@extension/services/struggle/alerting/alertSink';
@@ -14,7 +13,8 @@ import type { InFlightMarker, OwedConfirmClose, StruggleInterventionDeps } from 
 import { DEFAULT_PROGRESS_CFG, DEFAULT_SLOT_CFG } from './interventionDeps';
 import type { OutstandingOffer } from './offerController';
 import { OfferController } from './offerController';
-import type { EpisodeHint, Level } from './slot/episode';
+import { RevealController } from './revealController';
+import type { EpisodeHint } from './slot/episode';
 import type { Episode } from './slot/episode';
 import { newEpisode } from './slot/episode';
 import type { PendingStamp } from './slot/guard';
@@ -31,13 +31,6 @@ import { TickRingBuffer } from './tickRingBuffer';
 export type { StruggleInterventionDeps } from './interventionDeps';
 
 
-/** Delay between reveal-persist retries. The server upsert is idempotent (A10), so retries are safe. */
-const REVEAL_RETRY_MS = 5_000;
-/** Maximum number of reveal-persist retry attempts (~1 min at 5s). After this the bubble stays runtime-only. */
-const MAX_REVEAL_RETRIES = 12;
-/** Permanent server-side rejection codes. These must not be retried; only transient/5xx/network errors are retried. */
-const NON_RETRIABLE_REVEAL_STATUSES = new Set([400, 403, 404, 422]);
-
 /**
  * Orchestrates the proactive struggle intervention on the client (spec §4). Implements {@link AlertSink}; alerts
  * arrive via the coordinator's sink chain (BackoffGate -> ThrottledAlertSink -> this, see telemetry/index.ts)
@@ -50,11 +43,6 @@ export class StruggleInterventionService implements AlertSink {
     private _serverAvailable = true;
     private _courseProactiveOff = false;
 
-    /**
-     * Generation counter for reveal-persist retries. Incremented by resetSession (exercise switch) to
-     * invalidate any in-flight retry closure that captured a stale generation.
-     */
-    private _revealRetryGen = 0;
 
     // Slot-core state (package-internal for test access: underscore prefix).
 
@@ -88,19 +76,15 @@ export class StruggleInterventionService implements AlertSink {
     // The proactive help offers (Moment-1 / Moment-3) and the three pieces of state only they write.
     private readonly _offers: OfferController;
 
+    // Reveal persistence + the terminal outcomes that race it (owns the consent-epoch generation).
+    private readonly _reveal: RevealController;
+
     /**
      * The proactive session id from the last inbound ambient event (spec §5, A9).
      * Stored here because the SlotManager does not hold session ids. Cleared on resetSession.
      */
     _frozenSessionId: number | undefined;
 
-    /**
-     * Per-exercise pending terminal outcomes. Keyed by episodeId. Lives at the orchestrator level
-     * so it survives a slot free (teardown). Populated when setEpisodeOutcome returns applied=false
-     * (canonical row not yet created). Flushed when the reveal-persist retry creates the row.
-     * Cleared on resetSession (new exercise = fresh state).
-     */
-    _pendingOutcomes = new Map<string, { outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' }>();
 
     /**
      * Evidence gate after idle-abandon: set when the stale watchdog silently frees a slot
@@ -122,6 +106,11 @@ export class StruggleInterventionService implements AlertSink {
         this._latch = new ProgressCloseLatch(
             _deps.progressCloseCfg ?? DEFAULT_PROGRESS_CFG,
         );
+        this._reveal = new RevealController({
+            deps: _deps,
+            dbg: (msg) => this._dbg(msg),
+            notifyChanged: () => this.notifySlotDebugChanged(),
+        });
         this._offers = new OfferController({
             deps: _deps,
             slotSnapshot: () => this._slot.snapshot(),
@@ -157,7 +146,7 @@ export class StruggleInterventionService implements AlertSink {
                 ? { intent: m.intent, localToken: m.localToken, episodeId: m.episodeId, generation: m.generation, requestToken: m.requestToken }
                 : null,
             owed: { confirmClose: this._owedConfirmClose !== undefined },
-            pendingOutcomes: this._pendingOutcomes.size,
+            pendingOutcomes: this._reveal.pendingOutcomeCount,
             awaitingEvidence: this._awaitingEvidence,
             suppression: {
                 serverAvailable: this._serverAvailable,
@@ -229,9 +218,13 @@ export class StruggleInterventionService implements AlertSink {
         this.notifySlotDebugChanged();
     }
 
-    private _setPendingOutcome(episodeId: string, outcome: { outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' }): void { this._pendingOutcomes.set(episodeId, outcome); this.notifySlotDebugChanged(); }
-    private _deletePendingOutcome(episodeId: string): void { this._pendingOutcomes.delete(episodeId); this.notifySlotDebugChanged(); }
-    private _clearPendingOutcomes(): void { this._pendingOutcomes.clear(); this.notifySlotDebugChanged(); }
+    /** Test seam (package-internal, unchanged by the split): the live map, now owned by RevealController. */
+    get _pendingOutcomes(): Map<string, { outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED' }> { return this._reveal.pendingOutcomes; }
+
+    /** Record the student's terminal outcome for an episode (A10 episode-keyed endpoint). */
+    applyEpisodeOutcome(episodeId: string, outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED'): Promise<void> {
+        return this._reveal.applyEpisodeOutcome(episodeId, outcome);
+    }
 
     /** Fed every engine tick (ungated buffer fill). Wired externally so we don't bypass coordinator gating. */
     onTick(tick: TickRecord): void {
@@ -740,7 +733,7 @@ export class StruggleInterventionService implements AlertSink {
                 this._clearEpisodeRuntime();
                 if (liveEpisodeId) {
                     if (exerciseId !== undefined) {
-                        this._writeOutcomeWithBackfill(exerciseId, liveEpisodeId, 'RECOVERED');
+                        this._reveal.writeOutcomeWithBackfill(exerciseId, liveEpisodeId, 'RECOVERED');
                     }
                     const praise = (episodeLabel && closeMessageId !== undefined)
                         ? { episodeLabel, closeMessageId }
@@ -1099,7 +1092,7 @@ export class StruggleInterventionService implements AlertSink {
                 this._clearEpisodeRuntime();
 
                 if (episodeId && exerciseId !== undefined) {
-                    this._writeOutcomeWithBackfill(exerciseId, episodeId, 'ABANDONED');
+                    this._reveal.writeOutcomeWithBackfill(exerciseId, episodeId, 'ABANDONED');
                     this._deps.foldEpisode(episodeId, 'ABANDONED');
                 }
                 this._setAwaitingEvidence(true, 'idle-abandon force-free');
@@ -1404,12 +1397,12 @@ export class StruggleInterventionService implements AlertSink {
             this._slot.free();
             this._clearEpisodeRuntime();
             if (targetEpisodeId && exerciseId !== undefined) {
-                this._writeOutcomeWithBackfill(exerciseId, targetEpisodeId, outcome);
+                this._reveal.writeOutcomeWithBackfill(exerciseId, targetEpisodeId, outcome);
                 this._deps.foldEpisode(targetEpisodeId, outcome);
             }
         } else if (targetEpisodeId && exerciseId !== undefined) {
             // Slot already FREE, PARKED, or episodeId mismatch: idempotent outcome write only.
-            this._writeOutcomeWithBackfill(exerciseId, targetEpisodeId, outcome);
+            this._reveal.writeOutcomeWithBackfill(exerciseId, targetEpisodeId, outcome);
         }
     }
 
@@ -1472,7 +1465,7 @@ export class StruggleInterventionService implements AlertSink {
         // #349 Finding 3: invalidate any scheduled reveal-persist retry (same generation bump
         // resetSession uses). Without this, a retry scheduled before the revoke would fire and
         // egress episode + hint content through revealAmbient while consent is disabled.
-        this._revealRetryGen++;
+        this._reveal.invalidateInFlight();
         if (!this._slot.isFree()) {
             const st = this._slot.snapshot().state;
             if (st.kind === 'delivered') { this.recordTerminalEpisode(st.episode, 'INTERRUPTED'); }
@@ -1496,7 +1489,7 @@ export class StruggleInterventionService implements AlertSink {
         this._setServerAvailable(true);
         this._courseProactiveOff = false;
         // C2: cancel any in-flight reveal-persist retry (generation bump invalidates stale closures)
-        this._revealRetryGen++;
+        this._reveal.invalidateInFlight();
         // C3: clear all slot + episode runtime state
         if (!this._slot.isFree()) {
             const st = this._slot.snapshot().state;
@@ -1523,7 +1516,7 @@ export class StruggleInterventionService implements AlertSink {
         this._clearEpisodeRuntime();
         this._continuedEpisodeIds.clear();
         this._frozenSessionId = undefined;
-        this._clearPendingOutcomes();
+        this._reveal.clearPendingOutcomes();
         this._offers.resetForNewExercise();
         this._setAwaitingEvidence(false, 'new exercise');
         this.reset();
@@ -1607,151 +1600,9 @@ export class StruggleInterventionService implements AlertSink {
         // Persist first; navigate to the hint's exercise ONLY from the confirmed same-epoch success
         // branch inside _persistReveal (spec C.6). The parked path posts no optimistic bubble and
         // does not open the session eagerly: the row arrives via the A0-preserved reload.
-        await this._persistReveal(exerciseId, episodeId, frozenText, 'ambient', localId, courseId, sessionId, title, navToken);
+        await this._reveal.persistReveal(exerciseId, episodeId, frozenText, 'ambient', localId, courseId, sessionId, title, navToken);
     }
 
-    /**
-     * Record the student's terminal outcome for the active episode (spec §7.5, A10 episode-keyed endpoint).
-     * Used in test harnesses to directly drive outcome writes with back-fill semantics.
-     */
-    async applyEpisodeOutcome(
-        episodeId: string,
-        outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED',
-    ): Promise<void> {
-        const exerciseId = this._deps.getExerciseId();
-        if (exerciseId === undefined) { return; }
-        const { applied } = await this._deps.setEpisodeOutcome(exerciseId, episodeId, outcome);
-        if (!applied) {
-            this._setPendingOutcome(episodeId, { outcome });
-            this._dbg(`  -> back-fill: outcome=${outcome} deferred for episodeId=${episodeId} (row not yet created)`);
-        }
-    }
 
-    /**
-     * Write a terminal episode outcome and record a pending back-fill entry when the canonical
-     * row does not yet exist (setEpisodeOutcome returns applied=false). The flush fires in
-     * _persistReveal once the reveal-persist retry creates the row (spec §12 back-fill contract).
-     * Best-effort: errors are swallowed so callers never throw into a terminal teardown path.
-     */
-    private _writeOutcomeWithBackfill(
-        exerciseId: number,
-        episodeId: string,
-        outcome: 'DISMISSED' | 'RECOVERED' | 'ABANDONED',
-    ): void {
-        this._dbg(`  -> OUTCOME ${outcome} write (episodeId=${episodeId})`);
-        void this._deps.setEpisodeOutcome(exerciseId, episodeId, outcome)
-            .then(({ applied }) => {
-                if (!applied) {
-                    this._setPendingOutcome(episodeId, { outcome });
-                    this._dbg(`  -> back-fill: outcome=${outcome} deferred for episodeId=${episodeId} (row not yet created)`);
-                }
-            })
-            .catch(() => { /* best-effort */ });
-    }
 
-    /**
-     * Persist the revealed hint as a canonical chat message row. On success, reconciles the optimistic
-     * bubble and flushes any pending terminal outcome. On transient failure, schedules a best-effort retry.
-     */
-    private async _persistReveal(
-        exerciseId: number,
-        episodeId: string,
-        hintText: string,
-        level: Level,
-        localId: string,
-        courseId: number,
-        sessionId: number,
-        title: string,
-        navToken: number,
-        attempt = 0,
-    ): Promise<boolean> {
-        // #349 wave 2: epoch capture. Everything that happens after the await below (success
-        // reconciliation, outcome flush, retry scheduling) is scoped to the consent epoch that
-        // STARTED this request: a revoke bumps _revealRetryGen (as does resetSession), so a
-        // request that was in flight across the boundary settles into a no-op.
-        const revealGeneration = this._revealRetryGen;
-        // #349 Finding 3: never egress a reveal after a consent revoke (the retry is scheduled
-        // async, so consent may have flipped since it was queued).
-        if (!this._deps.isEgressEnabled()) {
-            this._dbg('  -> reveal persist skipped: egress disabled (consent revoked)');
-            return false;
-        }
-        try {
-            const dto = await this._deps.revealAmbient(exerciseId, episodeId, hintText, level, localId);
-            // #349 wave 2: post-await epoch boundary. A success that lands after a revoke (or a
-            // revoke->regrant, which bumped the generation) must not reconcile the bubble, flush an
-            // outcome, or navigate - return false, the episode was terminated locally.
-            if (this._revealRetryGen !== revealGeneration || !this._deps.isEgressEnabled()) {
-                this._dbg('  -> reveal reply dropped: consent epoch changed during the POST');
-                return false;
-            }
-            if (dto.id === undefined) {
-                throw new Error('revealAmbient returned a DTO with no message id');
-            }
-            const serverId = dto.id;
-            const proactiveEpisodeId = typeof dto['proactiveEpisodeId'] === 'string' ? dto['proactiveEpisodeId'] : undefined;
-            const sentAt = typeof dto['sentAt'] === 'string' ? dto['sentAt'] : new Date().toISOString();
-            this._deps.reconcileOptimisticBubble(localId, serverId, proactiveEpisodeId, sentAt);
-            this._dbg(`  -> reveal persisted: serverId=${serverId} proactiveEpisodeId=${proactiveEpisodeId ?? 'none'}`);
-            // Flush any pending terminal outcome recorded before the canonical row existed
-            const pending = this._pendingOutcomes.get(episodeId);
-            if (pending) {
-                this._deletePendingOutcome(episodeId);
-                this._dbg(`  -> back-fill flush: outcome=${pending.outcome} for episodeId=${episodeId}`);
-                try {
-                    await this._deps.setEpisodeOutcome(exerciseId, episodeId, pending.outcome);
-                } catch (flushErr) {
-                    this._dbg(`  -> back-fill flush failed (best-effort): ${flushErr instanceof Error ? flushErr.message : String(flushErr)}`);
-                }
-            }
-            // #364 spec C.6: confirmed same-epoch persistence is the ONLY trigger for navigation.
-            // Navigate as if the student switched to the hint's exercise, materialising the persisted
-            // row via the A0-preserved reload. Fire-and-forget (a stale navToken makes the provider
-            // abort per spec A.1; the hint is persisted and shows on the student's return). The carried
-            // courseId/sessionId/title/navToken were captured at reveal time (re-reading state now
-            // would be unsafe: a reset/context change can have cleared or replaced it).
-            void this._deps.openRevealSession(courseId, exerciseId, sessionId, title, navToken);
-            return true;
-        } catch (err) {
-            if (err instanceof ApiError && NON_RETRIABLE_REVEAL_STATUSES.has(err.status)) {
-                this._dbg(`  -> reveal persist: permanent ${err.status}, not retrying (spec §12 attrition)`);
-                // #364: the reveal permanently failed; tell the student. Stay silent if the student
-                // changed consent while the POST was in flight (same-epoch guard as everywhere else),
-                // so a self-inflicted revoke dies quietly like the other reveal drop paths.
-                if (this._revealRetryGen === revealGeneration && this._deps.isEgressEnabled()) {
-                    this._deps.notifyRevealFailed();
-                }
-                return false;
-            }
-            if (attempt >= MAX_REVEAL_RETRIES) {
-                this._dbg(`  -> reveal persist: max retries (${MAX_REVEAL_RETRIES}) reached, giving up`);
-                // #364: give-up after the retry cap; same same-epoch guard as the permanent-4xx branch.
-                if (this._revealRetryGen === revealGeneration && this._deps.isEgressEnabled()) {
-                    this._deps.notifyRevealFailed();
-                }
-                return false;
-            }
-            // #349 wave 2: no retry across a consent epoch boundary. If a revoke (or a
-            // revoke->regrant) happened while the request was in flight, the generation captured
-            // BEFORE the request no longer matches, so scheduling a retry would smuggle stale
-            // pre-revoke hint content into the new epoch. The closure also keeps the CAPTURED
-            // generation (not a fresh read), so a revoke between scheduling and firing still
-            // invalidates it.
-            if (this._revealRetryGen !== revealGeneration || !this._deps.isEgressEnabled()) {
-                this._dbg('  -> reveal persist failed after a consent epoch change; no retry scheduled');
-                return false;
-            }
-            this._dbg(`  -> reveal persist failed (attempt ${attempt + 1}/${MAX_REVEAL_RETRIES}), scheduling retry in ${REVEAL_RETRY_MS}ms`);
-            const schedule = this._deps.setTimeoutFn ?? ((fn: () => void, ms: number) => { setTimeout(fn, ms); });
-            schedule(() => {
-                if (this._revealRetryGen !== revealGeneration) { return; }
-                // Thread the carried navigation args so the retry that first succeeds still has the
-                // ORIGINAL courseId/sessionId/title/navToken for the confirmed-success navigation.
-                void this._persistReveal(exerciseId, episodeId, hintText, level, localId, courseId, sessionId, title, navToken, attempt + 1);
-            }, REVEAL_RETRY_MS);
-        }
-        // Not confirmed this attempt (transient failure -> retry scheduled). The retry caller ignores
-        // this return; revealParkedHint awaits only for sequencing.
-        return false;
-    }
 }
