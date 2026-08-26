@@ -3,9 +3,9 @@ import type { EpisodeHistoryEntry, EpisodeOutcomeLabel, SlotDebugSnapshot } from
 import type { AlertSink } from '@extension/services/struggle/alerting/alertSink';
 import type { AlertRecord, TickRecord } from '@extension/services/struggle/types';
 
-import { isHardAlert, suppressReason } from './alertSuppression';
-import { buildStruggleSignal } from './buildStruggleSignal';
-import { decideOutcome } from './decideOutcome';
+import { suppressReason } from './alertSuppression';
+import type { EgressPort } from './egressController';
+import { EgressController } from './egressController';
 import { EpisodeHistory } from './episodeHistory';
 import type { InFlightMarker, OwedConfirmClose, StruggleInterventionDeps } from './interventionDeps';
 import { DEFAULT_PROGRESS_CFG } from './interventionDeps';
@@ -16,7 +16,6 @@ import type { ServerFramePort } from './serverFrameHandler';
 import { ServerFrameHandler } from './serverFrameHandler';
 import type { EpisodeHint } from './slot/episode';
 import type { Episode } from './slot/episode';
-import { newEpisode } from './slot/episode';
 import type { PendingStamp } from './slot/guard';
 import { InFlightGuard } from './slot/guard';
 import { ProgressCloseLatch } from './slot/progressClose';
@@ -25,7 +24,6 @@ import { StaleWatchdog } from './slot/staleWatchdog';
 import type { SlotRuntime } from './slotRuntime';
 import { newSlotRuntime } from './slotRuntime';
 import type { StruggleSignal } from './struggleContract';
-import { TickRingBuffer } from './tickRingBuffer';
 
 /** Re-exported so importers (five test suites among them) keep the original path. */
 export type { StruggleInterventionDeps } from './interventionDeps';
@@ -39,7 +37,6 @@ export type { StruggleInterventionDeps } from './interventionDeps';
  * extension.ts from `coordinator.onDidTick`). vscode-free at runtime -- only type imports; all effects injected.
  */
 export class StruggleInterventionService implements AlertSink {
-    private readonly _buffer = new TickRingBuffer(12);
     private _serverAvailable = true;
     private _courseProactiveOff = false;
 
@@ -54,7 +51,7 @@ export class StruggleInterventionService implements AlertSink {
     // Slot-core state, forwarded (package-internal test seam: the suites read and assign
     // these ~280 times, so the names stay exactly as they were and hand back the live objects).
     get _slot(): SlotManager { return this._rt.slot; }
-    get _guard(): InFlightGuard { return this._inFlightGuard; }
+    get _guard(): InFlightGuard { return this._egress._guard; }
     get _latch(): ProgressCloseLatch { return this._rt.latch; }
     get _watchdog(): StaleWatchdog | undefined { return this._rt.watchdog; }
     set _watchdog(v: StaleWatchdog | undefined) { this._rt.watchdog = v; }
@@ -71,14 +68,12 @@ export class StruggleInterventionService implements AlertSink {
     // only the outbound half and the close scheduler touch it.
     _owedConfirmClose: OwedConfirmClose | undefined;
 
-    // Async/generation guard: validates inbound websocket replies against the live slot state
-    private readonly _inFlightGuard = new InFlightGuard();
 
     // The inbound half of the exchange: every reply the server can send.
     private readonly _frames: ServerFrameHandler;
 
-    // Episode ids that have had at least one accepted POST (isNew flipped to false for future POSTs)
-    private _continuedEpisodeIds = new Set<string>();
+    // The outbound half: decide / help_request / confirm_close, and the wire bookkeeping.
+    private readonly _egress: EgressController;
 
     // The proactive help offers (Moment-1 / Moment-3) and the three pieces of state only they write.
     private readonly _offers: OfferController;
@@ -120,6 +115,7 @@ export class StruggleInterventionService implements AlertSink {
             resetWatchdogProgress: () => this._watchdog?.resetProgress(Date.now()),
             sendHelpRequest: () => { void this._sendHelpRequest(); },
         });
+        this._egress = new EgressController(this._rt, this._egressPort());
         this._frames = new ServerFrameHandler(this._rt, this._framePort());
     }
 
@@ -138,7 +134,7 @@ export class StruggleInterventionService implements AlertSink {
             generation: snap.generation,
             episodeAgeMs: episode ? now - episode.createdAtMs : null,
             hintCount: episode?.hints.length ?? 0,
-            isNew: episode ? !this._continuedEpisodeIds.has(episode.episodeId) : false,
+            isNew: episode ? !this._egress._continuedEpisodeIds.has(episode.episodeId) : false,
             inSession: snap.inSession,
             watchdog: {
                 armed: this._watchdog?.isArmed() ?? false,
@@ -230,7 +226,7 @@ export class StruggleInterventionService implements AlertSink {
 
     /** Fed every engine tick (ungated buffer fill). Wired externally so we don't bypass coordinator gating. */
     onTick(tick: TickRecord): void {
-        this._buffer.push(tick);
+        this._egress.pushTick(tick);
         // Typing evidence (one-char inserts in the feature window): clears the idle-abandon gate
         // AND defers the idle watchdog. Typing is activity, so the idle stretch is no longer
         // continuous ("any activity postpones the silent free"); without the deferral, a
@@ -245,7 +241,7 @@ export class StruggleInterventionService implements AlertSink {
         }
         // C3: feed progress latch with sBase from tick (newGreenTest path goes through onNewBuildResult)
         this._latch.observe(tick.ts, tick.sBase, false);
-        this._propagateLatchToOwed();
+        this._egress.propagateLatchToOwed();
         // Sustained sBase drop (student recovering): defer the stale watchdog.
         // Fires on every tick whose sBase is below the re-arm threshold, regardless of edit
         // locality; NOT on new green tests (those go through onNewBuildResult which uses Date.now()).
@@ -263,7 +259,7 @@ export class StruggleInterventionService implements AlertSink {
         // C3: tick the watchdog with the coordinator timestamp (wall-clock ms in live; replay-injected in tests)
         this._handleWatchdogTick(tick.ts);
         // C3: drain any owed confirmClose (wire may now be free)
-        void this._drainOwed();
+        void this._egress.drainOwed();
     }
 
     /** Called by the build-result watcher when a build produces a strict new high in passed tests. */
@@ -273,11 +269,11 @@ export class StruggleInterventionService implements AlertSink {
         this._setAwaitingEvidence(false, 'new green test');
         // Use Date.now() for the latch since it cares about real time, not session time
         this._latch.observe(Date.now(), 1.0 /* above any threshold, won't fire sBase path */, true);
-        this._propagateLatchToOwed();
+        this._egress.propagateLatchToOwed();
         // Hard progress: defer the stale watchdog so it does not fire while the student advances
         this._watchdog?.resetProgress(Date.now());
         this.notifySlotDebugChanged();
-        void this._drainOwed();
+        void this._egress.drainOwed();
     }
 
     /**
@@ -292,7 +288,7 @@ export class StruggleInterventionService implements AlertSink {
 
     /** AlertSink.deliver -- reached for every engine alert that passed the BackoffGate + throttle chain (#352: no settings gate). */
     deliver(alert: AlertRecord): void {
-        void this._handleAlert(alert);
+        void this._egress.handleAlert(alert);
     }
 
     /** Developer-mode diagnostic line (gated upstream); no-op when devLog is not injected. */
@@ -320,227 +316,6 @@ export class StruggleInterventionService implements AlertSink {
         return this._suppressReason(alert) !== null;
     }
 
-    private async _handleAlert(alert: AlertRecord): Promise<void> {
-        const suppressed = this._suppressReason(alert);
-        if (suppressed !== null) {
-            this._dbg(suppressed);
-            return;
-        }
-
-        const preSlot = this._slot.snapshot().state;
-        if (preSlot.kind === 'delivered'
-            && !(preSlot.level === 'ambient' && isHardAlert(alert))
-            && this._offers.canRaiseStuckOfferNow(preSlot.episode.episodeId)) {
-            this._offers.raiseStuckOffer();
-            return;
-        }
-
-        // A hard alert is itself fresh evidence (build/terminal/paste = student action).
-        if (this._awaitingEvidence && isHardAlert(alert)) {
-            this._setAwaitingEvidence(false, 'hard-boundary alert');
-        }
-
-        // Hoisted so the catch's #349 Finding 2 token guard can see it (set just before the POST).
-        let requestToken: string | undefined;
-        try {
-            const signal = buildStruggleSignal(alert, this._buffer.snapshot());
-            const snap = this._slot.snapshot();
-
-            const outcome = decideOutcome({
-                optedIn: this._deps.isEgressEnabled(),
-                inFlight: this._inFlightMarker !== undefined,
-                hasExercise: this._deps.getExerciseId() !== undefined,
-                noaiMarker: this._deps.hasNoaiMarker(),
-                serverAvailable: this._serverAvailable,
-            });
-
-            this._dbg(`> ALERT t=${signal.alert.tSessionS}s boundary=${signal.alert.primaryBoundary} `
-                + `severity=${signal.alert.severity.toFixed(2)} -> decision=${outcome} `
-                + `(slot=${snap.state.kind}, gen=${snap.generation}, inFlight=${this._inFlightMarker !== undefined})`);
-
-            if (outcome === 'silent') {
-                await this._deps.log.record({ action: 'requested', finalAction: 'silent', surface: 'none', source: 'local', signal });
-                this._dbg('  -> SILENT (no egress path: no opt-in / .noai / server-unavailable)');
-                return;
-            }
-            if (outcome === 'skip') {
-                this._dbg('  -> SKIP (no POST, no surface)');
-                return;
-            }
-
-            const exerciseId = this._deps.getExerciseId() as number;
-            const hardEvent = isHardAlert(alert);
-
-            // Episode preallocation: candidate for FREE/PARKED, live episode for DELIVERED
-            let requestEpisode: { episodeId: string; isNew: boolean; hints: EpisodeHint[] };
-
-            if (snap.state.kind === 'free') {
-                this._candidate = newEpisode(Date.now(), () => crypto.randomUUID(), exerciseId);
-                requestEpisode = {
-                    episodeId: this._candidate.episodeId,
-                    isNew: !this._continuedEpisodeIds.has(this._candidate.episodeId),
-                    hints: this._candidate.hints,
-                };
-            } else if (snap.state.kind === 'parked') {
-                // A new candidate for the possible replacement; the PARKED episode is never sent back
-                this._candidate = newEpisode(Date.now(), () => crypto.randomUUID(), exerciseId);
-                requestEpisode = {
-                    episodeId: this._candidate.episodeId,
-                    isNew: !this._continuedEpisodeIds.has(this._candidate.episodeId),
-                    hints: this._candidate.hints,
-                };
-            } else {
-                // DELIVERED: continue the live episode
-                this._candidate = undefined;
-                const liveEp = snap.state.episode;
-                requestEpisode = {
-                    episodeId: liveEp.episodeId,
-                    isNew: !this._continuedEpisodeIds.has(liveEp.episodeId),
-                    hints: liveEp.hints,
-                };
-            }
-
-            this._lastSignal = signal;
-            requestToken = crypto.randomUUID();
-
-            // Stamp the guard BEFORE async collection (TOCTOU: a second alert must see in-flight)
-            const stamp: PendingStamp = {
-                episodeId: requestEpisode.episodeId,
-                generation: snap.generation,
-                hardEvent,
-                requestToken,
-            };
-            const localToken = this._guard.issue('decide', stamp);
-            this._setInFlightMarker({ requestToken, episodeId: requestEpisode.episodeId, generation: snap.generation, intent: 'decide', localToken, exerciseId });
-
-            const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
-            // Stash the exact bytes we send as the rebase baseline for the eventual anchor reply. The
-            // marker is stable across this await (the in-flight guard blocks a second decide, and no
-            // reply for this POST can exist yet), but key on the requestToken to be defensive.
-            if (this._inFlightMarker?.requestToken === requestToken) {
-                this._inFlightMarker.baseline = uncommittedFiles;
-            }
-            await this._deps.log.record({ action: 'requested', finalAction: 'silent', surface: 'none', source: 'server', signal });
-
-            // #349 TOCTOU (spec 3.5): consent may have been revoked while awaiting the
-            // file collection - nothing may leave the machine after a revoke. A revoke
-            // clears the in-flight marker (onConsentRevoked -> reset), so a token
-            // mismatch equally means this request was superseded. A POST already on
-            // the wire below cannot be recalled; that residual window is accepted.
-            if (!this._deps.isEgressEnabled() || this._inFlightMarker?.requestToken !== requestToken) {
-                this._dbg('  -> ABORT (consent revoked or request superseded during collection)');
-                return;
-            }
-
-            const result = await this._deps.postIntervention(exerciseId, {
-                struggleSignal: signal,
-                uncommittedFiles,
-                intent: 'decide',
-                episode: requestEpisode,
-                requestToken,
-                proactivityMode: this._deps.getProactiveLevel() === 'less' ? 'pull' : 'push',
-            });
-
-            this._dbg(`  -> POST result: ${result}`);
-
-            if (result === 'accepted') {
-                // This episode has now been seen by Pyris: record it so later requests send isNew=false.
-                this._continuedEpisodeIds.add(requestEpisode.episodeId);
-                // _inFlightMarker stays set until the websocket reply arrives (onServerAmbient/Active/Silent)
-                return;
-            }
-            // #349 Finding 2: token-scoped settlement (mirror _sendHelpRequest ~L1382). If a
-            // revoke->regrant issued a fresh marker while this POST was on the wire, a stale
-            // completion must not clear or latch onto the new request's in-flight state. Only the
-            // clearing/latching branches are gated; 'accepted' above deliberately keeps the marker.
-            if (this._inFlightMarker?.requestToken !== requestToken) {
-                this._dbg('  -> POST settled but request superseded (token mismatch); leaving live marker untouched');
-                return;
-            }
-            if (result === 'course-off') {
-                // Panel refresh: the _setInFlightMarker below notifies, covering this latch flip.
-                this._courseProactiveOff = true;
-                this._setInFlightMarker(undefined);
-                this._candidate = undefined;
-            } else if (result === 'unavailable') {
-                this._setServerAvailable(false);
-                this._setInFlightMarker(undefined);
-                this._candidate = undefined;
-            } else {
-                // 'failed': transient error -- release wire so next alert retries
-                this._setInFlightMarker(undefined);
-                this._candidate = undefined;
-            }
-        } catch (err) {
-            this._dbg(`  -> ERROR during intervention: ${err instanceof Error ? err.message : String(err)}`);
-            // #349 Finding 2: only clear when THIS request still owns the wire (a throw after a
-            // supersession must not kill the new request's marker).
-            if (this._inFlightMarker?.requestToken === requestToken) {
-                this._setInFlightMarker(undefined);
-                this._candidate = undefined;
-            }
-        }
-    }
-
-
-    /**
-     * Validate an inbound decide reply against the current in-flight marker + slot generation.
-     * Returns the PendingStamp on match, null on stale/no-marker (stale drop).
-     * Side effect: clears _inFlightMarker when accepted or when stale.
-     */
-    private _acceptDecide(): PendingStamp | null {
-        if (!this._inFlightMarker || this._inFlightMarker.intent !== 'decide') {
-            return null;
-        }
-        const snap = this._slot.snapshot();
-        const stamp = this._guard.accept(
-            'decide',
-            this._inFlightMarker.localToken,
-            this._inFlightMarker.episodeId,
-            snap.generation,
-        );
-        // Clear the in-flight marker regardless of result (the reply has landed)
-        this._setInFlightMarker(undefined);
-        return stamp;
-    }
-
-    /**
-     * Validate an inbound help_request reply against the current in-flight marker + slot generation.
-     * Returns the PendingStamp on match, null on stale/no-marker; clears the marker.
-     * Package-internal (no `private`) so logic tests can exercise it directly.
-     */
-    _acceptHelpRequest(): PendingStamp | null {
-        if (!this._inFlightMarker || this._inFlightMarker.intent !== 'help_request') {
-            return null;
-        }
-        const snap = this._slot.snapshot();
-        const stamp = this._guard.accept('help_request', this._inFlightMarker.localToken, this._inFlightMarker.episodeId, snap.generation);
-        this._setInFlightMarker(undefined);
-        return stamp;
-    }
-
-    /**
-     * Clear in-flight marker without running guard validation (used on mid-flight drops
-     * where we don't have a decide reply, e.g. student opt-out mid-flight).
-     */
-    private _clearInFlight(): void {
-        this._setInFlightMarker(undefined);
-        this._candidate = undefined;
-    }
-
-    /**
-     * Stale-row suppression (C4): called when a control frame is dropped as stale and
-     * carries a `messageId` for its persisted chat row. Posts a live removeMessage to the
-     * webview (removes any existing row AND suppresses future chat-ws arrivals of that id)
-     * and enqueues a durable server-side delete so the row does not survive a reload.
-     */
-    private _dropStaleRow(messageId: number): void {
-        this._deps.postRemoveMessage(messageId);
-        const exerciseId = this._deps.getExerciseId();
-        if (exerciseId !== undefined) {
-            void this._deps.deleteSupersededProactiveMessage(exerciseId, messageId).catch(() => { /* best-effort */ });
-        }
-    }
 
     private _handleWatchdogTick(nowMs: number): void {
         if (!this._watchdog) { return; }
@@ -598,162 +373,6 @@ export class StruggleInterventionService implements AlertSink {
         }
     }
 
-    /**
-     * POST a consented follow-up (help_request) for the live DELIVERED episode. Single-flight; the reply
-     * lands in onServerActive (or onServerSilent for the silent edge). Requires a prior struggle signal.
-     */
-    async _sendHelpRequest(): Promise<void> {
-        const snap = this._slot.snapshot();
-        // A local boolean, not a direct narrow on `this._inFlightMarker` (mirrors _handleAlert's
-        // `inFlight` pattern) -- narrowing the field itself here would collapse it to `undefined`
-        // for the rest of the method, breaking the later `this._inFlightMarker?.baseline` write.
-        const inFlight = this._inFlightMarker !== undefined;
-        if (snap.state.kind !== 'delivered' || inFlight || !this._lastSignal) {
-            return;
-        }
-        const exerciseId = this._deps.getExerciseId();
-        if (exerciseId === undefined) {
-            return;
-        }
-        // Egress gates can change between delivery and this consented click. An explicit "Show me"
-        // never overrides a hard privacy block (.noai) or withdrawn consent / disabled course /
-        // proactive-off / offline server (mirrors the decide path's decideOutcome gates). If blocked,
-        // give an honest note instead of egressing the workspace.
-        if (!this._deps.isIrisEnabled()
-            || !this._deps.isEgressEnabled()
-            || this._deps.hasNoaiMarker()
-            || !this._deps.isStudentProactiveOn()
-            || !this._serverAvailable) {
-            this._deps.postBubble('Nothing more I can add right now.', null, this._deliveredEpisodeId());
-            return;
-        }
-        const ep = snap.state.episode;
-        const requestToken = crypto.randomUUID();
-        const requestEpisode = { episodeId: ep.episodeId, isNew: !this._continuedEpisodeIds.has(ep.episodeId), hints: ep.hints };
-        const stamp: PendingStamp = { episodeId: ep.episodeId, generation: snap.generation, hardEvent: false, requestToken };
-        const localToken = this._guard.issue('help_request', stamp);
-        this._setInFlightMarker({ requestToken, episodeId: ep.episodeId, generation: snap.generation, intent: 'help_request', localToken, exerciseId });
-        try {
-            const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
-            if (this._inFlightMarker?.requestToken === requestToken) {
-                this._inFlightMarker.baseline = uncommittedFiles;   // rebase baseline for an anchored follow-up
-            }
-            // #349 TOCTOU: re-validate consent + in-flight ownership after the await.
-            if (!this._deps.isEgressEnabled() || this._inFlightMarker?.requestToken !== requestToken) {
-                return;
-            }
-            const result = await this._deps.postIntervention(exerciseId, {
-                struggleSignal: this._lastSignal,
-                uncommittedFiles,
-                intent: 'help_request',
-                episode: requestEpisode,
-                requestToken,
-                proactivityMode: this._deps.getProactiveLevel() === 'less' ? 'pull' : 'push',
-            });
-            // Only clear + surface the fallback if THIS request is still the live one. The episode may
-            // have terminated (marker cleared by _clearEpisodeRuntime) or been superseded during the
-            // await -- posting to _deliveredEpisodeId() then would land on a different/absent episode.
-            if (result !== 'accepted' && this._inFlightMarker?.requestToken === requestToken) {
-                this._setInFlightMarker(undefined);
-                this._deps.postBubble('Nothing more I can add right now.', null, this._deliveredEpisodeId());
-            }
-        } catch {
-            if (this._inFlightMarker?.requestToken === requestToken) {
-                this._setInFlightMarker(undefined);
-                this._deps.postBubble('Nothing more I can add right now.', null, this._deliveredEpisodeId());
-            }
-        }
-    }
-
-    /**
-     * Propagate latch pending-post state -> _owedConfirmClose queue.
-     * Called immediately after every latch.observe() call so the owed entry is always set
-     * BEFORE _drainOwed -- even when the wire is busy (owed survives until wire frees).
-     */
-    private _propagateLatchToOwed(): void {
-        if (!this._latch.shouldPost() || this._owedConfirmClose) { return; }
-        const kind = this._slot.snapshot().state.kind;
-        if (kind === 'delivered') {
-            this._setOwedConfirmClose({ confirmReason: 'progress' });
-        } else if (kind === 'parked') {
-            this._setOwedConfirmClose({ confirmReason: 'parked_progress' });
-        }
-    }
-
-    private async _drainOwed(): Promise<void> {
-        // Defense-in-depth: never egress code while Iris is disabled, mirrors the _suppressReason gate.
-        if (!this._deps.isIrisEnabled()) { return; }
-        // Defense-in-depth (#349): confirm_close carries uncommitted files - never egress
-        // without the proactive consent (mirrors the isIrisEnabled gate above).
-        if (!this._deps.isEgressEnabled()) { return; }
-        // Wire must be free to drain. A local boolean, not a direct narrow on `this._inFlightMarker`
-        // (mirrors _sendHelpRequest's `inFlight` pattern) -- narrowing the field itself here would
-        // collapse it to `undefined` for the rest of the method, breaking the later #349 TOCTOU
-        // re-read of `this._inFlightMarker?.requestToken` after the collectFiles await.
-        const wireBusy = this._inFlightMarker !== undefined;
-        if (wireBusy) { return; }
-
-        const snap = this._slot.snapshot();
-        if (snap.state.kind === 'free') { return; }
-
-        const exerciseId = this._deps.getExerciseId();
-        if (exerciseId === undefined) { return; }
-        if (!this._lastSignal) { return; }
-
-        if (this._owedConfirmClose) {
-            const { confirmReason } = this._owedConfirmClose;
-            const epState = snap.state;
-            const ep = (epState.kind === 'delivered' || epState.kind === 'parked') ? epState.episode : null;
-            if (!ep) { return; }
-
-            const requestToken = crypto.randomUUID();
-            const requestEpisode = {
-                episodeId: ep.episodeId,
-                isNew: !this._continuedEpisodeIds.has(ep.episodeId),
-                hints: ep.hints,
-            };
-            const stamp: PendingStamp = { episodeId: ep.episodeId, generation: snap.generation, hardEvent: false, requestToken };
-            const localToken = this._guard.issue('confirm_close', stamp);
-            this._setInFlightMarker({ requestToken, episodeId: ep.episodeId, generation: snap.generation, intent: 'confirm_close', localToken, exerciseId });
-
-            try {
-                const uncommittedFiles = await this._deps.collectFiles(this._deps.getExerciseRoot());
-                // #349 TOCTOU: re-validate consent + in-flight ownership after the await.
-                if (!this._deps.isEgressEnabled() || this._inFlightMarker?.requestToken !== requestToken) {
-                    return;
-                }
-                const result = await this._deps.postIntervention(exerciseId, {
-                    struggleSignal: this._lastSignal,
-                    uncommittedFiles,
-                    intent: 'confirm_close',
-                    episode: requestEpisode,
-                    confirmReason,
-                    requestToken,
-                    proactivityMode: this._deps.getProactiveLevel() === 'less' ? 'pull' : 'push',
-                });
-                // #349 Finding 2: token-scoped settlement (mirror _sendHelpRequest). A stale
-                // completion from a superseded confirm_close (revoke->regrant issued a fresh marker)
-                // must not latch onto or clear the new request's in-flight state.
-                if (this._inFlightMarker?.requestToken !== requestToken) {
-                    return;
-                }
-                if (result === 'accepted') {
-                    this._continuedEpisodeIds.add(ep.episodeId);
-                    this._setOwedConfirmClose(undefined);
-                    this._latch.onPosted();
-                } else {
-                    // Not accepted (job pending, course-off, etc.) -- retry next tick
-                    this._setInFlightMarker(undefined);
-                }
-            } catch {
-                if (this._inFlightMarker?.requestToken === requestToken) {
-                    this._setInFlightMarker(undefined);
-                }
-            }
-            return;
-        }
-
-    }
 
     /**
      * Called on EVERY terminal transition (slot free). Tears down the progress latch, watchdog,
@@ -926,7 +545,7 @@ export class StruggleInterventionService implements AlertSink {
      * (404 / course-off) and the active cap: a mid-session surface clear must not silently lift a latch.
      */
     reset(): void {
-        this._buffer.clear();
+        this._egress.clearTicks();
         this._setInFlightMarker(undefined);
         this._candidate = undefined;
         this._lastSignal = undefined;
@@ -1000,7 +619,7 @@ export class StruggleInterventionService implements AlertSink {
             this._slot.free();
         }
         this._clearEpisodeRuntime();
-        this._continuedEpisodeIds.clear();
+        this._egress._continuedEpisodeIds.clear();
         this._frozenSessionId = undefined;
         this._reveal.clearPendingOutcomes();
         this._offers.resetForNewExercise();
@@ -1089,6 +708,46 @@ export class StruggleInterventionService implements AlertSink {
         await this._reveal.persistReveal(exerciseId, episodeId, frozenText, 'ambient', localId, courseId, sessionId, title, navToken);
     }
 
+    /** The mirror of {@link _framePort} for the outbound half. */
+    private _egressPort(): EgressPort {
+        return {
+            deps: this._deps,
+            reveal: this._reveal,
+            offers: this._offers,
+            dbg: (msg) => this._dbg(msg),
+            suppressReason: (alert) => this._suppressReason(alert),
+            setInFlightMarker: (v) => this._setInFlightMarker(v),
+            setOwedConfirmClose: (v) => this._setOwedConfirmClose(v),
+            owedConfirmClose: () => this._owedConfirmClose,
+            setServerAvailable: (v) => this._setServerAvailable(v),
+            serverAvailable: () => this._serverAvailable,
+            setCourseProactiveOff: (v) => { this._courseProactiveOff = v; },
+            awaitingEvidence: () => this._awaitingEvidence,
+            setAwaitingEvidence: (value, reason) => this._setAwaitingEvidence(value, reason),
+            deliveredEpisodeId: () => this._deliveredEpisodeId(),
+            clearEpisodeRuntime: () => this._clearEpisodeRuntime(),
+            recordTerminalEpisode: (episode, outcome) => this.recordTerminalEpisode(episode, outcome),
+            notifyChanged: () => this.notifySlotDebugChanged(),
+        };
+    }
+
+    // ---- Outbound, forwarded to EgressController (also the package-internal test seam) ----
+
+    /** POST a consented follow-up (help_request) for the live DELIVERED episode. Single-flight. */
+    _sendHelpRequest(): Promise<void> { return this._egress.sendHelpRequest(); }
+
+    /** Validate an inbound decide reply against the in-flight marker + slot generation. */
+    _acceptDecide(): PendingStamp | null { return this._egress.acceptDecide(); }
+
+    /** The same, for a consented follow-up. */
+    _acceptHelpRequest(): PendingStamp | null { return this._egress.acceptHelpRequest(); }
+
+    _clearInFlight(): void { this._egress.clearInFlight(); }
+
+    _dropStaleRow(messageId: number): void { this._egress.dropStaleRow(messageId); }
+
+    _drainOwed(): Promise<void> { return this._egress.drainOwed(); }
+
     /** The operations the inbound half needs from here. Named so the set is closed and visible. */
     private _framePort(): ServerFramePort {
         return {
@@ -1099,15 +758,15 @@ export class StruggleInterventionService implements AlertSink {
             setInFlightMarker: (v) => this._setInFlightMarker(v),
             setOwedConfirmClose: (v) => this._setOwedConfirmClose(v),
             setServerAvailable: (v) => this._setServerAvailable(v),
-            acceptDecide: () => this._acceptDecide(),
-            acceptHelpRequest: () => this._acceptHelpRequest(),
-            clearInFlight: () => this._clearInFlight(),
-            dropStaleRow: (messageId) => this._dropStaleRow(messageId),
+            acceptDecide: () => this._egress.acceptDecide(),
+            acceptHelpRequest: () => this._egress.acceptHelpRequest(),
+            clearInFlight: () => this._egress.clearInFlight(),
+            dropStaleRow: (messageId) => this._egress.dropStaleRow(messageId),
             deliveredEpisodeId: () => this._deliveredEpisodeId(),
             clearEpisodeRuntime: () => this._clearEpisodeRuntime(),
             recordTerminalEpisode: (episode, outcome) => this.recordTerminalEpisode(episode, outcome),
             notifyChanged: () => this.notifySlotDebugChanged(),
-            drainOwed: () => { void this._drainOwed(); },
+            drainOwed: () => { void this._egress.drainOwed(); },
         };
     }
 
