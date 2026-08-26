@@ -6,8 +6,10 @@ import { rebaseAnchorLine } from '@extension/services/intervention/anchorRebase'
 import type { AlertSink } from '@extension/services/struggle/alerting/alertSink';
 import type { AlertRecord, TickRecord } from '@extension/services/struggle/types';
 
+import { isHardAlert, suppressReason } from './alertSuppression';
 import { buildStruggleSignal } from './buildStruggleSignal';
 import { decideOutcome } from './decideOutcome';
+import { EpisodeHistory } from './episodeHistory';
 import type { InFlightMarker, OwedConfirmClose, StruggleInterventionDeps } from './interventionDeps';
 import { DEFAULT_PROGRESS_CFG, DEFAULT_SLOT_CFG } from './interventionDeps';
 import type { EpisodeHint, Level } from './slot/episode';
@@ -33,24 +35,6 @@ const REVEAL_RETRY_MS = 5_000;
 const MAX_REVEAL_RETRIES = 12;
 /** Permanent server-side rejection codes. These must not be retried; only transient/5xx/network errors are retried. */
 const NON_RETRIABLE_REVEAL_STATUSES = new Set([400, 403, 404, 422]);
-
-/** Boundary types that constitute a hard event (drive the escalation path). */
-const HARD_BOUNDARIES = new Set<string>(['FM', 'E4', 'N1']);
-
-/**
- * A hard alert is anchored on a student ACTION (build/terminal/paste), not on passive state:
- * it clears/bypasses the awaiting-evidence gate and may escalate a delivered-ambient episode.
- * Edit path: any hard boundary present. Discrete path: the test-stagnation trigger is hard
- * (build-anchored — the engine treats it as warmup-breaking for the same reason). Scoped to
- * the TRIGGER, not the kind: a future discrete add-on must opt into hard semantics explicitly.
- */
-function isHardAlert(alert: AlertRecord): boolean {
-    return alert.kind === 'edit'
-        ? alert.types.some(t => HARD_BOUNDARIES.has(t))
-        : alert.trigger === 'test-stagnation';
-}
-
-
 
 /**
  * Orchestrates the proactive struggle intervention on the client (spec §4). Implements {@link AlertSink}; alerts
@@ -132,8 +116,7 @@ export class StruggleInterventionService implements AlertSink {
      */
     private _awaitingEvidence = false;
 
-    private _episodeHistory: EpisodeHistoryEntry[] = [];
-    private static readonly HISTORY_CAP = 20;
+    private readonly _history = new EpisodeHistory();
     private _slotChangeScheduled = false;
 
     /** Last live-episode value pushed to the chat (SetLiveEpisode frame); dedups by value. */
@@ -182,23 +165,12 @@ export class StruggleInterventionService implements AlertSink {
 
     /** The in-memory, session-only episode history (newest last). */
     getEpisodeHistory(): readonly EpisodeHistoryEntry[] {
-        return this._episodeHistory;
+        return this._history.entries;
     }
 
-    /** Append a terminal episode to the ring buffer; derives peakLevel + duration from the episode. */
+    /** Append a terminal episode to the session history. Wall-clock is passed in, not read there. */
     private recordTerminalEpisode(episode: Episode, outcome: EpisodeOutcomeLabel): void {
-        const peakLevel: 'ambient' | 'active' = episode.hints.some(h => h.level === 'active') ? 'active' : 'ambient';
-        this._episodeHistory.push({
-            episodeId: episode.episodeId,
-            peakLevel,
-            outcome,
-            hintCount: episode.hints.length,
-            durationMs: Date.now() - episode.createdAtMs,
-            startedAtMs: episode.createdAtMs,
-        });
-        if (this._episodeHistory.length > StruggleInterventionService.HISTORY_CAP) {
-            this._episodeHistory.shift();
-        }
+        this._history.record(episode, outcome, Date.now());
     }
 
     /**
@@ -334,29 +306,14 @@ export class StruggleInterventionService implements AlertSink {
      * Returns the dev-log reason, or null when the alert may proceed.
      */
     private _suppressReason(alert: AlertRecord): string | null {
-        if (!this._deps.isIrisEnabled()) {
-            return '  -> SKIP (Iris not enabled for this course: no proactivity)';
-        }
-        if (this._courseProactiveOff) {
-            return '  -> SKIP (course proactive disabled for this session)';
-        }
-        if (!this._deps.isStudentProactiveOn()) {
-            return '  -> SKIP (student turned proactive off)';
-        }
-        if (this._awaitingEvidence && !isHardAlert(alert)) {
-            return '  -> SKIP (awaiting fresh evidence after idle-abandon)';
-        }
-        // Delivered-slot POST gating: while the slot is DELIVERED, reconcile suppresses every
-        // inbound result except the escalation case (revealed-ambient level + hard event).
-        // When no result could surface, don't pay for the server pipeline run at all.
-        const slot = this._slot.snapshot().state;
-        if (slot.kind === 'delivered' && !(slot.level === 'ambient' && isHardAlert(alert))) {
-            if (this._canRaiseStuckOfferNow(slot.episode.episodeId)) {
-                return null;
-            }
-            return '  -> SKIP (delivered slot: reconcile would suppress any result, POST saved)';
-        }
-        return null;
+        return suppressReason(alert, {
+            irisEnabled: this._deps.isIrisEnabled(),
+            courseProactiveOff: this._courseProactiveOff,
+            studentProactiveOn: this._deps.isStudentProactiveOn(),
+            awaitingEvidence: this._awaitingEvidence,
+            slot: this._slot.snapshot().state,
+            canRaiseStuckOfferNow: (episodeId) => this._canRaiseStuckOfferNow(episodeId),
+        });
     }
 
     /** BackoffSource: drop a suppressed alert above the throttle so it does not consume delivery budget. */
