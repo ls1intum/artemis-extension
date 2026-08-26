@@ -7,10 +7,44 @@ import type { SessionDetail } from '@shared/types/serverContext';
 import { ArtemisApiService } from '@extension/api';
 import { ApiError } from '@extension/domain/errors';
 import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
+import type { ChatAvailabilityCoordinator } from '@extension/services/iris/chat/chatAvailabilityCoordinator';
+import type { ChatNavigationController } from '@extension/services/iris/chat/chatNavigationController';
+import type { ChatSendController } from '@extension/services/iris/chat/chatSendController';
 import type { StartOutcome, TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
+import type { SendDeps } from '@extension/services/iris/conversation/sendCoordinator';
 import type { DetectionOutcome } from '@extension/services/workspace/detectionOutcome';
 import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
+
+/**
+ * The collaborators the provider wires up. These tests drive the REAL
+ * production objects, so they reach them through the provider that built them
+ * rather than re-creating that wiring by hand. One typed accessor, so a rename
+ * on either side is a compile error at exactly one place.
+ */
+interface ProviderCollaborators {
+    _availability: ChatAvailabilityCoordinator;
+    _navigation: ChatNavigationController;
+    _sendController: ChatSendController;
+    _populateAvailableContexts(options?: { force?: boolean }): Promise<void>;
+    _postMessageSafe(message: unknown): void;
+}
+
+function parts(provider: ChatWebviewProvider): ProviderCollaborators {
+    return provider as unknown as ProviderCollaborators;
+}
+
+/**
+ * The callbacks the provider handed the send coordinator. Reached white-box
+ * because navigation is refused mid-send today, so the origin-session
+ * divergence they guard is not reachable through the public surface.
+ *
+ * Typed as the real `SendDeps`, not a hand-written subset: a signature change
+ * on the production side has to fail this file rather than slip through.
+ */
+function sendCoordinatorDeps(controller: ChatSendController): SendDeps {
+    return (controller as unknown as { _sendCoordinator: { _deps: SendDeps } })._sendCoordinator._deps;
+}
 
 interface Harness {
     provider: ChatWebviewProvider;
@@ -201,7 +235,7 @@ suite('ChatWebviewProvider: Ask Iris', () => {
 
     setup(() => {
         h = buildHarness();
-        postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+        postSpy = h.sandbox.spy(parts(h.provider), '_postMessageSafe');
     });
     teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
 
@@ -356,10 +390,10 @@ suite('ChatWebviewProvider: availability is checked without a send', () => {
 
     setup(() => {
         h = buildHarness();
-        postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+        postSpy = h.sandbox.spy(parts(h.provider), '_postMessageSafe');
         check = h.sandbox.stub(
-            (h.provider as unknown as { _availability: { checkAndLoadIrisSettings: () => Promise<unknown> } })._availability,
-            'checkAndLoadIrisSettings',
+            parts(h.provider)._availability,
+            'check',
         ).resolves({ kind: 'disabled' } as never);
         // `start` fires an overview refresh, and an unstubbed sinon method
         // answers `undefined`, which the real endpoint cannot: it routes
@@ -382,11 +416,11 @@ suite('ChatWebviewProvider: availability is checked without a send', () => {
     });
 
     test('re-opening the view re-asks even though the conversation did not change', async () => {
-        // `_onConversationChanged` guards on the session id, so a re-install of
+        // the conversation-changed hook guards on the session id, so a re-install of
         // the SAME conversation posts no banner through that path at all: the
         // re-check comes from `resolveWebviewView` itself
-        // (`_refreshAvailability`, unconditional), independent of the
-        // coordinator's one-shot `_acquireConversation`. Acquisition runs off a
+        // (`ChatAvailabilityCoordinator.refresh`, unconditional), independent of the
+        // coordinator's one-shot acquisition. Acquisition runs off a
         // detection outcome, not off a registered workspace exercise, so the
         // test drives it the way the real activation path does.
         const detection = new vscode.EventEmitter<DetectionOutcome>();
@@ -479,15 +513,15 @@ suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => 
         // The coordinator consumes the startup latch BEFORE calling `start()`,
         // and calls it as `void` with no rejection handling of its own. That
         // is only safe because
-        // `_acquireConversation` catches the failure itself and shows the
+        // `ChatNavigationController.acquire` catches the failure itself and shows the
         // "Iris could not be reached" banner, whose Retry reloads the
         // now-known conversation. Without this test that recovery path is
-        // unverified: a broken `_acquireConversation` catch would silently
+        // unverified: a broken `acquire` catch would silently
         // drop both the detected workspace exercise AND any banner.
         const detection = new vscode.EventEmitter<DetectionOutcome>();
         h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
         h.api.getCurrentChat.rejects(new Error('network down'));
-        const postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+        const postSpy = h.sandbox.spy(parts(h.provider), '_postMessageSafe');
 
         await resolveView(h);
         detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
@@ -542,7 +576,7 @@ suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => 
         const detection = new vscode.EventEmitter<DetectionOutcome>();
         h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
         h.api.getCurrentChat.rejects(new ApiError('Request failed', 403, 'error.iris.course_disabled', 'iris.course_disabled'));
-        const postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+        const postSpy = h.sandbox.spy(parts(h.provider), '_postMessageSafe');
 
         await resolveView(h);
         detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
@@ -605,7 +639,7 @@ suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => 
         h.provider.attachStartupDetection({ onDetectionSettled: detection.event, retry: () => undefined });
         h.api.getCurrentChat.onFirstCall().rejects(new ApiError('Request failed', 500, 'Internal Server Error'));
         h.api.getCurrentChat.onSecondCall().resolves(detail({ sessionId: 1, courseId: 9 }));
-        const postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+        const postSpy = h.sandbox.spy(parts(h.provider), '_postMessageSafe');
 
         await resolveView(h);
         detection.fire({ kind: 'matched', exerciseId: 3, courseId: 9 });
@@ -629,7 +663,7 @@ suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => 
     });
 
     test('re-resolving the view with an installed conversation republishes its transcript once ready', async () => {
-        // `loadMessages` comes only from `_deliverTranscript`, which only an
+        // `loadMessages` comes only from `transcriptMessage`, which only an
         // acquisition or a reconnect reaches. A re-resolve of an already
         // installed conversation triggers neither, so without an explicit
         // republish the fresh webview gets `currentSessionId` but never a
@@ -661,7 +695,7 @@ suite('ChatWebviewProvider: the startup coordinator owns the cold start', () => 
         await settle();
 
         assert.strictEqual(h.api.getCurrentChat.callCount, 1, 'the conversation is installed once');
-        const postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+        const postSpy = h.sandbox.spy(parts(h.provider), '_postMessageSafe');
 
         // The panel is collapsed and reopened: a fresh `WebviewView`, a fresh
         // resolve, and the fresh webview's own `ready` signal. No new
@@ -710,8 +744,8 @@ suite('ChatWebviewProvider: reload Iris chat', () => {
             refreshOverview: async () => { calls.push('refreshOverview'); },
         };
         h.sandbox.stub(
-            (h.provider as unknown as { _availability: { checkAndLoadIrisSettings: () => Promise<unknown> } })._availability,
-            'checkAndLoadIrisSettings',
+            parts(h.provider)._availability,
+            'check',
         ).resolves({ kind: 'enabled' } as never);
     });
     teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
@@ -791,7 +825,7 @@ interface FakeConversation {
     switchCourseError?: unknown;
     switchOutcome: { kind: string; sessionId?: number; reason?: string };
     navigateError?: unknown;
-    /** `_acquireConversation`'s outcome from `conversation.start(workspace)`. */
+    /** `ChatNavigationController.acquire`'s outcome from `conversation.start(workspace)`. */
     startOutcome: StartOutcome;
     /**
      * The course `state.snapshot()` reports as current. Settable independently
@@ -882,7 +916,7 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
     setup(() => {
         h = buildHarness();
         fake = injectFakeConversation(h.provider);
-        postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+        postSpy = h.sandbox.spy(parts(h.provider), '_postMessageSafe');
     });
     teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
 
@@ -1147,7 +1181,7 @@ suite('ChatWebviewProvider: the conversation-first dispatcher', () => {
 
     test('refreshCourses reads the dashboard into the catalog and re-posts the snapshot', async () => {
         const populate = h.sandbox.stub(
-            h.provider as unknown as { _populateAvailableContexts: (o?: { force?: boolean }) => Promise<void> },
+            parts(h.provider),
             '_populateAvailableContexts',
         ).callsFake(async () => { h.courseCatalog.courses = [{ id: 42, title: 'Algorithms' }]; });
 
@@ -1185,19 +1219,19 @@ suite('ChatWebviewProvider: the conversation-first send path', () => {
 
     setup(() => {
         h = buildHarness();
-        postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+        postSpy = h.sandbox.spy(parts(h.provider), '_postMessageSafe');
         // The availability gate stays in front of the coordinator; it is the
         // only thing that knows about instructor settings.
         h.sandbox.stub(
-            (h.provider as unknown as { _availability: { checkAndLoadIrisSettings: () => Promise<unknown> } })._availability,
-            'checkAndLoadIrisSettings',
+            parts(h.provider)._availability,
+            'check',
         ).resolves({ kind: 'enabled' } as never);
     });
     teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
 
     const send = (over: Record<string, unknown> = {}) =>
-        (h.provider as unknown as { _handleChatMessage: (m: unknown) => Promise<void> })
-            ._handleChatMessage({ text: 'why does this loop?', localId: 'l1', sessionId: 1, ...over });
+        parts(h.provider)._sendController
+            .send({ text: 'why does this loop?', localId: 'l1', sessionId: 1, ...over });
 
     test('a send goes through the coordinator and confirms the bubble in its origin session', async () => {
         h.api.getCurrentChat.resolves(detail({ sessionId: 1 }));
@@ -1219,9 +1253,7 @@ suite('ChatWebviewProvider: the conversation-first send path', () => {
         // follows it rather than any stored selection.
         h.api.getCurrentChat.resolves(detail({ sessionId: 1, courseId: 42, context: { mode: 'COURSE_CHAT', entityId: 42 } }));
         await h.provider.askIrisAbout({ mode: 'COURSE_CHAT', entityId: 42 }, 42);
-        const check = (h.provider as unknown as {
-            _availability: { checkAndLoadIrisSettings: sinon.SinonStub };
-        })._availability.checkAndLoadIrisSettings;
+        const check = parts(h.provider)._availability.check as sinon.SinonStub;
         check.resetHistory();
         h.api.sendChatMessage.resolves({ id: 77, sender: 'USER' } as never);
 
@@ -1238,10 +1270,7 @@ suite('ChatWebviewProvider: the conversation-first send path', () => {
         // reason SendDeps passes the origin session in the first place).
         h.api.getCurrentChat.resolves(detail({ sessionId: 1 }));
         await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 }, 42);
-        const deps = (h.provider as unknown as { _sendCoordinator: { _deps: {
-            confirmBubble: (sessionId: number, localId: string, id: number) => void;
-            failBubble: (sessionId: number, localId: string, reason: string) => void;
-        } } })._sendCoordinator._deps;
+        const deps = sendCoordinatorDeps(parts(h.provider)._sendController);
 
         deps.confirmBubble(7, 'l1', 99);
         deps.failBubble(7, 'l2', 'rate-limit');
@@ -1276,7 +1305,7 @@ suite('ChatWebviewProvider: reload clears the banner that sent you to Retry', ()
 
     setup(() => {
         h = buildHarness();
-        postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+        postSpy = h.sandbox.spy(parts(h.provider), '_postMessageSafe');
     });
     teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
 
@@ -1291,8 +1320,8 @@ suite('ChatWebviewProvider: reload clears the banner that sent you to Retry', ()
         await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 }, 42);
         h.api.getChatSessionById.resolves(detail({ sessionId: 1 }));
         const check = h.sandbox.stub(
-            (h.provider as unknown as { _availability: { checkAndLoadIrisSettings: () => Promise<unknown> } })._availability,
-            'checkAndLoadIrisSettings',
+            parts(h.provider)._availability,
+            'check',
         ).resolves({ kind: 'enabled' } as never);
         postSpy.resetHistory();
 
@@ -1310,8 +1339,8 @@ suite('ChatWebviewProvider: reload clears the banner that sent you to Retry', ()
         await h.provider.askIrisAbout({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 }, 42);
         h.api.getChatSessionById.resolves(detail({ sessionId: 1 }));
         h.sandbox.stub(
-            (h.provider as unknown as { _availability: { checkAndLoadIrisSettings: () => Promise<unknown> } })._availability,
-            'checkAndLoadIrisSettings',
+            parts(h.provider)._availability,
+            'check',
         ).resolves({ kind: 'unavailable', reason: 'still down' } as never);
         postSpy.resetHistory();
 
@@ -1329,7 +1358,7 @@ suite('ChatWebviewProvider: the conversation owns the transcript', () => {
 
     setup(() => {
         h = buildHarness();
-        postSpy = h.sandbox.spy(h.provider as unknown as { _postMessageSafe: (m: unknown) => void }, '_postMessageSafe');
+        postSpy = h.sandbox.spy(parts(h.provider), '_postMessageSafe');
     });
     teardown(() => { h.provider.dispose(); h.sandbox.restore(); });
 
@@ -1435,24 +1464,20 @@ suite('ChatWebviewProvider: startup admission', () => {
     const NAVIGATIONS: Array<{ reason: string; run: (p: ChatWebviewProvider) => Promise<void> }> = [
         {
             reason: 'selectTopic',
-            run: p => (p as never as { _handleSelectTopic: (t: unknown) => Promise<void> })
-                ._handleSelectTopic({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 }),
+            run: p => parts(p)._navigation
+                .selectTopic({ mode: 'PROGRAMMING_EXERCISE_CHAT', entityId: 5 }),
         },
         {
             reason: 'openConversation',
-            run: p => (p as never as {
-                _handleOpenConversation: (params: { courseId: number; sessionId: number }) => Promise<void>;
-            })._handleOpenConversation({ courseId: 42, sessionId: 7 }),
+            run: p => parts(p)._navigation.openConversation({ courseId: 42, sessionId: 7 }),
         },
         {
             reason: 'switchCourse',
-            run: p => (p as never as { _handleSwitchCourse: (id: number) => Promise<void> })
-                ._handleSwitchCourse(42),
+            run: p => parts(p)._navigation.switchCourse(42),
         },
         {
             reason: 'newConversation',
-            run: p => (p as never as { _handleNewConversation: () => Promise<void> })
-                ._handleNewConversation(),
+            run: p => parts(p)._navigation.newConversation(),
         },
     ];
 
@@ -1493,8 +1518,7 @@ suite('ChatWebviewProvider: startup admission', () => {
         fake.sendInFlight = true;
         const admit = spyOnAdmission(h);
 
-        await (h.provider as never as { _handleSwitchCourse: (id: number) => Promise<void> })
-            ._handleSwitchCourse(42);
+        await parts(h.provider)._navigation.switchCourse(42);
 
         assert.strictEqual(admit.called, false,
             'a refused command never reached the conversation, so it named no destination');

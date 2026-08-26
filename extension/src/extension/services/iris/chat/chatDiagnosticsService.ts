@@ -25,9 +25,10 @@ export class ChatDiagnosticsService {
         private readonly _session: SessionIdentityReader,
         private readonly _exerciseRegistry: ExerciseRegistry,
         /**
-         * A GETTER, not a value: the conversation service is built after this
-         * one in the provider's constructor. Same house pattern as
-         * `ChatViewStatePresenter`.
+         * A GETTER, not a value. `_conversation` would work as a value in
+         * production: it is assigned once, before this collaborator, and never
+         * replaced. It is read at call time because the chat's white-box tests
+         * install a conversation double after construction. See #440.
          */
         private readonly _getConversation: () => IrisConversationService | undefined,
     ) { }

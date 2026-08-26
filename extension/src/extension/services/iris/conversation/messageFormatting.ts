@@ -1,4 +1,7 @@
+import type { ExtensionToWebviewMessage } from '@shared/messageContracts';
+import { ExtensionMsg } from '@shared/messageContracts';
 import type { IrisChatMessage } from '@shared/types/apiResponses';
+import type { SessionDetail } from '@shared/types/serverContext';
 
 import { extractIrisMessageContent } from '@extension/services/iris/chat/messageUtils';
 import { describeContextSwap, isContextSwap, parseContextSwap } from '@extension/services/iris/context/contextMarkers';
@@ -52,4 +55,18 @@ export function toWireMessages(messages: IrisChatMessage[] | undefined): WireMes
             final: typeof message.final === 'boolean' ? message.final : undefined,
         };
     });
+}
+
+/**
+ * The transcript message for an installed conversation. The ONLY producer of
+ * the visible message list, so `'load'` and `'merge'` can never disagree about
+ * what a transcript looks like: only `'load'` sets the webview's
+ * `loadedSessionId`, which is what clears the loader.
+ */
+export function transcriptMessage(detail: SessionDetail, mode: 'load' | 'merge'): ExtensionToWebviewMessage {
+    return {
+        type: mode === 'merge' ? ExtensionMsg.MergeSessionMessages : ExtensionMsg.LoadMessages,
+        sessionId: detail.sessionId,
+        messages: toWireMessages(detail.messages),
+    };
 }

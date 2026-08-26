@@ -104,6 +104,34 @@ export default [{
         "@typescript-eslint/no-unsafe-argument": "error",
     },
 },
+// God-file guard.
+//
+// Past a certain length a file has stopped being one unit: nothing can be read
+// without scrolling, ownership blurs, and every later change pays the cost of
+// finding its way around.
+//
+// A RATCHET, not a target. 850 sits just above the largest file in src/ (801),
+// so it can be lowered again whenever that number drops. It was 1000 when it
+// landed; the two files that forced that ceiling have since been split.
+//
+// It does not go lower than this today for a reason worth knowing. Length is
+// only a cheap proxy for "too many responsibilities", and the proxy fails on
+// registry-shaped files: `parseRecordedData.ts` is 801 lines of roughly forty
+// independent ten-line parsers, one per event type, with no coupling problem
+// to solve. A limit below 800 would force churn there and buy nothing.
+//
+// Counting includes blank lines and comments, so the number ESLint reports is
+// the number the editor shows. (It matches `wc -l` for any file ending in a
+// newline, which every file here does; `wc -l` counts one fewer if the last
+// line is unterminated.)
+//
+// Raising the limit is not the fix. Splitting the file is.
+{
+    files: ["src/**/*.ts", "src/**/*.tsx"],
+    rules: {
+        "max-lines": ["error", { max: 850, skipBlankLines: false, skipComments: false }],
+    },
+},
 // Layer boundary: webview (browser) code must not import extension-host or test modules.
 {
     files: ["src/webview/**/*.ts", "src/webview/**/*.tsx"],

@@ -2,7 +2,7 @@
   "name": "iris-thaumantias",
   "displayName": "Artemis - TUM",
   "description": "Artemis brings interactive learning to life with instant, individual feedback on programming exercises, quizzes, modeling tasks, and more. This VS Code extension integrates Iris, an LLM-based virtual assistant that supports students with instant answers about exercises, lectures, and learning performance. Iris provides context-aware, personalized assistance for programming exercises, encouraging independent problem-solving through subtle hints and guiding questions instead of giving full solutions.",
-  "version": "0.4.11-dev",
+  "version": "0.5.1-dev",
   "publisher": "aet-tum",
   "license": "MIT",
   "icon": "media/artemis-blue.png",
@@ -227,7 +227,7 @@
           "type": "string",
           "default": "",
           "description": "Default folder where all exercise repositories will be cloned automatically. Leave empty to choose a location each time.",
-          "markdownDescription": "**Default folder for exercise repositories**\n\nWhen set, all exercises will be automatically cloned to this folder without asking. Leave empty to choose manually each time.\n\nExample: `/Users/username/artemis-exercises` or `C:\\Users\\username\\artemis-exercises`"
+          "markdownDescription": "**Default folder for exercise repositories**\n\nWhen set, all exercises will be automatically cloned to this folder without asking. Leave empty to choose manually each time.\n\nA leading `~` is expanded to your home folder. Example: `~/artemis-exercises`, `/Users/username/artemis-exercises` or `C:\\Users\\username\\artemis-exercises`"
         },
         "artemis.showSetDefaultClonePathPrompt": {
           "type": "boolean",

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 
 import type { ArtemisApiService } from '@extension/api';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
-import type { AuthManager } from '@extension/services/auth';
+import type { AuthCancellationService, AuthManager } from '@extension/services/auth';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { IProviderRegistry } from '@extension/services/ui';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
@@ -20,13 +20,22 @@ function registerLogoutCommand(
     artemisApiService: ArtemisApiService,
     updateAuthContext: (isAuthenticated: boolean) => Promise<void>,
     artemisWebviewProvider: ArtemisWebviewProvider,
+    authCancellation: AuthCancellationService,
 ): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.logout', async () => {
+        // Both captured before the first await. A sign-in racing this logout must be stopped now, and
+        // the credential this logout is entitled to remove is the one that exists at this moment.
+        const revision = authManager.currentCredentialRevision();
+        const cancelled = authCancellation.cancelAll();
+
         try {
-            // Best-effort server-side logout before clearing local state. Never
-            // throws, so local cleanup proceeds regardless.
+            await cancelled;
             await artemisApiService.logoutFromServer();
-            await authManager.clear();
+            const cleared = await authManager.clearIfUnchanged(revision);
+            if (!cleared) {
+                logger.info('Logout superseded by a newer sign-in', LogCategory.AUTH);
+                return;
+            }
             await updateAuthContext(false);
             vscode.window.showInformationMessage('Successfully logged out of Artemis');
             artemisWebviewProvider.showLogin();
@@ -462,9 +471,7 @@ function pickServer(
  * Sets `artemis.defaultClonePath` from a folder dialog.
  *
  * The dialog options match the "Set Default Folder" branch of the clone flow, so both
- * routes to this setting look the same to a student. Going through a dialog also means the
- * stored path is always absolute, which the setting requires: it is used verbatim, so a
- * hand-typed `~/exercises` reaches the filesystem unexpanded and fails at clone time.
+ * routes to this setting look the same to a student.
  */
 function registerSetDefaultClonePathCommand(): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.setDefaultClonePath', async () => {
@@ -739,12 +746,13 @@ interface CommandDeps {
     artemisWebviewProvider: ArtemisWebviewProvider;
     chatWebviewProvider: ChatWebviewProvider;
     updateAuthContext: (isAuthenticated: boolean) => Promise<void>;
+    authCancellation: AuthCancellationService;
 }
 
 export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
     return vscode.Disposable.from(
         registerLoginCommand(),
-        registerLogoutCommand(deps.authManager, deps.artemisApiService, deps.updateAuthContext, deps.artemisWebviewProvider),
+        registerLogoutCommand(deps.authManager, deps.artemisApiService, deps.updateAuthContext, deps.artemisWebviewProvider, deps.authCancellation),
         registerReloadIrisChatCommand(deps.chatWebviewProvider),
         registerIrisHealthCheckCommand(deps.authManager, deps.artemisApiService, deps.chatWebviewProvider),
         registerWebSocketStatusCommand(deps.artemisWebsocketService, deps.authManager),

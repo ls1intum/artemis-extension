@@ -1,9 +1,10 @@
-# Code owners for paths that form the CI / release trust boundary.
-# PRs touching these paths require approval from one of the listed admins.
-# Other PRs do not require a code-owner review.
+# Code owners for this repository.
+#
+# Every path is owned, so every pull request requires approval from one of the
+# listed admins before it can be merged. The catch-all is deliberate: a rule that
+# covered only the CI and release files left the code they ship unreviewed, which
+# is the wrong way round.
+#
+# One approval from any of the three is enough.
 
-/.github/                       @krusche @FelixTJDietrich @Predixx
-/scripts/                       @krusche @FelixTJDietrich @Predixx
-/extension/package.json         @krusche @FelixTJDietrich @Predixx
-/extension/package-lock.json    @krusche @FelixTJDietrich @Predixx
-/CHANGELOG.md                   @krusche @FelixTJDietrich @Predixx
+*                               @krusche @FelixTJDietrich @Predixx

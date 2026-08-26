@@ -96,7 +96,10 @@ export class ArtemisApiService {
     }
 
     private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<Response> {
-        const headers = await this.authManager.getAuthHeaders();
+        // One read, so the revision describes the very credential these headers carry. Reading them
+        // separately would let a mutation land in between and make this request think it still owns a
+        // credential that has already been replaced.
+        const { headers, revision } = await this.authManager.getAuthContext();
         const url = `${this.getServerUrl()}${endpoint}`;
 
         const response = await fetchWithTimeout(url, {
@@ -111,7 +114,15 @@ export class ArtemisApiService {
 
         if (!response.ok) {
             if (response.status === 401) {
-                await this.authManager.clear();
+                // Only the credential this request actually used. A slow request can be told its token
+                // is dead long after the user has signed in again, and clearing then would sign them
+                // out of a session this response knows nothing about.
+                const cleared = await this.authManager.clearIfUnchanged(revision);
+                if (!cleared) {
+                    // A newer credential is live. Firing the auth-expired handler would tear down the
+                    // session for that credential even though its own token was never rejected.
+                    throw new ApiError(`Request failed: ${response.status}`, response.status);
+                }
                 // Fire callback at most once to prevent duplicate prompts from concurrent 401s.
                 // Fire-and-forget so the ApiError throws immediately without blocking on UI.
                 if (!this._authExpiredFired && this._onAuthExpired) {
@@ -180,10 +191,11 @@ export class ArtemisApiService {
      * `makeRequest()` on purpose: that helper reads the *stored* credential and, on a 401, clears it and
      * fires the auth-expired callback. Checking a candidate must never touch the session the user has.
      */
-    async getCurrentUserWithToken(token: string): Promise<ArtemisUser> {
+    async getCurrentUserWithToken(token: string, signal?: AbortSignal): Promise<ArtemisUser> {
         const url = `${this.getServerUrl()}/api/core/public/account`;
 
         const response = await fetchWithTimeout(url, {
+            signal,
             headers: {
                 'Content-Type': 'application/json',
                 'User-Agent': getUserAgent(),
@@ -205,8 +217,11 @@ export class ArtemisApiService {
     }
 
     // Get the login option (OIDC or password) for given username
-    async getLoginOptions(username: string): Promise<LoginOptionsResponse> {
-        const response = await this.makeRequest(`/api/core/public/login-options?usernameOrEmail=${encodeURIComponent(username)}`);
+    async getLoginOptions(username: string, signal?: AbortSignal): Promise<LoginOptionsResponse> {
+        const response = await this.makeRequest(
+            `/api/core/public/login-options?usernameOrEmail=${encodeURIComponent(username)}`,
+            { signal },
+        );
         const body = (await response.text()).trim();
         if (!body) {
             // if request is empty, the problem lies on the server side
@@ -405,11 +420,17 @@ export class ArtemisApiService {
      * Exchange username and password for a JWT. The token is returned, not stored: committing it is the
      * caller's job, once it has been shown to work.
      */
-    async authenticate(username: string, password: string, rememberMe: boolean = false): Promise<AuthenticationResult> {
+    async authenticate(
+        username: string,
+        password: string,
+        rememberMe: boolean = false,
+        signal?: AbortSignal,
+    ): Promise<AuthenticationResult> {
         const url = `${this.getServerUrl()}${CONFIG.API.ENDPOINTS.AUTHENTICATE}`;
 
         const response = await fetchWithTimeout(url, {
             method: 'POST',
+            signal,
             headers: {
                 'Content-Type': 'application/json',
                 'User-Agent': getUserAgent()

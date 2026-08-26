@@ -28,6 +28,7 @@ import { WebviewNavigationFacade } from '@extension/provider/webviewNavigationFa
 // can actually replace.
 import * as detectionModule from '@extension/services/workspace/workspaceDetectionService';
 import type { ExerciseDetailsResponse } from '@extension/types';
+import { VSCODE_CONFIG } from '@extension/utils';
 
 /** Lets the background archive chain in `showDashboard` run to completion. */
 function flushBackgroundWork(): Promise<void> {
@@ -178,9 +179,9 @@ suite('WebviewNavigationFacade', () => {
         openTextDocument = sandbox.stub(vscode.workspace, 'openTextDocument').resolves({} as vscode.TextDocument);
         showTextDocument = sandbox.stub(vscode.window, 'showTextDocument').resolves({} as vscode.TextEditor);
 
-        // Default: workspace.getConfiguration returns config with the suggestion
-        // feature disabled so _suggestWorkspaceStartPage is a no-op unless a test
-        // overrides it.
+        // Default: every setting falls back to its declared default, so the suggestion's
+        // own guards pass. _suggestWorkspaceStartPage still stops at the unstubbed
+        // workspace lookup, which finds no repository in the test host.
         getConfiguration = sandbox.stub(vscode.workspace, 'getConfiguration').returns({
             get: <T>(_key: string, fallback?: T): T | undefined => fallback,
             update: sandbox.stub().resolves(undefined),
@@ -293,6 +294,102 @@ suite('WebviewNavigationFacade', () => {
 
         // No user-facing error message is shown for the suggestion path.
         sinon.assert.notCalled(showErrorMessage);
+    });
+
+    // The two tests below are a pair. The first proves the suggestion really does appear for
+    // this fixture, which is what makes the second one's `notCalled` mean something.
+    const DETECTED_REPO_URL = 'https://artemis.example/git/COURSE/exercise-alice.git';
+
+    /** Course fixture whose single exercise matches DETECTED_REPO_URL. */
+    function coursesWithDetectableExercise(): { courses: unknown[] } {
+        return {
+            courses: [{
+                course: {
+                    id: 1,
+                    exercises: [{ id: 7, title: 'Sorting', repositoryUri: DETECTED_REPO_URL }],
+                },
+            }],
+        };
+    }
+
+    /**
+     * Config stub that snapshots `state` per `getConfiguration()` call, the way the real
+     * extension host does: an object handed out earlier keeps the values it was built with.
+     *
+     * Reading `state` live instead would let an implementation that captures one
+     * configuration object and calls `get()` on it twice pass, which real VS Code fails.
+     */
+    function configSnapshotting(state: { startPage: string; suggestionEnabled: boolean }): void {
+        getConfiguration.callsFake(() => {
+            const snapshot = { ...state };
+            return {
+                get: <T>(key: string, fallback?: T): T | undefined => {
+                    if (key === VSCODE_CONFIG.START_PAGE_KEY) { return snapshot.startPage as unknown as T; }
+                    if (key === VSCODE_CONFIG.SHOW_START_PAGE_SUGGESTION_KEY) { return snapshot.suggestionEnabled as unknown as T; }
+                    return fallback;
+                },
+                update: sandbox.stub().resolves(undefined),
+            } as unknown as vscode.WorkspaceConfiguration;
+        });
+    }
+
+    test('showDashboard: suggests the workspace start page when a workspace exercise is detected', async () => {
+        configSnapshotting({ startPage: 'dashboard', suggestionEnabled: true });
+        sandbox.stub(detectionModule, 'findWorkspaceCourseInArchive').resolves(null);
+        sandbox.stub(detectionModule, 'getWorkspaceRepositoryUrl').resolves(DETECTED_REPO_URL);
+
+        const { deps, stubs } = buildDeps();
+        stubs.appStateManager.coursesData = coursesWithDetectableExercise();
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.showDashboard({ username: 'alice', serverUrl: 'https://x/' });
+        await flushBackgroundWork();
+
+        sinon.assert.calledOnce(showInformationMessage);
+        assert.ok(
+            (showInformationMessage.firstCall.args[0] as string).includes('Sorting'),
+            'Expected the suggestion to name the detected exercise',
+        );
+    });
+
+    test('showDashboard: does not suggest a start page the student configured while detection was running', async () => {
+        const settings = { startPage: 'dashboard', suggestionEnabled: true };
+        configSnapshotting(settings);
+        sandbox.stub(detectionModule, 'findWorkspaceCourseInArchive').resolves(null);
+        // Detection spawns git, which is long enough for the student to reach the setting.
+        sandbox.stub(detectionModule, 'getWorkspaceRepositoryUrl').callsFake(async () => {
+            settings.startPage = 'workspace-exercise';
+            return DETECTED_REPO_URL;
+        });
+
+        const { deps, stubs } = buildDeps();
+        stubs.appStateManager.coursesData = coursesWithDetectableExercise();
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.showDashboard({ username: 'alice', serverUrl: 'https://x/' });
+        await flushBackgroundWork();
+
+        sinon.assert.notCalled(showInformationMessage);
+    });
+
+    test('showDashboard: does not suggest a start page after the student silenced the suggestion mid-detection', async () => {
+        // The other setting of the pair. "Don't show again" elsewhere has to win the same race.
+        const settings = { startPage: 'dashboard', suggestionEnabled: true };
+        configSnapshotting(settings);
+        sandbox.stub(detectionModule, 'findWorkspaceCourseInArchive').resolves(null);
+        sandbox.stub(detectionModule, 'getWorkspaceRepositoryUrl').callsFake(async () => {
+            settings.suggestionEnabled = false;
+            return DETECTED_REPO_URL;
+        });
+
+        const { deps, stubs } = buildDeps();
+        stubs.appStateManager.coursesData = coursesWithDetectableExercise();
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.showDashboard({ username: 'alice', serverUrl: 'https://x/' });
+        await flushBackgroundWork();
+
+        sinon.assert.notCalled(showInformationMessage);
     });
 
     test('navigateToStartPage: dashboard branch routes to showDashboard', async () => {

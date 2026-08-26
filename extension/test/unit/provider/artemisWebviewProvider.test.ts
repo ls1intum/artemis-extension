@@ -8,6 +8,7 @@ import { ArtemisApiService } from '@extension/api';
 import { ArtemisWebviewProvider } from '@extension/provider/artemisWebviewProvider';
 import type { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
 import { AuthManager } from '@extension/services/auth';
+import { AuthCancellationService } from '@extension/services/auth/authCancellationService';
 import { OidcLoginService } from '@extension/services/auth/oidcLoginService';
 import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { VsCodeSensorHub } from '@extension/services/sensing';
@@ -140,12 +141,14 @@ suite('ArtemisWebviewProvider Test Suite', () => {
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
         const fakeNoAi = { onNoAiStatusChanged: () => ({ dispose() {} }), dispose() {} } as any;
 
+        const oidcLoginService = new OidcLoginService(mockContext, mockAuthManager, mockApiService);
         provider = new ArtemisWebviewProvider({
             extensionUri: vscode.Uri.file('/'),
             extensionContext: mockContext,
             authManager: mockAuthManager,
             artemisApi: mockApiService,
-            oidcLoginService: new OidcLoginService(mockContext, mockAuthManager, mockApiService),
+            oidcLoginService,
+            authCancellation: new AuthCancellationService(oidcLoginService),
             providerRegistry: createProviderRegistry(),
             websocketService: mockWebsocket,
             noAiDetectionService: fakeNoAi,
@@ -212,12 +215,14 @@ suite('Panel hide/show state persistence', () => {
             dispose() {},
         } as any;
 
+        const oidcLoginService = new OidcLoginService(mockContext, mockAuthManager, mockApiService);
         provider = new ArtemisWebviewProvider({
             extensionUri: vscode.Uri.file('/'),
             extensionContext: mockContext,
             authManager: mockAuthManager,
             artemisApi: mockApiService,
-            oidcLoginService: new OidcLoginService(mockContext, mockAuthManager, mockApiService),
+            oidcLoginService,
+            authCancellation: new AuthCancellationService(oidcLoginService),
             providerRegistry: createProviderRegistry(),
             websocketService: mockWebsocket,
             noAiDetectionService: fakeNoAi,
@@ -393,11 +398,13 @@ suite('Nudge banner replay and cache-clear', () => {
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
         const fakeNoAi = { onNoAiStatusChanged: () => ({ dispose() {} }), dispose() {} } as any;
 
+        const oidc = new OidcLoginService(mockContext, mockAuthManager, mockApiService);
         provider = new ArtemisWebviewProvider({
             extensionUri: vscode.Uri.file('/'),
             extensionContext: mockContext,
             authManager: mockAuthManager,
-            oidcLoginService: new OidcLoginService(mockContext, mockAuthManager, mockApiService),
+            oidcLoginService: oidc,
+            authCancellation: new AuthCancellationService(oidc),
             courseAccessStorage: new CourseAccessStorageService(mockContext.globalState, () => null, () => 0),
             artemisApi: mockApiService,
             providerRegistry: createProviderRegistry(),

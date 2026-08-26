@@ -398,13 +398,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
      * when a workspace exercise is detected on the dashboard.
      */
     private async _suggestWorkspaceStartPage(): Promise<void> {
-        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-
-        // Only suggest to users still on the default start page.
-        const startPage = config.get<string>(VSCODE_CONFIG.START_PAGE_KEY, 'dashboard');
-        if (startPage !== 'dashboard') { return; }
-
-        if (!config.get<boolean>(VSCODE_CONFIG.SHOW_START_PAGE_SUGGESTION_KEY, true)) { return; }
+        if (!this._isStartPageSuggestionWanted()) { return; }
 
         const repoUrl = await getWorkspaceRepositoryUrl();
         if (!repoUrl) { return; }
@@ -415,6 +409,11 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         const detected = findExerciseByRepositoryUrl(repoUrl, collectExerciseSources(courses));
         if (!detected) { return; }
 
+        // The lookup above spawns git, which is long enough for the student to configure the
+        // start page themselves. Suggesting what they just did would be wrong, and accepting
+        // the suggestion would overwrite their choice.
+        if (!this._isStartPageSuggestionWanted()) { return; }
+
         const result = await vscode.window.showInformationMessage(
             `Detected "${detected.title}" in your workspace. You can configure Artemis to open it automatically on login. You can change this later in Settings.`,
             'Always open exercise',
@@ -422,9 +421,22 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         );
 
         if (result === 'Always open exercise') {
-            await config.update(VSCODE_CONFIG.START_PAGE_KEY, 'workspace-exercise', vscode.ConfigurationTarget.Global);
+            await vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION)
+                .update(VSCODE_CONFIG.START_PAGE_KEY, 'workspace-exercise', vscode.ConfigurationTarget.Global);
         } else if (result === "Don't show again") {
-            await config.update(VSCODE_CONFIG.SHOW_START_PAGE_SUGGESTION_KEY, false, vscode.ConfigurationTarget.Global);
+            await vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION)
+                .update(VSCODE_CONFIG.SHOW_START_PAGE_SUGGESTION_KEY, false, vscode.ConfigurationTarget.Global);
         }
+    }
+
+    /**
+     * Whether the student is still on the default start page and has not silenced the suggestion.
+     *
+     * Reads the settings fresh on every call, so a caller can re-check them across an await.
+     */
+    private _isStartPageSuggestionWanted(): boolean {
+        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+        return config.get<string>(VSCODE_CONFIG.START_PAGE_KEY, 'dashboard') === 'dashboard'
+            && config.get<boolean>(VSCODE_CONFIG.SHOW_START_PAGE_SUGGESTION_KEY, true);
     }
 }

@@ -11,15 +11,13 @@ import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import { formatServiceName } from '@webview/utils/formatServiceName';
 
 import styles from './LoginView.module.css';
-import type { LoginPersistedState, LoginViewProps, LoginViewState } from './types';
+import type { LoginPersistedState, LoginViewProps } from './types';
 
 // Used wherever the server named no provider, so the UI never claims one it was not told about.
 const GENERIC_IDP_NAME = 'your identity provider';
 
 export function LoginView({ vscodeApi }: LoginViewProps) {
     const persistedState = vscodeApi.getState<LoginPersistedState>();
-
-    const [viewState, setViewState] = useState<LoginViewState>('form');
 
     // Stage 0: Enter username, Stage 1: Enter password / OIDC
     const [stage, setStage] = useState<0 | 1>(0);
@@ -40,10 +38,20 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
     const [statusMessage, setStatusMessage] = useState('');
     const [statusType, setStatusType] = useState<'success' | 'error' | 'info'>('info');
 
-    const [loadingMessage, setLoadingMessage] = useState('Checking authentication...');
-    const [loadingSubtext, setLoadingSubtext] = useState('Please wait while we verify your credentials');
-    const [loadingVisible, setLoadingVisible] = useState(false);
-    const [loadingHiding, setLoadingHiding] = useState(false);
+    interface LoginProgress {
+        message: string;
+        subtext: string;
+        /** The interactive attempt this belongs to, or null for the startup credential check. */
+        attemptId: number | null;
+        hiding: boolean;
+    }
+
+    const [progress, setProgress] = useState<LoginProgress | null>(null);
+
+    // Monotone, and never reused. `postMessage` gives no delivery guarantee, so a result for a retracted
+    // attempt can still be in flight; the id is how the view knows the answer is not to its question.
+    const nextAttemptId = useRef(0);
+    const [activeAttemptId, setActiveAttemptId] = useState<number | null>(null);
 
     const loadingSubtexts: Record<string, string> = {
         'Checking stored credentials...': 'Looking for saved authentication data',
@@ -77,39 +85,94 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         }
     }, []);
 
+    const clearHideTimer = () => {
+        if (hideTimerRef.current) {
+            clearTimeout(hideTimerRef.current);
+            hideTimerRef.current = null;
+        }
+    };
+
+    const showProgress = (message: string, subtext: string, attemptId: number | null) => {
+        // A hide already scheduled would otherwise fire against this new indicator and take it away.
+        clearHideTimer();
+        setProgress({ message, subtext, attemptId, hiding: false });
+    };
+
+    const hideProgress = () => {
+        clearHideTimer();
+        setProgress(current => (current ? { ...current, hiding: true } : null));
+        // Ownership is released here, in the callback, rather than when the hide is scheduled: for these
+        // 300ms the indicator is still on screen, and an unowned message arriving in that window would
+        // otherwise be free to change it.
+        hideTimerRef.current = setTimeout(() => {
+            hideTimerRef.current = null;
+            setProgress(null);
+        }, 300);
+    };
+
+    /** Whether a message may touch the indicator: its own attempt's, or anyone's while nobody owns it. */
+    const ownsProgress = (attemptId: number | undefined): boolean => {
+        if (!progress) {
+            return true;
+        }
+        if (progress.attemptId === null) {
+            // The startup check owns it, and only unowned startup messages may touch it.
+            return attemptId === undefined;
+        }
+        // Matching the indicator is not enough: after a Cancel it is still fading out under its old
+        // owner, and a late message naming that owner must not be able to revive it.
+        return attemptId === progress.attemptId && attemptId === activeAttemptId;
+    };
+
     useExtensionMessage((msg) => {
         switch (msg.type) {
             case ExtensionMsg.ShowLoading: {
-                setViewState('loading');
-                setLoadingHiding(false);
-                setLoadingVisible(true);
+                // showLoading never carries an attemptId: it is exclusively the startup credential check.
+                if (!ownsProgress(undefined)) {
+                    break;
+                }
                 const showMsg = msg.message ?? 'Checking authentication...';
-                setLoadingMessage(showMsg);
-                setLoadingSubtext(loadingSubtexts[showMsg] ?? 'Please wait while we process your request');
+                showProgress(showMsg, loadingSubtexts[showMsg] ?? 'Please wait while we process your request', null);
                 break;
             }
 
             case ExtensionMsg.HideLoading:
-                if (viewState === 'loading') {
-                    setLoadingHiding(true);
-                    hideTimerRef.current = setTimeout(() => {
-                        setLoadingVisible(false);
-                        setLoadingHiding(false);
-                        setViewState('form');
-                        setLoadingMessage('');
-                        setLoadingSubtext('');
-                    }, 300);
+                if (!ownsProgress(undefined)) {
+                    break;
                 }
+                hideProgress();
                 break;
 
             case ExtensionMsg.UpdateLoading: {
-                const updateMsg = msg.message ?? 'Processing...';
-                setLoadingMessage(updateMsg);
-                setLoadingSubtext(loadingSubtexts[updateMsg] ?? 'Please wait while we process your request');
+                if (!ownsProgress(msg.attemptId)) {
+                    break;
+                }
+                const message = msg.message ?? 'Processing...';
+                setProgress(current => {
+                    // Re-checked against the state the updater actually sees. `ownsProgress` reads the
+                    // render's `progress`, which can be one step behind a hide that has just started.
+                    if (!current || current.attemptId !== (msg.attemptId ?? null)) {
+                        return current;
+                    }
+                    return {
+                        ...current,
+                        message,
+                        subtext: msg.subtext ?? loadingSubtexts[message] ?? 'Please wait while we process your request',
+                    };
+                });
                 break;
             }
 
             case ExtensionMsg.LoginOptionsResult: {
+                // Gated on the whole case, not just the indicator: a stale answer for a retracted attempt
+                // must not move the form to stage 1 either, while a different attempt is now active. An
+                // undefined attemptId cannot happen for this message in practice, but is let through rather
+                // than rejected, matching the other three result handlers below.
+                if (msg.attemptId !== undefined && msg.attemptId !== activeAttemptId) {
+                    break;
+                }
+                setActiveAttemptId(null);
+                hideProgress();
                 setIsCheckingOptions(false);
                 setLoginMethod(msg.loginMethod);
                 // Replaced rather than kept: a password account answers with null, and carrying over the
@@ -120,6 +183,12 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
             }
 
             case ExtensionMsg.LoginOptionsError: {
+                // Gated for the same reason as LoginOptionsResult above.
+                if (msg.attemptId !== undefined && msg.attemptId !== activeAttemptId) {
+                    break;
+                }
+                setActiveAttemptId(null);
+                hideProgress();
                 setIsCheckingOptions(false);
                 setIsSubmitting(false);
                 setStatusMessage(msg.error ?? 'Failed to reach Artemis server. Please check your connection or server URL.');
@@ -131,19 +200,34 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 break;
             }
 
-            case ExtensionMsg.LoginSuccess:
-                setViewState('form');
+            case ExtensionMsg.LoginSuccess: {
+                // An OIDC success carries no attemptId at all (that attempt outlives the webview, so there
+                // is no counter to check it against) and is accepted unconditionally; an interactive one is
+                // checked against the attempt the user is still waiting on, not a retracted one.
+                if (msg.attemptId !== undefined && msg.attemptId !== activeAttemptId) {
+                    break;
+                }
+                setActiveAttemptId(null);
+                hideProgress();
                 setStatusMessage('');
                 setIsSubmitting(false);
+                setIsCheckingOptions(false);
                 setIsOidcPending(false);
                 setShowHealthChecks(false);
                 break;
+            }
 
             case ExtensionMsg.LoginError: {
-                setViewState('form');
+                // Gated for the same reason as LoginSuccess above.
+                if (msg.attemptId !== undefined && msg.attemptId !== activeAttemptId) {
+                    break;
+                }
+                setActiveAttemptId(null);
+                hideProgress();
                 setStatusMessage(msg.error ?? 'Login failed');
                 setStatusType('error');
                 setIsSubmitting(false);
+                setIsCheckingOptions(false);
                 setIsOidcPending(false);
                 setShowHealthChecks(true);
                 if (serverUrl) {
@@ -172,7 +256,9 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 break;
             }
         }
-    }, [viewState, serverUrl]);
+        // `activeAttemptId` and `progress` are read from the closure by `ownsProgress`, not through refs,
+        // so a stale render here would let the handler decide ownership off an outdated indicator.
+    }, [serverUrl, activeAttemptId, progress]);
 
     const performHealthChecks = () => {
         if (!serverUrl) {
@@ -183,6 +269,9 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
     };
 
     const handleCheckLogin = () => {
+        if (isCheckingOptions) {
+            return;
+        }
         const trimmedUsername = username.trim();
         if (!trimmedUsername) {
             setStatusMessage('Please enter your username.');
@@ -190,9 +279,12 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
             return;
         }
 
+        const attemptId = ++nextAttemptId.current;
+        setActiveAttemptId(attemptId);
         setStatusMessage('');
         setIsCheckingOptions(true);
-        postCommand(vscodeApi, 'checkLoginOptions', { username: trimmedUsername });
+        showProgress('Checking how you sign in', 'Asking Artemis which login this account uses', attemptId);
+        postCommand(vscodeApi, 'checkLoginOptions', { username: trimmedUsername, attemptId });
     };
 
     const handleOidcLogin = () => {
@@ -207,16 +299,25 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         setStatusType('info');
     };
 
+    /** Retracts whatever attempt is in flight and unlocks the form, without moving off the current step. */
+    const cancelAttempt = () => {
+        setActiveAttemptId(null);
+        setIsSubmitting(false);
+        setIsCheckingOptions(false);
+        setIsOidcPending(false);
+        hideProgress();
+        postCommand(vscodeApi, 'cancelLogin');
+    };
+
     const handleBack = () => {
+        // Retract the attempt too, otherwise a callback from the abandoned browser tab or a late server
+        // answer could still sign the user in, possibly under the name they just backed away from.
+        cancelAttempt();
         setPassword('');
         setStatusMessage('');
-        setIsOidcPending(false);
         setLoginMethod('PASSWORD');
         setIdpName(null);
         setStage(0);
-        // Retract the attempt, otherwise a callback from the abandoned browser tab could still sign the
-        // user in, possibly under the name they just backed away from.
-        postCommand(vscodeApi, 'cancelOidcLogin');
     };
 
     const handleSubmit = (e: FormEvent) => {
@@ -238,6 +339,9 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
             return;
         }
 
+        if (isSubmitting) {
+            return;
+        }
         const trimmedUsername = username.trim();
         if (!trimmedUsername || !password) {
             setStatusMessage('Please enter both username and password.');
@@ -245,13 +349,17 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
             return;
         }
 
+        const attemptId = ++nextAttemptId.current;
+        setActiveAttemptId(attemptId);
         setStatusMessage('');
         setIsSubmitting(true);
+        showProgress('Verifying your credentials', 'Checking your username and password', attemptId);
 
         postCommand(vscodeApi, 'login', {
             username: trimmedUsername,
             password,
             rememberMe,
+            attemptId,
         });
     };
 
@@ -274,113 +382,117 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 </p>
             </div>
 
-            {loadingVisible && (
-                <div className={`${styles.loadingIndicator} ${loadingHiding ? styles.loadingIndicatorHiding : ''}`}>
-                    <div className={styles.loadingSpinner} />
+            {progress && (
+                <div
+                    className={`${styles.loadingIndicator} ${progress.hiding ? styles.loadingIndicatorHiding : ''}`}
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                    data-testid="login-progress"
+                >
+                    <div className={styles.loadingSpinner} aria-hidden="true" />
                     <div className={styles.loadingContent}>
                         <div className={styles.loadingText}>
-                            {loadingMessage.replace(/\.\.\.$/, '')}
+                            {progress.message.replace(/\.\.\.$/, '')}
                             <span className={styles.loadingDots} />
                         </div>
-                        <div className={styles.loadingSubtext}>
-                            {loadingSubtext}
-                        </div>
+                        <div className={styles.loadingSubtext}>{progress.subtext}</div>
                     </div>
                 </div>
             )}
 
-            {(viewState === 'form' || viewState === 'loading') && (
-                <Container
-                    header={
-                        <div>
-                            <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '4px' }}>
-                                Login to Artemis
-                            </div>
-                            <div style={{ fontSize: '13px', opacity: 0.8 }}>
-                                {stage === 0
-                                    ? 'Enter your TUM username to continue'
-                                    : `Logging in as ${username}`}
-                            </div>
+            <Container
+                header={
+                    <div>
+                        <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '4px' }}>
+                            Login to Artemis
                         </div>
-                    }
-                >
-                    <form onSubmit={handleSubmit} data-testid="login-form">
-                        {stage === 0 ? (
-                            <TextInput
-                                id="username"
-                                label="Username"
-                                type="text"
-                                placeholder="Enter your TUM username"
-                                value={username}
-                                onChange={setUsername}
-                                disabled={isSubmitting || isCheckingOptions}
-                                required
-                                autocomplete="username"
-                                fullWidth
-                                testId="login-username"
-                            />
-                        ) : (
-                            <>
-                                {loginMethod === 'PASSWORD' ? (
-                                    <TextInput
-                                        id="password"
-                                        label="Password"
-                                        type="password"
-                                        placeholder="Enter your password"
-                                        value={password}
-                                        onChange={setPassword}
-                                        disabled={isSubmitting}
-                                        required
-                                        autocomplete="current-password"
-                                        fullWidth
-                                        testId="login-password"
-                                    />
-                                ) : loginMethod === 'SAML2' ? (
-                                    <div style={{ marginTop: '8px', marginBottom: '16px', textAlign: 'center' }}>
-                                        <p style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '13px', margin: 0 }}>
-                                            {idpName
-                                                ? `This account signs in through ${idpName}, which the extension cannot complete yet.`
-                                                : `This account signs in through ${GENERIC_IDP_NAME}, which the extension cannot complete yet.`}
-                                            {' '}Please log in on the Artemis website instead.
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <div style={{ marginTop: '8px', marginBottom: '16px', textAlign: 'center' }}>
-                                        <p style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '13px', margin: 0 }}>
-                                            You will be redirected to complete authentication via {idpName ?? GENERIC_IDP_NAME}.
-                                        </p>
-                                    </div>
-                                )}
-
-                                <div style={{ marginTop: '16px', marginBottom: '16px' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={rememberMe}
-                                            onChange={(e) => setRememberMe(e.target.checked)}
-                                            disabled={isSubmitting}
-                                            style={{ cursor: 'pointer' }}
-                                        />
-                                        <span style={{ color: 'var(--vscode-foreground)', fontSize: '13px' }}>
-                                            Remember me on this device
-                                        </span>
-                                    </label>
-                                </div>
-                            </>
-                        )}
-
-                        {statusMessage && (
-                            <div style={{ marginTop: '16px', marginBottom: '16px' }}>
-                                <StatusMessage
-                                    message={statusMessage}
-                                    type={statusType}
-                                    data-testid="login-status"
+                        <div style={{ fontSize: '13px', opacity: 0.8 }}>
+                            {stage === 0
+                                ? 'Enter your TUM username to continue'
+                                : `Logging in as ${username}`}
+                        </div>
+                    </div>
+                }
+            >
+                <form onSubmit={handleSubmit} data-testid="login-form">
+                    {stage === 0 ? (
+                        <TextInput
+                            id="username"
+                            label="Username"
+                            type="text"
+                            placeholder="Enter your TUM username"
+                            value={username}
+                            onChange={setUsername}
+                            disabled={isSubmitting || isCheckingOptions}
+                            required
+                            autocomplete="username"
+                            fullWidth
+                            testId="login-username"
+                        />
+                    ) : (
+                        <>
+                            {loginMethod === 'PASSWORD' ? (
+                                <TextInput
+                                    id="password"
+                                    label="Password"
+                                    type="password"
+                                    placeholder="Enter your password"
+                                    value={password}
+                                    onChange={setPassword}
+                                    disabled={isSubmitting}
+                                    required
+                                    autocomplete="current-password"
+                                    fullWidth
+                                    testId="login-password"
                                 />
-                            </div>
-                        )}
+                            ) : loginMethod === 'SAML2' ? (
+                                <div style={{ marginTop: '8px', marginBottom: '16px', textAlign: 'center' }}>
+                                    <p style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '13px', margin: 0 }}>
+                                        {idpName
+                                            ? `This account signs in through ${idpName}, which the extension cannot complete yet.`
+                                            : `This account signs in through ${GENERIC_IDP_NAME}, which the extension cannot complete yet.`}
+                                        {' '}Please log in on the Artemis website instead.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div style={{ marginTop: '8px', marginBottom: '16px', textAlign: 'center' }}>
+                                    <p style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '13px', margin: 0 }}>
+                                        You will be redirected to complete authentication via {idpName ?? GENERIC_IDP_NAME}.
+                                    </p>
+                                </div>
+                            )}
 
-                        <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {stage === 0 ? (
+                            <div style={{ marginTop: '16px', marginBottom: '16px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={rememberMe}
+                                        onChange={(e) => setRememberMe(e.target.checked)}
+                                        disabled={isSubmitting}
+                                        style={{ cursor: 'pointer' }}
+                                    />
+                                    <span style={{ color: 'var(--vscode-foreground)', fontSize: '13px' }}>
+                                        Remember me on this device
+                                    </span>
+                                </label>
+                            </div>
+                        </>
+                    )}
+
+                    {statusMessage && (
+                        <div style={{ marginTop: '16px', marginBottom: '16px' }}>
+                            <StatusMessage
+                                message={statusMessage}
+                                type={statusType}
+                                data-testid="login-status"
+                            />
+                        </div>
+                    )}
+
+                    <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {stage === 0 ? (
+                            <>
                                 <Button
                                     type="button"
                                     variant="primary"
@@ -391,59 +503,70 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                                 >
                                     {isCheckingOptions ? 'Checking options...' : 'Continue'}
                                 </Button>
-                            ) : (
-                                <>
-                                    {loginMethod === 'PASSWORD' && (
-                                        <Button
-                                            type="submit"
-                                            variant="primary"
-                                            fullWidth
-                                            disabled={isSubmitting}
-                                            testId="login-submit"
-                                        >
-                                            {isSubmitting ? 'Logging in...' : 'Login to Artemis'}
-                                        </Button>
-                                    )}
-                                    {loginMethod === 'OIDC' && (
-                                        <Button
-                                            type="button"
-                                            variant="primary"
-                                            fullWidth
-                                            disabled={isSubmitting || isOidcPending}
-                                            onClick={handleOidcLogin}
-                                            testId="login-oidc-submit"
-                                        >
-                                            {isOidcPending ? 'Waiting for your browser...' : `Sign in with ${idpName ?? GENERIC_IDP_NAME}`}
-                                        </Button>
-                                    )}
-
+                                {isCheckingOptions && (
                                     <Button
                                         type="button"
                                         variant="secondary"
                                         fullWidth
-                                        // Blocked while a password login is in flight, as before, but
-                                        // deliberately NOT while waiting on the browser: that wait is the
-                                        // one the user needs a way out of.
-                                        disabled={isSubmitting}
-                                        onClick={handleBack}
+                                        testId="login-secondary"
+                                        onClick={cancelAttempt}
                                     >
-                                        ← Back
+                                        Cancel
                                     </Button>
-                                </>
-                            )}
-                        </div>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                {loginMethod === 'PASSWORD' && (
+                                    <Button
+                                        type="submit"
+                                        variant="primary"
+                                        fullWidth
+                                        disabled={isSubmitting}
+                                        testId="login-submit"
+                                    >
+                                        {isSubmitting ? 'Logging in...' : 'Login to Artemis'}
+                                    </Button>
+                                )}
+                                {loginMethod === 'OIDC' && (
+                                    <Button
+                                        type="button"
+                                        variant="primary"
+                                        fullWidth
+                                        disabled={isSubmitting || isOidcPending}
+                                        onClick={handleOidcLogin}
+                                        testId="login-oidc-submit"
+                                    >
+                                        {isOidcPending ? 'Waiting for your browser...' : `Sign in with ${idpName ?? GENERIC_IDP_NAME}`}
+                                    </Button>
+                                )}
 
-                        <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <Button variant="link" onClick={handleOpenWebsite}>
-                                Open Artemis in Browser →
-                            </Button>
-                            <Button variant="link" onClick={handleOpenSettings}>
-                                Open Artemis Settings →
-                            </Button>
-                        </div>
-                    </form>
-                </Container>
-            )}
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    fullWidth
+                                    // Not disabled while a password login is in flight: that wait is
+                                    // exactly the one the user needs a way out of, so the button stays
+                                    // live and switches meaning to Cancel instead.
+                                    testId="login-secondary"
+                                    onClick={isSubmitting ? cancelAttempt : handleBack}
+                                >
+                                    {isSubmitting ? 'Cancel' : '← Back'}
+                                </Button>
+                            </>
+                        )}
+                    </div>
+
+                    <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <Button variant="link" onClick={handleOpenWebsite}>
+                            Open Artemis in Browser →
+                        </Button>
+                        <Button variant="link" onClick={handleOpenSettings}>
+                            Open Artemis Settings →
+                        </Button>
+                    </div>
+                </form>
+            </Container>
 
             {showHealthChecks && healthServices.length > 0 && (
                 <div style={{ marginTop: '24px' }}>

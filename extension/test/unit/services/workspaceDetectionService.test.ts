@@ -431,11 +431,11 @@ suite('detectWorkspaceExerciseForRepository: archive path records the catalog', 
         );
     });
 
-    // The identity reset has just emptied the registry. A direct
-    // `registerFromCourseData` next to the rejected catalog write would put the
-    // previous account's archived course straight back into it, and the
-    // staleness check in `wireWorkspaceDetection` only suppresses the sink
-    // publication after this function returns.
+    // The identity reset has just emptied the registry. A direct registry write
+    // next to the rejected catalog write would put the previous account's
+    // archived course straight back into it, and the staleness check in
+    // `wireWorkspaceDetection` only suppresses the sink publication after this
+    // function returns.
     test('an archived course found under a superseded epoch reaches neither layer', async () => {
         const api = {
             getArchivedCourses: sandbox.stub().resolves([{ id: 77 }]),

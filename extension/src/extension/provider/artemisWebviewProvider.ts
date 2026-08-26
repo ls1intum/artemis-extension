@@ -17,7 +17,7 @@ import { fetchAndEnrichExerciseDetails } from '@extension/controller/exerciseDat
 import { getViewHtml } from '@extension/controller/viewRouter';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import type { ArtemisUser, ResultDTO } from '@extension/domain';
-import { AuthFlowHandler, AuthManager, OidcLoginService } from '@extension/services/auth';
+import { AuthCancellationService, AuthFlowHandler, AuthManager, OidcLoginService } from '@extension/services/auth';
 import type { CourseAccessScope, CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { LogCategory, logger } from '@extension/services/loggingService';
@@ -71,6 +71,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _authManager: AuthManager;
     private readonly _artemisApi: ArtemisApiService;
     private readonly _oidcLoginService: OidcLoginService;
+    private readonly _authCancellation: AuthCancellationService;
     private readonly _providerRegistry: IProviderRegistry;
     private readonly _courseCatalog?: CourseCatalog;
     private _appStateManager: AppStateManager;
@@ -152,6 +153,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._authManager = deps.authManager;
         this._artemisApi = deps.artemisApi;
         this._oidcLoginService = deps.oidcLoginService;
+        this._authCancellation = deps.authCancellation;
         this._providerRegistry = deps.providerRegistry;
         this._websocketService = deps.websocketService;
         this._noAiDetectionService = deps.noAiDetectionService;
@@ -269,6 +271,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._authManager,
             this._artemisApi,
             this._oidcLoginService,
+            this._authCancellation,
             this._appStateManager,
             this._navigationFacade,
             this._extensionContext,

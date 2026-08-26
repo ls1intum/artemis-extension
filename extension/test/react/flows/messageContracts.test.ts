@@ -310,6 +310,7 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
                 username: 'student1',
                 password: 'secret',
                 rememberMe: true,
+                attemptId: 0,
             },
         } satisfies WebCmd<'login'>;
 
@@ -630,8 +631,12 @@ describe('Message contracts: type guards', () => {
         })).toBe(true);
     });
 
-    it('isWebviewMessage accepts cancelOidcLogin without payload', () => {
-        expect(isWebviewMessage({ type: 'command', command: 'cancelOidcLogin' })).toBe(true);
+    it('isWebviewMessage accepts cancelLogin without payload', () => {
+        expect(isWebviewMessage({ type: 'command', command: 'cancelLogin' })).toBe(true);
+    });
+
+    it('isWebviewMessage rejects the retired cancelOidcLogin command', () => {
+        expect(isWebviewMessage({ type: 'command', command: 'cancelOidcLogin' })).toBe(false);
     });
 });
 
@@ -666,7 +671,7 @@ describe('Message contracts: runtime shape validation', () => {
         const login: WebviewToExtensionMessage = {
             type: 'command',
             command: 'login',
-            payload: { username: 'u', password: 'p', rememberMe: false },
+            payload: { username: 'u', password: 'p', rememberMe: false, attemptId: 0 },
         };
         const reload: WebviewToExtensionMessage = {
             type: 'command',
@@ -691,6 +696,7 @@ describe('Message contracts: runtime shape validation', () => {
                 username: 'student@tum.de',
                 password: 'mypassword',
                 rememberMe: true,
+                attemptId: 0,
             },
         };
 

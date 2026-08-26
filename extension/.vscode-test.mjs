@@ -15,6 +15,22 @@ import { defineConfig } from '@vscode/test-cli';
 const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'artemis-vsc-'));
 const launchArgs = ['--user-data-dir', userDataDir];
 
+// Pin the VS Code build the suites run against, rather than following whatever is current stable.
+//
+// Two things go wrong without a pin. Resolving 'stable' is a network call on every run, and it has
+// already failed a CI job with ETIMEDOUT before a single test executed. And a new stable release could
+// turn a pull request red for reasons that have nothing to do with it.
+//
+// The pin is READ FROM `engines.vscode` instead of being written out here, so there is only one place
+// that names a version. That also turns the manifest's compatibility claim into something the suite
+// actually verifies: these tests now run on the oldest VS Code the extension says it supports, which is
+// where an accidental use of a newer API would show up. Raising `engines.vscode` raises this with it.
+//
+// The trade-off is deliberate: this no longer notices the day the extension breaks on a NEW VS Code.
+// Catching that needs a separate scheduled run against 'stable'.
+const { engines } = JSON.parse(fs.readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+const version = engines.vscode.replace(/^[\^~]/, '');
+
 export default defineConfig([
 	{
 		// Unit tests (default). Runs everything under out/test/unit/**, which
@@ -23,6 +39,7 @@ export default defineConfig([
 		// 'struggle' label: the rest of the engine's tests are vitest suites
 		// under test/logic/struggle/** and run via `npm run test:react`.
 		label: 'unit',
+		version,
 		launchArgs,
 		files: 'out/test/unit/**/*.test.js',
 		coverage: {
@@ -35,9 +52,9 @@ export default defineConfig([
 		// its report, so .mocharc.ui.yml keeps the junit reporter.)
 	},
 	{
-
 		// E2E tests (requires running Artemis + Iris)
 		label: 'e2e',
+		version,
 		launchArgs,
 		files: 'out/test/e2e/**/*.e2e.test.js',
 		// Recorder E2E is self-contained — run it via the 'recorder-e2e' label instead.
@@ -50,6 +67,7 @@ export default defineConfig([
 		// Recorder E2E (no Artemis/Iris dependency — drives SessionRecorder
 		// directly through the VS Code API in a temp workspace).
 		label: 'recorder-e2e',
+		version,
 		launchArgs,
 		files: 'out/test/e2e/recording.e2e.test.js',
 		mocha: {

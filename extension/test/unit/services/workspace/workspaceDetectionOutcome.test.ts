@@ -12,7 +12,7 @@ import {
 const REPO_URL = 'https://artemis.example/git/AB/ab-student.git';
 
 function emptyRegistry(): ExerciseRegistry {
-    return { getAllExercises: () => [], registerFromCourseData: () => undefined } as unknown as ExerciseRegistry;
+    return { getAllExercises: () => [] } as unknown as ExerciseRegistry;
 }
 
 suite('detectAndRegisterWorkspaceExercise outcome', () => {
@@ -97,7 +97,6 @@ suite('detectAndRegisterWorkspaceExercise outcome', () => {
         // core reaches the courseId branch deterministically.
         const registry = {
             getAllExercises: () => [{ id: 4, title: 'Orphan', repositoryUri: REPO_URL, courseId: undefined }],
-            registerFromCourseData: () => undefined,
         } as unknown as ExerciseRegistry;
 
         const outcome = await detectWorkspaceExerciseForRepository(
