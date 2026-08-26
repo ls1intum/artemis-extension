@@ -1298,6 +1298,76 @@ suite('Artemis API Service Test Suite', () => {
         }
     });
 
+    test('logoutFromServer stays best-effort when the server URL itself cannot be resolved', async () => {
+        // The URL is resolved from VS Code configuration, which can throw. That
+        // resolution has to stay inside logout's swallow: callers clear the local
+        // credential only AFTER this await, so a throw here would leave the user
+        // signed in locally with no way out. Regression guard for the extraction
+        // of postLogout, which moved the try boundary.
+        let fetched = false;
+        global.fetch = (async () => { fetched = true; return { ok: true } as any; }) as any;
+
+        const throwing = new (class extends ArtemisApiService {
+            protected getServerUrl(): string {
+                throw new Error('no workspace configuration available');
+            }
+        })(authManager);
+
+        await throwing.logoutFromServer();
+        assert.strictEqual(fetched, false, 'no request is made when the URL cannot be resolved');
+    });
+
+    test('logoutFromServer makes no request at all when nothing is signed in', async () => {
+        let fetched = false;
+        global.fetch = (async () => { fetched = true; return { ok: true } as any; }) as any;
+        authManager.getAuthHeaders = async () => ({});
+
+        await apiService.logoutFromServer();
+        assert.strictEqual(fetched, false, 'with no credential there is nothing to tell the server');
+    });
+
+    test('logoutFromServer swallows a non-OK response as readily as a thrown one', async () => {
+        // Both branches end the same way for the caller; only the log differs.
+        global.fetch = (async () => ({ ok: false, status: 503 })) as any;
+        await apiService.logoutFromServer();
+
+        global.fetch = (async () => ({ ok: true, status: 200 })) as any;
+        await apiService.logoutFromServer();
+    });
+
+    test('exchangeCodeForToken maps a 401 to the same expired-code message as a 404', async () => {
+        // The 401 arm was described but never exercised, and it is the one a
+        // replayed code actually hits.
+        global.fetch = (async () => ({ ok: false, status: 401, text: async () => '' })) as any;
+
+        await assert.rejects(
+            () => apiService.exchangeCodeForToken('replayed-code', 'verifier-12345678901234567890123456789012345'),
+            /login code has expired or is invalid/,
+        );
+    });
+
+    test('authenticate puts rememberMe on the wire, defaulting to false', async () => {
+        // The default lives on the service method; the free function behind it
+        // takes the flag as required, so the default has exactly one home.
+        const sent: unknown[] = [];
+        global.fetch = (async (_url: any, options: any) => {
+            sent.push(JSON.parse(options.body));
+            return {
+                ok: true,
+                status: 200,
+                headers: { get: () => 'jwt=t; Path=/' },
+            } as any;
+        }) as any;
+
+        await apiService.authenticate('user', 'pass');
+        await apiService.authenticate('user', 'pass', true);
+
+        assert.deepStrictEqual(
+            sent.map((b) => (b as { rememberMe: boolean }).rememberMe),
+            [false, true],
+        );
+    });
+
     // The 202 body is what distinguishes a deliberate course-off (§13, pause with no lamp) from an in-flight
     // single-flight skip (§11, treat as accepted) from a missing endpoint (404, degrade to the lamp). These guard
     // the actual JSON parsing in postStruggleIntervention, which the orchestrator test cannot see (it stubs the result).

@@ -17,9 +17,10 @@ import { CONFIG, getUserAgent } from '@extension/utils';
  * the only endpoints whose non-2xx statuses carry meaning the caller acts on,
  * which `makeRequest` would have thrown away before they were read.
  *
- * They live here as free functions taking an already-resolved server URL (and,
- * where relevant, already-resolved auth headers), because `getServerUrl()` is
- * protected and overridable on the service and must stay there.
+ * They live here as free functions taking the server URL (and, where relevant,
+ * already-resolved auth headers) from the caller, because `getServerUrl()` is
+ * protected and overridable on the service and must stay there. `postLogout`
+ * takes it as a thunk rather than a string; see the note on that function.
  */
 /**
  * Fetch the account behind a candidate token without installing that token first.
@@ -185,6 +186,11 @@ export async function authenticateWithPassword(
  * `authHeaders` is already resolved by the caller, which also decides that
  * there is a session worth telling the server about at all.
  *
+ * `resolveServerUrl` is a thunk rather than a plain string BECAUSE of the
+ * never-throws promise: resolving the URL reads VS Code configuration, which
+ * can fail, and doing it in the caller would put that failure outside this
+ * swallow and abort a logout that must always complete locally.
+ *
  * Uses a direct fetch instead of `makeRequest()` so a non-2xx response does
  * not trigger the shared 401 handler, which would re-clear auth and fire the
  * auth-expired callback during an intentional logout.
@@ -196,11 +202,11 @@ export async function authenticateWithPassword(
  * protocol symmetry with the Artemis webapp.
  */
 export async function postLogout(
-    serverUrl: string,
+    resolveServerUrl: () => string,
     authHeaders: Record<string, string>,
 ): Promise<void> {
     try {
-        const response = await fetchWithTimeout(`${serverUrl}${CONFIG.API.ENDPOINTS.LOGOUT}`, {
+        const response = await fetchWithTimeout(`${resolveServerUrl()}${CONFIG.API.ENDPOINTS.LOGOUT}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

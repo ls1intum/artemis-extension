@@ -372,6 +372,10 @@ export class ArtemisApiService {
      *
      * The "are we even signed in" check stays here because it reads the AuthManager: with no
      * credential there is nothing to tell the server, and no request is made at all.
+     *
+     * `getServerUrl` is handed over unresolved so that resolving it stays INSIDE postLogout's
+     * swallow, where it was before this was split out. It reads VS Code configuration and can
+     * throw, and a logout that cannot work out the server URL must still clear local state.
      */
     async logoutFromServer(): Promise<void> {
         const headers = await this.authManager.getAuthHeaders();
@@ -379,7 +383,7 @@ export class ArtemisApiService {
             // Not authenticated, so there is nothing to tell the server.
             return;
         }
-        await postLogout(this.getServerUrl(), headers);
+        await postLogout(() => this.getServerUrl(), headers);
     }
 
 
