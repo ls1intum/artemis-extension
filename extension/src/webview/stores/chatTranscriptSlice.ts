@@ -258,10 +258,10 @@ function echoOwner(state: TranscriptStateRead, message: ChatMessage): ChatMessag
  * the composed store is one flat `ChatState`, and `set`/`get` are typed over
  * all of it.
  *
- * Note these bodies call `get()` where they used to call
- * `get()`. The two are the same live synchronous getter, but
- * reaching for the store by name from here would be a genuine runtime import
- * cycle rather than the erased type-only one above.
+ * Note these bodies call `get()` where they used to reach for the store by
+ * name. The two are the same live synchronous getter, but naming the store from
+ * this file would be a genuine runtime import cycle rather than the erased
+ * type-only one above.
  */
 export const createChatTranscriptSlice: StateCreator<
     ChatState,
