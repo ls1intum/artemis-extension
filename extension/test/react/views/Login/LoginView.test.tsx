@@ -253,42 +253,72 @@ describe('LoginView - progress indicator and ownership', () => {
         expect(secondAttempt).not.toBe(firstAttempt);
     });
 
-    it('removes the indicator when the login succeeds', async () => {
+    it('keeps the indicator up after a successful login, because the app is still opening', async () => {
+        // Success is the middle of the flow, not the end: the host still has to wire up the
+        // authenticated UI, which takes seconds. Tearing the indicator down here is what left the user
+        // looking at a form that claimed nothing was happening.
         const mockApi = createMockVsCodeApi();
         render(<LoginView vscodeApi={mockApi} />);
         const attemptId = await submitPasswordLogin(mockApi);
 
-        // Only now: the interaction above needed real timers for `findBy*`/`userEvent` to resolve at all.
-        vi.useFakeTimers();
-        try {
-            dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
-            act(() => { vi.advanceTimersByTime(300); });
+        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
 
-            expect(screen.queryByTestId('login-progress')).not.toBeInTheDocument();
-        } finally {
-            vi.useRealTimers();
-        }
+        const indicator = await screen.findByTestId('login-progress');
+        expect(indicator).toHaveTextContent('Signed in, opening Artemis');
     });
 
-    it('removes the indicator unconditionally for an OIDC result, which carries no attemptId', async () => {
+    it('locks the form during the handover and withdraws the way back', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        const attemptId = await submitPasswordLogin(mockApi);
+
+        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
+        await screen.findByTestId('login-progress');
+
+        expect(screen.getByTestId('login-submit')).toBeDisabled();
+        // Not merely disabled: both meanings this button can carry are false past the commit.
+        expect(screen.queryByTestId('login-secondary')).not.toBeInTheDocument();
+    });
+
+    it('posts nothing when the form is submitted again during the handover', async () => {
+        // The submit button is disabled, which a keyboard submit does not care about.
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        const attemptId = await submitPasswordLogin(mockApi);
+
+        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
+        await screen.findByTestId('login-progress');
+
+        const before = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.length;
+        fireEvent.submit(screen.getByTestId('login-form'));
+
+        expect((mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.length).toBe(before);
+    });
+
+    it('accepts an id-less success as OIDC, since that flow outlives the webview', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        // No attempt of its own: the browser flow has no counter to send back.
+        dispatchExtensionMessage({ type: 'loginOptionsResult', loginMethod: 'OIDC', idpName: 'TUM' });
+        await screen.findByTestId('login-oidc-submit');
+
+        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student' });
+
+        expect(await screen.findByTestId('login-progress')).toHaveTextContent('Signed in, opening Artemis');
+    });
+
+    it('ignores an id-less success while a password attempt is in flight', async () => {
+        // A stale OIDC callback carries no id, so nothing about it says which attempt it answers. While
+        // a password attempt is running it cannot be that one's answer, and acting on it would sign the
+        // user in behind a login they are still waiting on.
         const mockApi = createMockVsCodeApi();
         render(<LoginView vscodeApi={mockApi} />);
         await submitPasswordLogin(mockApi);
 
-        // Only now: the interaction above needed real timers for `findBy*`/`userEvent` to resolve at all.
-        vi.useFakeTimers();
-        try {
-            // No attemptId: this is how a real OIDC loginSuccess/loginError arrives, since that browser
-            // flow outlives the webview and there is no counter to send back. `ownsProgress(undefined)`
-            // would say no here (the indicator's owner is a real attempt id), so this proves the
-            // unconditional call, not the ownership guard, is what clears it.
-            dispatchExtensionMessage({ type: 'loginSuccess', username: 'student' });
-            act(() => { vi.advanceTimersByTime(300); });
+        dispatchExtensionMessage({ type: 'loginSuccess', username: 'someone-else' });
 
-            expect(screen.queryByTestId('login-progress')).not.toBeInTheDocument();
-        } finally {
-            vi.useRealTimers();
-        }
+        expect(await screen.findByTestId('login-progress')).toHaveTextContent('Verifying your credentials');
+        expect(screen.getByTestId('login-secondary')).toBeInTheDocument();
     });
 
     it('ignores unowned startup loading messages while an interactive attempt owns the indicator', async () => {
