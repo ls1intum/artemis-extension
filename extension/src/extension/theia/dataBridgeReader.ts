@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
+import { extractErrorMessage } from '@extension/utils';
 
 const DATA_BRIDGE_COMMAND = 'dataBridge.getEnv';
 const POLL_INTERVAL_MS = 500;
@@ -118,7 +119,7 @@ export async function readEnvVarsViaDataBridge<T extends string>(
         } catch (e) {
             // data-bridge may not be ready yet, so keep polling. The most
             // recent error is surfaced if the deadline elapses.
-            lastError = e instanceof Error ? e.message : String(e);
+            lastError = extractErrorMessage(e);
         }
 
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
@@ -191,7 +192,7 @@ export async function probeDataBridge(
             bridgeEnabledFlag,
             responded: false,
             values: {},
-            error: e instanceof Error ? e.message : String(e),
+            error: extractErrorMessage(e),
         };
     }
 }
