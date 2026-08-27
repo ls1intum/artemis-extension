@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 
-import { BackLink, Badge, Button, Container, PageHeader, SkeletonList } from '@webview/components';
+import { BackLink, Badge, Button, Container, EmptyState, PageHeader, SkeletonList } from '@webview/components';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 
 import styles from './RecommendedExtensionsView.module.css';
@@ -71,24 +71,11 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
                 <BackLink onClick={handleBackToDashboard}>
                     Back to Dashboard
                 </BackLink>
-                <Container className="empty-state" variant="muted">
-                    <div style={{
-                        textAlign: 'center',
-                        padding: '40px 20px',
-                        color: 'var(--vscode-descriptionForeground)'
-                    }}>
-                        <p style={{
-                            fontSize: '16px',
-                            fontWeight: 600,
-                            margin: '0 0 8px 0',
-                            color: 'var(--vscode-foreground)'
-                        }}>
-                            No recommended extensions available
-                        </p>
-                        <p style={{ margin: 0, fontSize: '14px' }}>
-                            Check back soon for curated extension recommendations!
-                        </p>
-                    </div>
+                <Container variant="muted">
+                    <EmptyState
+                        title="No recommended extensions available"
+                        message="Check back soon for curated extension recommendations!"
+                    />
                 </Container>
             </div>
         );
