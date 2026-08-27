@@ -8,7 +8,7 @@ import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import { getTheiaEnvironment, KNOWN_BRIDGE_KEYS, probeDataBridge } from '@extension/theia';
-import { extractErrorMessage, normalizeRelativePath, VSCODE_CONFIG } from '@extension/utils';
+import { clearTrustedDomains, extractErrorMessage, normalizeRelativePath, VSCODE_CONFIG } from '@extension/utils';
 
 function registerLoginCommand(): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.login', () => {
@@ -572,7 +572,7 @@ function registerClearTrustedDomainsCommand(context: vscode.ExtensionContext): v
             'Clear'
         );
         if (result === 'Clear') {
-            await context.globalState.update('artemis.trustedDomains', []);
+            await clearTrustedDomains(context);
             vscode.window.showInformationMessage('Trusted domains cleared.');
         }
     });

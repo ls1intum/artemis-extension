@@ -6,7 +6,7 @@ import { getOptionalPayload, getPayload, WebviewCmd } from '@shared/messageContr
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
-import { extractErrorMessage, resolveServerUrl } from '@extension/utils';
+import { extractErrorMessage, getTrustedDomains, resolveServerUrl, trustDomain } from '@extension/utils';
 
 import type { CommandContext, CommandMap } from './types';
 
@@ -171,10 +171,7 @@ export class UtilityCommandModule {
                 return;
             }
 
-            const trustedDomains = this.context.extensionContext.globalState.get<string[]>('artemis.trustedDomains', []);
-            const validatedDomains = Array.isArray(trustedDomains) ? trustedDomains : [];
-
-            if (validatedDomains.includes(domain)) {
+            if (getTrustedDomains(this.context.extensionContext).includes(domain)) {
                 await vscode.env.openExternal(vscode.Uri.parse(url));
                 return;
             }
@@ -190,8 +187,7 @@ export class UtilityCommandModule {
             if (result === 'Open') {
                 await vscode.env.openExternal(vscode.Uri.parse(url));
             } else if (result === 'Trust this domain') {
-                const updatedDomains = [...validatedDomains, domain];
-                await this.context.extensionContext.globalState.update('artemis.trustedDomains', updatedDomains);
+                await trustDomain(this.context.extensionContext, domain);
                 await vscode.env.openExternal(vscode.Uri.parse(url));
             }
         } catch (error: unknown) {
