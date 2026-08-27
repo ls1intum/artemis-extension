@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 
+import type { AttemptId } from '@shared/messageContracts';
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 
 import { Button } from '@webview/components/Button';
@@ -42,16 +43,26 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         message: string;
         subtext: string;
         /** The interactive attempt this belongs to, or null for the startup credential check. */
-        attemptId: number | null;
+        attemptId: AttemptId | null;
         hiding: boolean;
     }
 
     const [progress, setProgress] = useState<LoginProgress | null>(null);
 
-    // Monotone, and never reused. `postMessage` gives no delivery guarantee, so a result for a retracted
-    // attempt can still be in flight; the id is how the view knows the answer is not to its question.
-    const nextAttemptId = useRef(0);
-    const [activeAttemptId, setActiveAttemptId] = useState<number | null>(null);
+    // Monotone within this mount, and prefixed so it is unique ACROSS mounts.
+    // `postMessage` gives no delivery guarantee, so a result for a retracted attempt can still be in
+    // flight; the id is how the view knows the answer is not to its question. A bare counter was not
+    // enough for that: `render()` replaces the document, and a counter restarting at 1 in the new view
+    // would match an answer meant for the old one. Generated once, in a ref, never during a render.
+    const mountId = useRef<string>();
+    if (mountId.current === undefined) {
+        mountId.current = typeof crypto?.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : Math.random().toString(36).slice(2);
+    }
+    const attemptCounter = useRef(0);
+    const nextAttemptId = (): AttemptId => `${mountId.current}-${++attemptCounter.current}`;
+    const [activeAttemptId, setActiveAttemptId] = useState<AttemptId | null>(null);
 
     const loadingSubtexts: Record<string, string> = {
         'Checking stored credentials...': 'Looking for saved authentication data',
@@ -92,7 +103,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         }
     };
 
-    const showProgress = (message: string, subtext: string, attemptId: number | null) => {
+    const showProgress = (message: string, subtext: string, attemptId: AttemptId | null) => {
         // A hide already scheduled would otherwise fire against this new indicator and take it away.
         clearHideTimer();
         setProgress({ message, subtext, attemptId, hiding: false });
@@ -111,7 +122,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
     };
 
     /** Whether a message may touch the indicator: its own attempt's, or anyone's while nobody owns it. */
-    const ownsProgress = (attemptId: number | undefined): boolean => {
+    const ownsProgress = (attemptId: AttemptId | undefined): boolean => {
         if (!progress) {
             return true;
         }
@@ -279,7 +290,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
             return;
         }
 
-        const attemptId = ++nextAttemptId.current;
+        const attemptId = nextAttemptId();
         setActiveAttemptId(attemptId);
         setStatusMessage('');
         setIsCheckingOptions(true);
@@ -349,7 +360,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
             return;
         }
 
-        const attemptId = ++nextAttemptId.current;
+        const attemptId = nextAttemptId();
         setActiveAttemptId(attemptId);
         setStatusMessage('');
         setIsSubmitting(true);

@@ -10,6 +10,7 @@ import type {
     SubmissionSummary,
 } from '@shared/types/apiResponses';
 
+import type { AttemptId } from './domainTypes';
 import type { ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
 
 /**
@@ -192,24 +193,30 @@ interface ExtensionMsgPayloads {
     viewInitError: { error: string };
 
     // Auth
-    loginSuccess: { username: string; attemptId?: number };
-    loginError: { error: string; attemptId?: number };
+    //
+    // `attemptId` correlates an answer with the request that asked for it. It is
+    // unique per view MOUNT, not just per attempt: `render()` replaces the
+    // document, and a counter that restarted at 1 in the new one would let a
+    // message still in flight for the old view match a question the new view
+    // happens to have numbered the same.
+    loginSuccess: { username: string; attemptId?: AttemptId };
+    loginError: { error: string; attemptId?: AttemptId };
     setServerUrl: { serverUrl: string };
     loginOptionsResult: {
         loginMethod: 'PASSWORD' | 'OIDC' | 'SAML2';
         /** Null for password accounts; the view falls back to its own label. */
         idpName?: string | null;
-        attemptId?: number;
+        attemptId?: AttemptId;
     };
     loginOptionsError: {
         error?: string;
-        attemptId?: number;
+        attemptId?: AttemptId;
     };
 
     // Loading
     showLoading: { message: string };
     hideLoading: undefined;
-    updateLoading: { message: string; subtext?: string; attemptId?: number };
+    updateLoading: { message: string; subtext?: string; attemptId?: AttemptId };
 
     // Dashboard/Course
     archivedCoursesLoaded: { archivedCourses: ArchivedCourse[] };

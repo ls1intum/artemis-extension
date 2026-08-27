@@ -2,6 +2,8 @@
  * Webview -> Extension command contracts.
  */
 
+import type { AttemptId } from './domainTypes';
+
 /** Non-command webview message types (ready, requestInit, error) */
 export const WebviewMsgType = {
     Ready: 'ready',
@@ -128,9 +130,9 @@ export type WebviewCmd = (typeof WebviewCmd)[keyof typeof WebviewCmd];
 /** Payload definitions -- undefined means no payload */
 interface WebviewCmdPayloads {
     // Auth
-    login: { username: string; password: string; rememberMe: boolean; attemptId: number };
+    login: { username: string; password: string; rememberMe: boolean; attemptId: AttemptId };
     logout: undefined;
-    checkLoginOptions: { username: string; attemptId: number };
+    checkLoginOptions: { username: string; attemptId: AttemptId };
     startOidcLogin: { rememberMe: boolean };
     cancelLogin: undefined;
 

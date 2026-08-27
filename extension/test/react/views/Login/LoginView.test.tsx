@@ -27,7 +27,7 @@ describe('LoginView - Two-Stage & OIDC Flow', () => {
             expect(mockApi.postMessage).toHaveBeenCalledWith({
                 type: 'command',
                 command: 'checkLoginOptions',
-                payload: { username: 'teststudent', attemptId: expect.any(Number) },
+                payload: { username: 'teststudent', attemptId: expect.any(String) },
             });
         });
     });
@@ -183,7 +183,7 @@ describe('LoginView - Two-Stage & OIDC Flow', () => {
 // `getByTestId`/`queryByTestId` rather than the polling `findByTestId`.
 describe('LoginView - progress indicator and ownership', () => {
     /** Reach stage 1 and submit a password login, returning the id the view sent with it. */
-    async function submitPasswordLogin(mockApi: ReturnType<typeof createMockVsCodeApi>): Promise<number> {
+    async function submitPasswordLogin(mockApi: ReturnType<typeof createMockVsCodeApi>): Promise<string> {
         // handleSubmit's password branch validates both fields, so the submit below is a no-op without a
         // username too, even though the dispatch under test skips checkLoginOptions to reach stage 1.
         await userEvent.type(screen.getByTestId('login-username'), 'teststudent');
@@ -194,10 +194,10 @@ describe('LoginView - progress indicator and ownership', () => {
     }
 
     /** The attemptId the view sent with its most recent interactive command. */
-    function currentAttemptId(mockApi: ReturnType<typeof createMockVsCodeApi>): number {
+    function currentAttemptId(mockApi: ReturnType<typeof createMockVsCodeApi>): string {
         const calls = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls as Array<[Record<string, never>]>;
         const interactive = calls
-            .map(call => call[0] as unknown as { command?: string; payload?: { attemptId?: number } })
+            .map(call => call[0] as unknown as { command?: string; payload?: { attemptId?: string } })
             .filter(msg => msg.command === 'login' || msg.command === 'checkLoginOptions');
         const last = interactive[interactive.length - 1];
         if (!last?.payload?.attemptId) {
@@ -235,6 +235,22 @@ describe('LoginView - progress indicator and ownership', () => {
         });
 
         expect(await screen.findByTestId('login-progress')).toHaveTextContent('Loading your profile');
+    });
+
+    it('does not reuse an attempt id after the view is recreated', async () => {
+        // `render()` replaces the whole webview document, so LoginView remounts and any counter it kept
+        // starts over. An answer still in flight for the previous view must not match a question the new
+        // one happens to have numbered the same, which is what a bare counter would allow.
+        const firstApi = createMockVsCodeApi();
+        const first = render(<LoginView vscodeApi={firstApi} />);
+        const firstAttempt = await submitPasswordLogin(firstApi);
+        first.unmount();
+
+        const secondApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={secondApi} />);
+        const secondAttempt = await submitPasswordLogin(secondApi);
+
+        expect(secondAttempt).not.toBe(firstAttempt);
     });
 
     it('removes the indicator when the login succeeds', async () => {
