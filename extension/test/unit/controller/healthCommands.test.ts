@@ -180,8 +180,10 @@ suite('performHealthChecks', () => {
                 return allHealthy(url);
             });
 
-            assert.strictEqual(results.serverReachability.message, 'Timeout');
-            assert.strictEqual(results.serverReachability.status, 'offline');
+            assert.deepStrictEqual(results.serverReachability, {
+                status: 'offline', message: 'Timeout', endpoint: SERVER,
+                httpStatus: null, response: 'The operation was aborted due to timeout',
+            });
         });
 
         test('a non-Error rejection still yields "Network error"', async () => {
@@ -191,7 +193,10 @@ suite('performHealthChecks', () => {
                 return allHealthy(url);
             });
 
-            assert.strictEqual(results.serverReachability.response, 'Network error');
+            assert.deepStrictEqual(results.serverReachability, {
+                status: 'offline', message: 'Unreachable', endpoint: SERVER,
+                httpStatus: null, response: 'Network error',
+            });
         });
 
         test('a later check still runs after this one rejects', async () => {
@@ -228,15 +233,20 @@ suite('performHealthChecks', () => {
             const results = await run(async (url) =>
                 url === HEALTH_URL ? jsonResponse(200, 'OK', {}) : allHealthy(url));
 
-            assert.strictEqual(results.apiAvailability.message, 'UNKNOWN');
-            assert.strictEqual(results.apiAvailability.status, 'offline');
+            assert.deepStrictEqual(results.apiAvailability, {
+                status: 'offline', message: 'UNKNOWN', endpoint: HEALTH_URL,
+                httpStatus: 200, response: 'Backend status: UNKNOWN',
+            });
         });
 
         test('an empty status is falsy and also falls back to UNKNOWN', async () => {
             const results = await run(async (url) =>
                 url === HEALTH_URL ? jsonResponse(200, 'OK', { status: '' }) : allHealthy(url));
 
-            assert.strictEqual(results.apiAvailability.message, 'UNKNOWN');
+            assert.deepStrictEqual(results.apiAvailability, {
+                status: 'offline', message: 'UNKNOWN', endpoint: HEALTH_URL,
+                httpStatus: 200, response: 'Backend status: UNKNOWN',
+            });
         });
 
         test('unreadable JSON on a 2xx reads as available, not as a failure', async () => {
@@ -264,15 +274,50 @@ suite('performHealthChecks', () => {
                 if (url === HEALTH_URL) { throw new Error('boom'); }
                 return allHealthy(url);
             });
-            assert.strictEqual(plain.apiAvailability.message, 'Unavailable');
-            assert.strictEqual(plain.apiAvailability.status, 'offline');
+            assert.deepStrictEqual(plain.apiAvailability, {
+                status: 'offline', message: 'Unavailable', endpoint: HEALTH_URL,
+                httpStatus: null, response: 'boom',
+            });
 
             calls = [];
             const timedOut = await run(async (url) => {
                 if (url === HEALTH_URL) { throw timeoutError(); }
                 return allHealthy(url);
             });
-            assert.strictEqual(timedOut.apiAvailability.message, 'Timeout');
+            assert.deepStrictEqual(timedOut.apiAvailability, {
+                status: 'offline', message: 'Timeout', endpoint: HEALTH_URL,
+                httpStatus: null, response: 'The operation was aborted due to timeout',
+            });
+        });
+    });
+
+    suite('a response object whose getters throw', () => {
+        /** A Response-like whose `status` throws on access. */
+        function hostileResponse(): unknown {
+            return {
+                ok: true,
+                get status(): number { throw new TypeError('detached response'); },
+                statusText: 'OK',
+                json: async () => ({}),
+            };
+        }
+
+        test('is contained to its own check, and the later checks still run', async () => {
+            // The original code wrapped each complete check in its own try, so a
+            // throwing response getter failed only that check. The probe helper
+            // has to preserve that: if it escaped to the outer catch, the info
+            // check below would never run and would still be reported as
+            // 'Not checked'.
+            const results = await run(async (url) =>
+                url === HEALTH_URL ? hostileResponse() : allHealthy(url));
+
+            assert.strictEqual(results.apiAvailability.status, 'offline');
+            assert.strictEqual(results.apiAvailability.message, 'Unavailable');
+            assert.strictEqual(results.apiAvailability.response, 'detached response');
+
+            assert.strictEqual(results.irisService.message, 'Active',
+                'the info check must still have run');
+            assert.strictEqual(results.serverReachability.message, 'Available');
         });
     });
 
@@ -292,12 +337,11 @@ suite('performHealthChecks', () => {
                     ? jsonResponse(200, 'OK', { activeModuleFeatures: [], activeProfiles: ['iris', 'prod'] })
                     : allHealthy(url));
 
-            assert.strictEqual(results.irisService.status, 'online');
-            assert.strictEqual(results.irisService.message, 'Active');
-            assert.strictEqual(
-                results.irisService.response,
-                'Iris module active (0 module features, 2 profiles loaded)',
-            );
+            assert.deepStrictEqual(results.irisService, {
+                status: 'online', message: 'Active', endpoint: INFO_URL,
+                httpStatus: 200,
+                response: 'Iris module active (0 module features, 2 profiles loaded)',
+            });
         });
 
         test('iris in neither list reads as OFFLINE, not unknown', async () => {
@@ -338,15 +382,20 @@ suite('performHealthChecks', () => {
                 if (url === INFO_URL) { throw new Error('boom'); }
                 return allHealthy(url);
             });
-            assert.strictEqual(plain.irisService.status, 'unknown');
-            assert.strictEqual(plain.irisService.message, 'Cannot check');
+            assert.deepStrictEqual(plain.irisService, {
+                status: 'unknown', message: 'Cannot check', endpoint: INFO_URL,
+                httpStatus: null, response: 'boom',
+            });
 
             calls = [];
             const timedOut = await run(async (url) => {
                 if (url === INFO_URL) { throw timeoutError(); }
                 return allHealthy(url);
             });
-            assert.strictEqual(timedOut.irisService.message, 'Timeout');
+            assert.deepStrictEqual(timedOut.irisService, {
+                status: 'unknown', message: 'Timeout', endpoint: INFO_URL,
+                httpStatus: null, response: 'The operation was aborted due to timeout',
+            });
         });
     });
 });

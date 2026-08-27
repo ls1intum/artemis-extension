@@ -8,10 +8,18 @@ import type { CommandContext, CommandMap } from './types';
 
 type HealthCheckResults = Record<string, HealthCheckResult>;
 
-/** What a single probe can tell its caller. */
+/**
+ * What a single probe can tell its caller.
+ *
+ * The response is decomposed into plain values rather than handed over as a
+ * `Response`, so that reading `ok` / `status` / `statusText` happens INSIDE
+ * `probe`'s try. That is what the original per-check try/catch covered: a
+ * response object whose getters throw has to land in the same failure branch as
+ * a network error, not escape to the outer catch and skip the remaining checks.
+ */
 type ProbeOutcome =
-    | { ok: true; response: Response }
-    | { ok: false; isTimeout: boolean; errorMessage: string };
+    | { kind: 'response'; httpOk: boolean; status: number; statusText: string; json: () => Promise<unknown> }
+    | { kind: 'failure'; isTimeout: boolean; errorMessage: string };
 
 /**
  * One HTTP probe with a timeout.
@@ -26,6 +34,9 @@ type ProbeOutcome =
  * the same outcome into different statuses and messages (a failed info lookup is
  * `unknown`, a failed health lookup is `offline`), so the mapping stays with
  * each check.
+ *
+ * Reading the body is NOT done here. Each check needs its own handling for an
+ * unreadable body, which differs from its handling of an unreachable endpoint.
  */
 async function probe(url: string, init: { method: string; timeoutMs: number }): Promise<ProbeOutcome> {
     try {
@@ -33,10 +44,16 @@ async function probe(url: string, init: { method: string; timeoutMs: number }): 
             method: init.method,
             signal: AbortSignal.timeout(init.timeoutMs),
         });
-        return { ok: true, response };
+        return {
+            kind: 'response',
+            httpOk: response.ok,
+            status: response.status,
+            statusText: response.statusText,
+            json: () => response.json() as Promise<unknown>,
+        };
     } catch (error: unknown) {
         return {
-            ok: false,
+            kind: 'failure',
             isTimeout: error instanceof Error && error.name === 'TimeoutError',
             errorMessage: error instanceof Error ? error.message : 'Network error',
         };
@@ -67,13 +84,13 @@ export class HealthCommandModule {
             // Reachability deliberately does NOT consult `response.ok`: any
             // answer at all, including a 500, proves the server is reachable.
             const reachability = await probe(serverUrl, { method: 'HEAD', timeoutMs: 5000 });
-            results.serverReachability = reachability.ok
+            results.serverReachability = reachability.kind === 'response'
                 ? {
                     status: 'online',
                     message: 'Available',
                     endpoint: serverUrl,
-                    httpStatus: reachability.response.status,
-                    response: `${reachability.response.status} ${reachability.response.statusText}`
+                    httpStatus: reachability.status,
+                    response: `${reachability.status} ${reachability.statusText}`
                 }
                 : {
                     status: 'offline',
@@ -84,7 +101,7 @@ export class HealthCommandModule {
                 };
 
             const health = await probe(healthUrl, { method: 'GET', timeoutMs: 8000 });
-            if (!health.ok) {
+            if (health.kind === 'failure') {
                 results.apiAvailability = {
                     status: 'offline',
                     message: health.isTimeout ? 'Timeout' : 'Unavailable',
@@ -92,23 +109,23 @@ export class HealthCommandModule {
                     httpStatus: null,
                     response: health.errorMessage
                 };
-            } else if (!health.response.ok) {
+            } else if (!health.httpOk) {
                 results.apiAvailability = {
                     status: 'offline',
-                    message: `Error ${health.response.status}`,
+                    message: `Error ${health.status}`,
                     endpoint: healthUrl,
-                    httpStatus: health.response.status,
-                    response: `${health.response.status} ${health.response.statusText}`
+                    httpStatus: health.status,
+                    response: `${health.status} ${health.statusText}`
                 };
             } else {
                 try {
-                    const healthData = await health.response.json() as { status?: string };
+                    const healthData = await health.json() as { status?: string };
                     const status = healthData.status || 'UNKNOWN';
                     results.apiAvailability = {
                         status: status === 'UP' ? 'online' : 'offline',
                         message: status === 'UP' ? 'Healthy' : status,
                         endpoint: healthUrl,
-                        httpStatus: health.response.status,
+                        httpStatus: health.status,
                         response: `Backend status: ${status}`
                     };
                 } catch {
@@ -118,14 +135,14 @@ export class HealthCommandModule {
                         status: 'online',
                         message: 'Available',
                         endpoint: healthUrl,
-                        httpStatus: health.response.status,
-                        response: `${health.response.status} ${health.response.statusText}`
+                        httpStatus: health.status,
+                        response: `${health.status} ${health.statusText}`
                     };
                 }
             }
 
             const info = await probe(infoUrl, { method: 'GET', timeoutMs: 8000 });
-            if (!info.ok) {
+            if (info.kind === 'failure') {
                 results.irisService = {
                     status: 'unknown',
                     message: info.isTimeout ? 'Timeout' : 'Cannot check',
@@ -133,20 +150,20 @@ export class HealthCommandModule {
                     httpStatus: null,
                     response: info.errorMessage
                 };
-            } else if (!info.response.ok) {
+            } else if (!info.httpOk) {
                 // Unlike the health check above, a failure here is `unknown`
                 // rather than `offline`: not reaching the info endpoint says
                 // nothing about whether Iris is enabled.
                 results.irisService = {
                     status: 'unknown',
-                    message: `Error ${info.response.status}`,
+                    message: `Error ${info.status}`,
                     endpoint: infoUrl,
-                    httpStatus: info.response.status,
-                    response: `${info.response.status} ${info.response.statusText}`
+                    httpStatus: info.status,
+                    response: `${info.status} ${info.statusText}`
                 };
             } else {
                 try {
-                    const infoData = await info.response.json() as { activeProfiles?: string[]; activeModuleFeatures?: string[] };
+                    const infoData = await info.json() as { activeProfiles?: string[]; activeModuleFeatures?: string[] };
                     const profiles = infoData.activeProfiles || [];
                     const moduleFeatures = infoData.activeModuleFeatures || [];
                     const isIrisActive = moduleFeatures.includes('iris') || profiles.includes('iris');
@@ -155,7 +172,7 @@ export class HealthCommandModule {
                         status: isIrisActive ? 'online' : 'offline',
                         message: isIrisActive ? 'Active' : 'Not enabled',
                         endpoint: infoUrl,
-                        httpStatus: info.response.status,
+                        httpStatus: info.status,
                         response: isIrisActive
                             ? `Iris module active (${moduleFeatures.length} module features, ${profiles.length} profiles loaded)`
                             : `Iris not found in activeModuleFeatures or activeProfiles`
@@ -165,7 +182,7 @@ export class HealthCommandModule {
                         status: 'unknown',
                         message: 'Parse error',
                         endpoint: infoUrl,
-                        httpStatus: info.response.status,
+                        httpStatus: info.status,
                         response: 'Could not parse profile information'
                     };
                 }
