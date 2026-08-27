@@ -2,7 +2,7 @@ export type { AuthenticationResult, ProfileInfo } from './auth';
 export { parseProfileInfo, PROFILE_IRIS } from './auth';
 export type { BuildLogEntry, ParsedBuildError } from './build';
 export { parseBuildLogEntry } from './build';
-export type { ArtemisParticipation, ArtemisUser } from './core';
+export type { ArtemisFeedback, ArtemisParticipation, ArtemisUser } from './core';
 export { parseArtemisFeedback, parseArtemisParticipation, parseArtemisResult, parseArtemisUser } from './core';
 export { ApiError, isIrisCourseDisabled, MalformedResponseError } from './errors';
 export type { IrisHealthStatus } from './iris';
