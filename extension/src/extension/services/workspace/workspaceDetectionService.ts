@@ -178,103 +178,87 @@ export async function getWorkspaceStatus(
         return { isConnected: true, hasChanges, isPracticeRepo: normalizedWorkspace.includes('-practice-') };
     }
 
-    // Practice-repo fallback: workspace URL contains '-practice-', try matching without it
-    if (normalizedWorkspace.includes('-practice-')) {
-        const potentialGradedUrl = normalizedWorkspace.replace('-practice-', '-');
-        if (potentialGradedUrl === normalizedExpected) {
-            const hasChanges = await getFileChanges();
-            return { isConnected: true, hasChanges, isPracticeRepo: true };
-        }
+    // Practice-repo fallback: a practice workspace still belongs to the exercise
+    // whose graded repo it derives from. `normalizedExpected` is always a
+    // string, so the null returned for a non-practice URL simply fails to match.
+    if (degradePracticeUrl(normalizedWorkspace) === normalizedExpected) {
+        const hasChanges = await getFileChanges();
+        return { isConnected: true, hasChanges, isPracticeRepo: true };
     }
 
     return disconnected;
 }
 
-/** Finds an exercise that matches the given repository URL. */
+/**
+ * A practice repository URL rewritten to the graded one it derives from, or
+ * `null` when the URL is not a practice repo.
+ *
+ * Only the FIRST `-practice-` is rewritten, matching the original open-coded
+ * `replace` calls this replaced.
+ */
+function degradePracticeUrl(normalizedUrl: string): string | null {
+    if (!normalizedUrl.includes('-practice-')) { return null; }
+    return normalizedUrl.replace('-practice-', '-');
+}
+
+/** Builds the detected-exercise DTO, carrying `courseId` only when it exists. */
+function toDetected(exercise: ExerciseSource, repositoryUri: string): DetectedExercise {
+    const result: DetectedExercise = {
+        id: exercise.id,
+        title: exercise.title,
+        shortName: exercise.shortName,
+        repositoryUri
+    };
+    if (exercise.courseId !== undefined) {
+        result.courseId = exercise.courseId;
+    }
+    return result;
+}
+
+/**
+ * First exercise whose own repository, or one of whose participations',
+ * normalizes to `targetUrl`.
+ *
+ * The nesting is the behaviour and must not be flattened: within ONE exercise
+ * the exercise-level URI is checked before its participations, and only then
+ * does the search move to the next exercise. Checking all exercise-level URIs
+ * globally first would let exercise 2's own repo beat a participation match
+ * under exercise 1.
+ */
+function matchExercises(exercises: ExerciseSource[], targetUrl: string): DetectedExercise | null {
+    for (const exercise of exercises) {
+        if (exercise.repositoryUri && normalizeRepositoryUrl(exercise.repositoryUri) === targetUrl) {
+            return toDetected(exercise, exercise.repositoryUri);
+        }
+
+        for (const participation of exercise.studentParticipations || []) {
+            if (participation.repositoryUri && normalizeRepositoryUrl(participation.repositoryUri) === targetUrl) {
+                return toDetected(exercise, participation.repositoryUri);
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * Finds an exercise that matches the given repository URL.
+ *
+ * The exact pass runs to completion across ALL exercises before the practice
+ * fallback starts, so an exact match anywhere always beats a degraded match
+ * anywhere. Merging the two into one pass would silently reverse that.
+ */
 export function findExerciseByRepositoryUrl(
     repositoryUrl: string,
     exercises: ExerciseSource[]
 ): DetectedExercise | null {
     const normalizedSearchUrl = normalizeRepositoryUrl(repositoryUrl);
 
-    // First pass: exact match
-    for (const exercise of exercises) {
-        if (exercise.repositoryUri) {
-            if (normalizeRepositoryUrl(exercise.repositoryUri) === normalizedSearchUrl) {
-                const result: DetectedExercise = {
-                    id: exercise.id,
-                    title: exercise.title,
-                    shortName: exercise.shortName,
-                    repositoryUri: exercise.repositoryUri
-                };
-                if (exercise.courseId !== undefined) {
-                    result.courseId = exercise.courseId;
-                }
-                return result;
-            }
-        }
+    const exact = matchExercises(exercises, normalizedSearchUrl);
+    if (exact) { return exact; }
 
-        const participations = exercise.studentParticipations || [];
-        for (const participation of participations) {
-            if (participation.repositoryUri) {
-                if (normalizeRepositoryUrl(participation.repositoryUri) === normalizedSearchUrl) {
-                    const result: DetectedExercise = {
-                        id: exercise.id,
-                        title: exercise.title,
-                        shortName: exercise.shortName,
-                        repositoryUri: participation.repositoryUri
-                    };
-                    if (exercise.courseId !== undefined) {
-                        result.courseId = exercise.courseId;
-                    }
-                    return result;
-                }
-            }
-        }
-    }
-
-    // Second pass: practice repo fallback
-    // If the workspace is a practice repo (contains '-practice-'), try matching against graded repos
-    if (normalizedSearchUrl.includes('-practice-')) {
-        const potentialGradedUrl = normalizedSearchUrl.replace('-practice-', '-');
-
-        for (const exercise of exercises) {
-            if (exercise.repositoryUri) {
-                if (normalizeRepositoryUrl(exercise.repositoryUri) === potentialGradedUrl) {
-                    const result: DetectedExercise = {
-                        id: exercise.id,
-                        title: exercise.title,
-                        shortName: exercise.shortName,
-                        repositoryUri: exercise.repositoryUri
-                    };
-                    if (exercise.courseId !== undefined) {
-                        result.courseId = exercise.courseId;
-                    }
-                    return result;
-                }
-            }
-
-            const participations = exercise.studentParticipations || [];
-            for (const participation of participations) {
-                if (participation.repositoryUri) {
-                    if (normalizeRepositoryUrl(participation.repositoryUri) === potentialGradedUrl) {
-                        const result: DetectedExercise = {
-                            id: exercise.id,
-                            title: exercise.title,
-                            shortName: exercise.shortName,
-                            repositoryUri: participation.repositoryUri
-                        };
-                        if (exercise.courseId !== undefined) {
-                            result.courseId = exercise.courseId;
-                        }
-                        return result;
-                    }
-                }
-            }
-        }
-    }
-
-    return null;
+    // A practice workspace may still identify its exercise through the graded repo.
+    const gradedUrl = degradePracticeUrl(normalizedSearchUrl);
+    return gradedUrl ? matchExercises(exercises, gradedUrl) : null;
 }
 
 /** Detects the exercise that corresponds to the current workspace. */
