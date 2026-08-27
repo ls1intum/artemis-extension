@@ -1,6 +1,6 @@
 import type { AttemptId } from '@shared/messageContracts';
 
-export interface HandoverFailure {
+interface HandoverFailure {
     error: string;
     /**
      * The handover this belongs to. Monotone, so a view can recognise a replay
