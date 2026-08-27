@@ -1,12 +1,12 @@
 import type { CourseDetailData } from '@shared/messageContracts';
 import { toCourseDetailData } from '@shared/messageContracts';
 import type { PendingSubmissionStatus } from '@shared/types/apiResponses';
+import { latestById } from '@shared/utils/latestById';
 
 import type { ArtemisApiService } from '@extension/api';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ExerciseDetailsResponse } from '@extension/types';
 import { ApiError, MalformedResponseError } from '@extension/types';
-import { pickHighestId } from '@extension/utils/participationHelpers';
 
 /**
  * Enrichment-error policy:
@@ -98,8 +98,8 @@ export async function fetchAndEnrichExerciseDetails(
                 // Same endpoint as the Artemis webapp: one call returns the
                 // latest Result with feedbacks embedded, so there is no
                 // resultId lookup and no separate feedbacks call.
-                const latestSubmission = pickHighestId(participation.submissions);
-                const latestResult = pickHighestId(latestSubmission?.results);
+                const latestSubmission = latestById(participation.submissions);
+                const latestResult = latestById(latestSubmission?.results);
                 if (latestResult) {
                     latestResult.feedbacks = resultWithFeedbacks.feedbacks;
                 }
