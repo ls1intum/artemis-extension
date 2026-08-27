@@ -47,41 +47,6 @@ export function determineParticipationStatus(
     return 'in-progress';
 }
 
-/**
- * Extracts the latest item from an array by highest ID.
- * Artemis represents "latest" as highest ID, not chronological.
- */
-export function getLatestById<T extends { id?: number }>(
-    items: T[] | undefined,
-): T | undefined {
-    if (!items || items.length === 0) { return undefined; }
-    return [...items].sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
-}
-
-/**
- * The result to DISPLAY for a participation: the latest result of the newest
- * submission that actually has one (submission-first, matching how the rest of
- * the codebase resolves "latest", see `participationHelpers.ts`).
- *
- * Differs from `getLatestById(latestSubmission?.results)` only during a build:
- * a freshly-created submission has no results yet, so reading only the latest
- * submission returns nothing and the previous result vanishes from the UI.
- *
- * NOT a global "highest result id" scan: a re-evaluated older submission can
- * own a result with a higher id than the newest submission's, which must NOT
- * override the newest submission's result.
- */
-export function getLatestResultAcrossSubmissions<R extends { id?: number }>(
-    submissions: ReadonlyArray<{ id?: number; results?: R[] }> | undefined,
-): R | undefined {
-    const newestFirst = [...(submissions ?? [])].sort((a, b) => (b.id ?? 0) - (a.id ?? 0));
-    for (const submission of newestFirst) {
-        const latest = getLatestById(submission.results);
-        if (latest) { return latest; }
-    }
-    return undefined;
-}
-
 interface TestCaseResult {
     name: string;
     passed: boolean;

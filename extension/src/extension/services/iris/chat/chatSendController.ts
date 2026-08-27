@@ -13,6 +13,7 @@ import { createRunLifecycle } from '@extension/services/iris/irisRunStateMachine
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { NoAiDetectionService } from '@extension/services/workspace';
 import type { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
+import { extractErrorMessage } from '@extension/utils';
 
 import type { ChatAvailabilityCoordinator } from './chatAvailabilityCoordinator';
 import { historyResolvesRun } from './historyResolution';
@@ -203,7 +204,7 @@ export class ChatSendController implements vscode.Disposable {
             // The coordinator resolves every failure it knows about, so a throw
             // here is a programmer error rather than a send failure. Surface it
             // and release the composer.
-            const errorMessage = error instanceof Error ? error.message : String(error);
+            const errorMessage = extractErrorMessage(error);
             this._onDidAttemptIrisChatSend.fire({ content, status: 'failed', errorMessage });
             vscode.window.showErrorMessage(`Failed to send message: ${errorMessage}`);
             this._deps.websocketMessageHandler.publishCurrentRunUi();

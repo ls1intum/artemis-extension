@@ -58,72 +58,6 @@ export function parseArtemisUser(data: unknown): ArtemisUser {
     };
 }
 
-interface ArtemisCourse {
-    readonly id: number;
-    readonly title: string;
-    readonly shortName: string;
-    readonly description?: string;
-    readonly startDate?: string;
-    readonly endDate?: string;
-    readonly semester?: string;
-    readonly studentGroupName?: string;
-    readonly teachingAssistantGroupName?: string;
-    readonly editorGroupName?: string;
-    readonly instructorGroupName?: string;
-}
-
-function parseArtemisCourse(data: unknown): ArtemisCourse {
-    if (!data || typeof data !== 'object') {
-        throw new Error('Invalid ArtemisCourse data');
-    }
-    const d = data as Record<string, unknown>;
-    return {
-        id: Number(d.id),
-        title: String(d.title),
-        shortName: String(d.shortName),
-        description: typeof d.description === 'string' ? d.description : undefined,
-        startDate: typeof d.startDate === 'string' ? d.startDate : undefined,
-        endDate: typeof d.endDate === 'string' ? d.endDate : undefined,
-        semester: typeof d.semester === 'string' ? d.semester : undefined,
-        studentGroupName: typeof d.studentGroupName === 'string' ? d.studentGroupName : undefined,
-        teachingAssistantGroupName: typeof d.teachingAssistantGroupName === 'string' ? d.teachingAssistantGroupName : undefined,
-        editorGroupName: typeof d.editorGroupName === 'string' ? d.editorGroupName : undefined,
-        instructorGroupName: typeof d.instructorGroupName === 'string' ? d.instructorGroupName : undefined,
-    };
-}
-
-export interface ArtemisExercise {
-    readonly id: number;
-    readonly title: string;
-    readonly shortName: string;
-    readonly type: 'programming' | 'modeling' | 'quiz' | 'text' | 'file-upload';
-    readonly releaseDate?: string;
-    readonly dueDate?: string;
-    readonly assessmentDueDate?: string;
-    readonly maxPoints?: number;
-    readonly bonusPoints?: number;
-    readonly course?: ArtemisCourse;
-}
-
-function parseArtemisExercise(data: unknown): ArtemisExercise {
-    if (!data || typeof data !== 'object') {
-        throw new Error('Invalid ArtemisExercise data');
-    }
-    const d = data as Record<string, unknown>;
-    return {
-        id: Number(d.id),
-        title: String(d.title),
-        shortName: String(d.shortName),
-        type: String(d.type) as ArtemisExercise['type'],
-        releaseDate: typeof d.releaseDate === 'string' ? d.releaseDate : undefined,
-        dueDate: typeof d.dueDate === 'string' ? d.dueDate : undefined,
-        assessmentDueDate: typeof d.assessmentDueDate === 'string' ? d.assessmentDueDate : undefined,
-        maxPoints: typeof d.maxPoints === 'number' ? d.maxPoints : undefined,
-        bonusPoints: typeof d.bonusPoints === 'number' ? d.bonusPoints : undefined,
-        course: d.course && typeof d.course === 'object' ? parseArtemisCourse(d.course) : undefined,
-    };
-}
-
 export interface ArtemisResult {
     readonly id: number;
     readonly completionDate?: string;
@@ -157,10 +91,8 @@ export interface ArtemisParticipation {
     readonly type: 'student' | 'template' | 'solution';
     readonly student?: ArtemisUser;
     readonly team?: Record<string, unknown>;
-    readonly exercise?: ArtemisExercise;
     readonly repositoryUri?: string;
     readonly buildPlanId?: string;
-    readonly results?: ArtemisResult[];
 }
 
 export function parseArtemisParticipation(data: unknown): ArtemisParticipation {
@@ -173,9 +105,7 @@ export function parseArtemisParticipation(data: unknown): ArtemisParticipation {
         type: String(d.type) as ArtemisParticipation['type'],
         student: d.student && typeof d.student === 'object' ? parseArtemisUser(d.student) : undefined,
         team: d.team && typeof d.team === 'object' ? d.team as Record<string, unknown> : undefined,
-        exercise: d.exercise && typeof d.exercise === 'object' ? parseArtemisExercise(d.exercise) : undefined,
         repositoryUri: typeof d.repositoryUri === 'string' ? d.repositoryUri : undefined,
         buildPlanId: typeof d.buildPlanId === 'string' ? d.buildPlanId : undefined,
-        results: Array.isArray(d.results) ? d.results.map(r => parseArtemisResult(r)) : undefined,
     };
 }
