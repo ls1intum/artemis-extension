@@ -261,3 +261,134 @@ suite('handleViewArchivedCourse', () => {
         sinon.assert.calledOnceWithExactly(onCourseAccessed, 55, 2);
     });
 });
+
+/**
+ * `openExercise` has to name the exercise's course before it can show it. The
+ * lookup has two ways to get there and several ways to come up empty, and none
+ * of them were covered.
+ */
+suite('handleOpenExercise parent-course lookup', () => {
+    let sandbox: sinon.SinonSandbox;
+    let showErrorMessage: sinon.SinonStub;
+    let showCourseDetail: sinon.SinonStub;
+    let openExerciseDetails: sinon.SinonStub;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        showErrorMessage = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as never);
+        showCourseDetail = sandbox.stub();
+        openExerciseDetails = sandbox.stub().resolves();
+    });
+
+    teardown(() => sandbox.restore());
+
+    function dispatch(
+        courses: unknown,
+        payload: { exerciseId: number; courseId?: unknown },
+    ): Promise<void> {
+        const ctx = {
+            appStateManager: {
+                coursesData: courses === undefined ? undefined : { courses },
+                showCourseDetail,
+            },
+            actionHandler: { openExerciseDetails },
+        } as unknown as CommandContext;
+
+        return new NavigationCommandModule(ctx).getHandlers().openExercise({
+            type: 'command',
+            command: 'openExercise',
+            payload,
+        } as WebCmd<'openExercise'>);
+    }
+
+    /** The title of the course handed to `showCourseDetail`, if any. */
+    function shownTitle(): string | undefined {
+        return showCourseDetail.firstCall?.args[0]?.course?.title;
+    }
+
+    test('resolves through courseId without scanning the exercise lists', async () => {
+        await dispatch([
+            { course: { id: 1, title: 'Wrong', exercises: [{ id: 42 }] } },
+            { course: { id: 2, title: 'Right', exercises: [] } },
+        ], { exerciseId: 42, courseId: 2 });
+
+        assert.strictEqual(shownTitle(), 'Right', 'the explicit courseId wins over the exercise scan');
+        assert.strictEqual(openExerciseDetails.callCount, 1);
+    });
+
+    test('finds the course by scanning when no courseId is given', async () => {
+        await dispatch([
+            { course: { id: 1, title: 'Empty', exercises: [] } },
+            { course: { id: 2, title: 'Holder', exercises: [{ id: 42 }] } },
+        ], { exerciseId: 42 });
+
+        assert.strictEqual(shownTitle(), 'Holder');
+    });
+
+    test('keeps scanning past an entry that holds the exercise but cannot be mapped', async () => {
+        // A course without an id maps to null. Reporting "course not found"
+        // there would strand a deep link whose exercise is right behind it.
+        await dispatch([
+            { course: { title: 'Unmappable', exercises: [{ id: 42 }] } },
+            { course: { id: 2, title: 'Holder', exercises: [{ id: 42 }] } },
+        ], { exerciseId: 42 });
+
+        assert.strictEqual(shownTitle(), 'Holder');
+    });
+
+    test('falls back to the scan when the course the payload named cannot be mapped', async () => {
+        // `getPayload` validates no fields, so a malformed `courseId` reaches
+        // here as-is. A string id matches the cached entry but fails the
+        // mapper's numeric check, and reporting "course not found" there would
+        // strand a link whose exercise the scan can still place.
+        await dispatch([
+            { course: { id: '1', title: 'Stringly typed', exercises: [] } },
+            { course: { id: 2, title: 'Holder', exercises: [{ id: 42 }] } },
+        ], { exerciseId: 42, courseId: '1' });
+
+        assert.strictEqual(shownTitle(), 'Holder');
+    });
+
+    test('treats a non-array exercises field as an entry that cannot answer', async () => {
+        // The course list is raw server JSON with no runtime conversion, so
+        // `exercises` is not guaranteed to be an array. Reaching for `.some` on
+        // whatever arrived would turn the lookup into a thrown error.
+        for (const malformed of [false, {}, 'nope']) {
+            showCourseDetail.resetHistory();
+            showErrorMessage.resetHistory();
+
+            await dispatch([
+                { course: { id: 1, title: 'Malformed', exercises: malformed } },
+                { course: { id: 2, title: 'Holder', exercises: [{ id: 42 }] } },
+            ], { exerciseId: 42 });
+
+            assert.strictEqual(shownTitle(), 'Holder', `exercises: ${JSON.stringify(malformed)}`);
+            assert.strictEqual(showErrorMessage.callCount, 0);
+        }
+    });
+
+    test('reports a missing course when no entry holds the exercise', async () => {
+        await dispatch([{ course: { id: 1, title: 'Empty', exercises: [] } }], { exerciseId: 42 });
+
+        assert.strictEqual(showCourseDetail.callCount, 0);
+        assert.strictEqual(openExerciseDetails.callCount, 0);
+        assert.ok(showErrorMessage.calledOnceWithExactly('Could not locate the course for this exercise.'));
+    });
+
+    test('reports a missing course when no course list has been loaded', async () => {
+        await dispatch(undefined, { exerciseId: 42 });
+
+        assert.strictEqual(openExerciseDetails.callCount, 0);
+        assert.ok(showErrorMessage.calledOnce);
+    });
+
+    test('skips entries with no course and entries with no exercises', async () => {
+        await dispatch([
+            {},
+            { course: { id: 1, title: 'No exercises' } },
+            { course: { id: 2, title: 'Holder', exercises: [{ id: 42 }] } },
+        ], { exerciseId: 42 });
+
+        assert.strictEqual(shownTitle(), 'Holder');
+    });
+});
