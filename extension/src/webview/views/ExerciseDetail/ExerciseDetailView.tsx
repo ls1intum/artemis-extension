@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import { WebviewCmd } from '@shared/messageContracts';
 import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
+import { latestById, latestResultAcrossSubmissions } from '@shared/utils/latestById';
 
 import {
     AskIris,
@@ -27,8 +28,6 @@ import {
     countsForTelemetry,
     determineParticipationStatus,
     determineSubmissionStatus,
-    getLatestById,
-    getLatestResultAcrossSubmissions,
     isTestCaseFeedback,
     transformFeedbacksToTestCases,
 } from '@webview/utils/exerciseStatus';
@@ -220,9 +219,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         : null;
 
     // In Artemis, "latest" = highest ID (not date-sorted).
-    const latestSubmission = getLatestById(participation?.submissions);
+    const latestSubmission = latestById(participation?.submissions);
     // Results live on submission.results (not on participation directly)
-    const latestResult = getLatestById(latestSubmission?.results);
+    const latestResult = latestById(latestSubmission?.results);
 
     // Feedback modals show the previous result while a build is running, so a
     // fresh resultless submission does not blank the feedback. The fallback to
@@ -231,7 +230,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // must keep the existing `latestResult` behaviour and NOT resurface stale
     // feedback from an older submission. Card/status/score stay on latestResult.
     const displayResult = pendingSubmission !== null
-        ? getLatestResultAcrossSubmissions(participation?.submissions)
+        ? latestResultAcrossSubmissions(participation?.submissions)
         : latestResult;
 
     // Build test cases from feedbacks for detailed display. Test-case feedback
