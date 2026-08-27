@@ -428,6 +428,18 @@ describe('LoginView - progress indicator and ownership', () => {
         expect(screen.queryByTestId('login-reload')).not.toBeInTheDocument();
     });
 
+    it('disables the way forward from stage 0 during the handover', async () => {
+        // A browser sign-in carries no attempt id, so its success can land while the user is back on
+        // the username step. Continuing from there would race the sign-in that already succeeded.
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        expect(screen.getByTestId('login-next')).toBeEnabled();
+
+        act(() => { dispatchExtensionMessage({ type: 'loginSuccess', username: 'student' }); });
+
+        expect(screen.getByTestId('login-next')).toBeDisabled();
+    });
+
     it('disables the browser sign-in during the handover', async () => {
         const mockApi = createMockVsCodeApi();
         render(<LoginView vscodeApi={mockApi} />);
