@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 
-import { LoginCancelledError } from '@extension/services/auth';
+import { LoginCancelledError, performLogout } from '@extension/services/auth';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { normalizeServerUrl } from '@extension/services/session/identityKeys';
 import { resolveServerUrl } from '@extension/utils';
@@ -190,34 +190,16 @@ export class AuthCommandModule {
     };
 
     private handleLogout = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        // Both captured before the first await. A sign-in racing this logout must be stopped now, and
-        // the credential this logout is entitled to remove is the one that exists at this moment.
-        const revision = this.context.authManager.currentCredentialRevision();
-        const cancelled = this.context.authCancellation.cancelAll();
-
-        try {
-            await cancelled;
-            // Best-effort server-side logout before clearing local state. It never throws, so local
-            // cleanup proceeds regardless.
-            await this.context.artemisApi.logoutFromServer();
-            const cleared = await this.context.authManager.clearIfUnchanged(revision);
-            if (!cleared) {
-                // The user signed in again while the server was being told about the logout. The new
-                // session survives in storage, so tearing down its UI here would strand them: signed in,
-                // looking at a login form.
-                logger.info('Logout superseded by a newer sign-in', LogCategory.AUTH);
-                return;
-            }
-            await this.context.updateAuthContext(false);
-
-            vscode.window.showInformationMessage('Successfully logged out of Artemis');
-
-            this.context.appStateManager.showLogin();
-            this.context.actionHandler.render();
-        } catch (error: unknown) {
-            logger.error('Logout error:', LogCategory.AUTH, error);
-            vscode.window.showErrorMessage('Error during logout');
-        }
+        await performLogout({
+            authManager: this.context.authManager,
+            artemisApi: this.context.artemisApi,
+            authCancellation: this.context.authCancellation,
+            updateAuthContext: (isAuthenticated) => this.context.updateAuthContext(isAuthenticated),
+            showLogin: () => {
+                this.context.appStateManager.showLogin();
+                this.context.actionHandler.render();
+            },
+        });
     };
 
     private formatLoginError(error: unknown): string {
