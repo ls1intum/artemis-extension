@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { ArtemisApiService } from '@extension/api';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { AuthCancellationService, AuthManager } from '@extension/services/auth';
+import { performLogout } from '@extension/services/auth';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
@@ -22,28 +23,13 @@ function registerLogoutCommand(
     artemisWebviewProvider: ArtemisWebviewProvider,
     authCancellation: AuthCancellationService,
 ): vscode.Disposable {
-    return vscode.commands.registerCommand('artemis.logout', async () => {
-        // Both captured before the first await. A sign-in racing this logout must be stopped now, and
-        // the credential this logout is entitled to remove is the one that exists at this moment.
-        const revision = authManager.currentCredentialRevision();
-        const cancelled = authCancellation.cancelAll();
-
-        try {
-            await cancelled;
-            await artemisApiService.logoutFromServer();
-            const cleared = await authManager.clearIfUnchanged(revision);
-            if (!cleared) {
-                logger.info('Logout superseded by a newer sign-in', LogCategory.AUTH);
-                return;
-            }
-            await updateAuthContext(false);
-            vscode.window.showInformationMessage('Successfully logged out of Artemis');
-            artemisWebviewProvider.showLogin();
-        } catch (error) {
-            logger.error('Logout error', LogCategory.AUTH, error);
-            vscode.window.showErrorMessage('Error during logout');
-        }
-    });
+    return vscode.commands.registerCommand('artemis.logout', () => performLogout({
+        authManager,
+        artemisApi: artemisApiService,
+        authCancellation,
+        updateAuthContext,
+        showLogin: () => artemisWebviewProvider.showLogin(),
+    }));
 }
 
 function registerReloadIrisChatCommand(chatWebviewProvider: ChatWebviewProvider): vscode.Disposable {
