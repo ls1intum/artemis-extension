@@ -136,4 +136,51 @@ describe('TextInput', () => {
 
 		expect(handleKeyDown).toHaveBeenCalled();
 	});
+	it('renders a bare input with no wrapper when there is nothing to annotate', () => {
+		// The wrapper is a layout container for label, error and hint. Adding it
+		// to a field that has none of them would change its spacing.
+		const { container } = render(
+			<TextInput value="" onChange={vi.fn()} placeholder="Search" testId="bare" />
+		);
+
+		expect(container.firstChild).toBe(screen.getByTestId('bare'));
+	});
+
+	it('generates an id that survives a re-render, and links the label to it', () => {
+		// The point of useId over the previous Math.random(): the id used to be
+		// regenerated on every render, so htmlFor pointed somewhere new each
+		// time even though nothing about the field had changed.
+		const { rerender } = render(<TextInput value="" onChange={vi.fn()} label="Generated" />);
+		const firstId = screen.getByLabelText('Generated').id;
+		expect(firstId).not.toBe('');
+		expect(screen.getByText('Generated')).toHaveAttribute('for', firstId);
+
+		rerender(<TextInput value="changed" onChange={vi.fn()} label="Generated" />);
+
+		expect(screen.getByLabelText('Generated').id).toBe(firstId);
+	});
+
+	it('treats an empty id as no id rather than rendering one', () => {
+		render(<TextInput value="" onChange={vi.fn()} label="Empty" id="" error="Required" />);
+		const input = screen.getByLabelText('Empty');
+
+		expect(input.id).not.toBe('');
+		expect(input).toHaveAttribute('aria-describedby', `${input.id}-error`);
+	});
+
+	it('offers the password toggle on a bare field and on an annotated one', async () => {
+		const { rerender } = render(
+			<TextInput value="secret" onChange={vi.fn()} type="password" testId="bare-pwd" />
+		);
+		expect(screen.getByLabelText('Toggle password visibility')).toBeInTheDocument();
+		expect(screen.getByTestId('bare-pwd')).toHaveAttribute('type', 'password');
+
+		await userEvent.click(screen.getByLabelText('Toggle password visibility'));
+		expect(screen.getByTestId('bare-pwd')).toHaveAttribute('type', 'text');
+
+		rerender(
+			<TextInput value="secret" onChange={vi.fn()} type="password" label="With label" testId="labelled-pwd" />
+		);
+		expect(screen.getByLabelText('Toggle password visibility')).toBeInTheDocument();
+	});
 });
