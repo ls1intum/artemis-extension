@@ -15,7 +15,15 @@
     display: flex;
     align-items: center;
     gap: 14px;
-    animation: slideDown 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    /*
+     * No entrance animation. The indicator reports a wait, and it needed 400ms
+     * to reach full opacity: measured against a password check that finished in
+     * 370ms, it was still fading in when it had already become pointless. Its
+     * whole job is to be visible the moment the work starts.
+     *
+     * The exit animation stays. A slow fade out costs nothing, because by then
+     * the thing it reported is over.
+     */
 }
 
 .loadingIndicatorHiding {
@@ -76,21 +84,6 @@
     75%, 100% { content: '...'; }
 }
 
-@keyframes slideDown {
-    0% {
-        opacity: 0;
-        transform: translateY(-15px) scale(0.95);
-    }
-    50% {
-        opacity: 0.7;
-        transform: translateY(-5px) scale(0.98);
-    }
-    100% {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
 @keyframes slideUp {
     0% {
         opacity: 1;
@@ -103,7 +96,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .loadingIndicator,
+    /* `.loadingIndicator` is not listed: it no longer animates on entrance. */
     .loadingIndicatorHiding,
     .loadingSpinner,
     .loadingDots::after {
