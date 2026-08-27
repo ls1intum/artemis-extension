@@ -6,6 +6,8 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Fixed
 
+- **Login goes quiet after the password is accepted:** Signing in appeared to do nothing. The form reset itself, the progress indicator disappeared, and several seconds later the dashboard simply replaced it. The extension was treating the moment the credential is accepted as the end of the login, when the work of opening Artemis behind it had not started yet. The view now stays with you for that stretch: it reports "Signed in, opening Artemis", keeps the form locked instead of inviting a second sign-in, and says so when the wait is running long. If opening Artemis then fails, you are told that the sign-in itself worked and offered a window reload, rather than being sent back to a login form for a session you already have.
+
 - **Test results while a build runs:** Starting a new submission no longer throws away the test results you already had. Artemis signals a build in progress by leaving the new submission without a result, and the extension was trying to attach the feedback it had just fetched to that empty submission, so the feedback was silently dropped. The exercise view already compensated for this in its own display; the data behind it now does too. The rendered problem statement still shows no test results while a build runs, which is tracked separately.
 
 ### Internal
