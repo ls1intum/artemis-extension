@@ -11,6 +11,7 @@ import type { DataCollectionHandle } from '@extension/dataCollection/types';
 import { ArtemisWebviewProvider, BuildErrorCodeLensProvider, ChatWebviewProvider } from '@extension/provider';
 import { AuthCancellationService, AuthManager, OidcLoginService } from '@extension/services/auth';
 import { ArtemisUriHandler } from '@extension/services/auth/artemisUriHandler';
+import { HandoverFailureStore } from '@extension/services/auth/handoverFailureStore';
 import { createOidcLoginCallback } from '@extension/services/auth/oidcLoginCallback';
 import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { CourseCatalog, toRegistryEntries } from '@extension/services/courseCatalog';
@@ -159,6 +160,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	const oidcLoginService = new OidcLoginService(context, authManager, artemisApiService);
 	const authCancellation = new AuthCancellationService(oidcLoginService);
 
+	// Survives the login view, because the view can be recreated after the failure it needs to hear
+	// about. Dropped whenever the credential it refers to goes away, which `clearInternal` is the one
+	// place to observe: hooking the login view instead would miss the Theia expiry path, which clears
+	// the credential and deliberately shows no login view.
+	const handoverFailures = new HandoverFailureStore();
+	context.subscriptions.push(authManager.onDidClearCredential(() => handoverFailures.clear()));
+
 	const artemisWebviewProvider = new ArtemisWebviewProvider({
 		extensionUri: context.extensionUri,
 		extensionContext: context,
@@ -166,6 +174,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		artemisApi: artemisApiService,
 		oidcLoginService,
 		authCancellation,
+		handoverFailures,
 		providerRegistry,
 		websocketService: artemisWebsocketService,
 		buildErrorCodeLensProvider,
@@ -181,6 +190,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const oidcCallback = createOidcLoginCallback({
 		oidcLoginService,
 		updateAuthContext,
+		handoverFailures,
 		postMessage: message => artemisWebviewProvider.postMessage(message),
 		navigateToStartPage: user => artemisWebviewProvider.navigateToStartPage(user),
 	});

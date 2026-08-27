@@ -54,6 +54,8 @@ export const ExtensionMsg = {
     // Auth
     LoginSuccess: 'loginSuccess',
     LoginError: 'loginError',
+    LoginHandoverFailed: 'loginHandoverFailed',
+    LoginHandoverFailedInit: 'loginHandoverFailedInit',
     SetServerUrl: 'setServerUrl',
     LoginOptionsResult: 'loginOptionsResult',
     LoginOptionsError: 'loginOptionsError',
@@ -201,6 +203,22 @@ interface ExtensionMsgPayloads {
     // happens to have numbered the same.
     loginSuccess: { username: string; attemptId?: AttemptId };
     loginError: { error: string; attemptId?: AttemptId };
+    /**
+     * The credential was committed and then the host failed to wire up the
+     * authenticated UI. Deliberately not a `loginError`: the sign-in worked, and
+     * reporting it as a failed login would send the user back to authenticate
+     * against a session they already have.
+     */
+    loginHandoverFailed: { error: string; attemptId?: AttemptId };
+    /**
+     * The same outcome, replayed to a view that was created after the fact.
+     *
+     * A separate message because the acceptance rules differ: the live one above
+     * requires a matching handover owner, which a freshly mounted view does not
+     * have, so routing the replay through it would reject the one case the
+     * replay exists for.
+     */
+    loginHandoverFailedInit: { error: string; generation: number };
     setServerUrl: { serverUrl: string };
     loginOptionsResult: {
         loginMethod: 'PASSWORD' | 'OIDC' | 'SAML2';

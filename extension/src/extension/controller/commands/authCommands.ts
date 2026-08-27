@@ -26,6 +26,9 @@ export class AuthCommandModule {
     private handleCheckLoginOptions = async (message: WebviewToExtensionMessage): Promise<void> => {
         const payload = getPayload<WebCmd<'checkLoginOptions'>>(message);
         const attemptId = payload.attemptId;
+        // A deliberate new sign-in supersedes whatever the last one failed to finish. Only this and a
+        // vanished credential drop the record; a render, a ready or an init send must not.
+        this.context.handoverFailures.clear();
 
         const controller = new AbortController();
         this.context.authCancellation.register(controller);
@@ -94,6 +97,7 @@ export class AuthCommandModule {
     private handleLogin = async (message: WebviewToExtensionMessage): Promise<void> => {
         const payload = getPayload<WebCmd<'login'>>(message);
         const attemptId = payload.attemptId;
+        this.context.handoverFailures.clear();
 
         const controller = new AbortController();
         this.context.authCancellation.register(controller);
@@ -166,10 +170,10 @@ export class AuthCommandModule {
             this.context.authCancellation.release(controller);
         }
 
-        // Past this point the credential is committed and the user is signed in. A failure while wiring
-        // up the UI is worth logging, but reporting it as a login error would contradict that.
-        // Sent first: everything below can fail, and the view clears its pending state only on a success
-        // or an error. Announcing afterwards would leave it spinning on a login that actually worked.
+        // Past this point the credential is committed and the user is signed in. Still sent before the
+        // wiring below, because a failure there must not leave the view waiting on a login that
+        // actually worked. What it announces is the START of the handover, not the end of the flow.
+        const generation = this.context.handoverFailures.begin();
         this.context.sendMessage({
             type: ExtensionMsg.LoginSuccess,
             username: user.login || username,
@@ -184,8 +188,21 @@ export class AuthCommandModule {
                 serverUrl: resolveServerUrl(),
                 user: user,
             });
+            this.context.handoverFailures.clearFor(generation);
         } catch (error: unknown) {
             logger.error('Login succeeded but the UI could not be updated', LogCategory.AUTH, error);
+            // Deliberately not a login error. The credential is committed and valid; telling the user
+            // the login failed would send them back to authenticate against a session they already
+            // have. `record` returns nothing when a newer handover has superseded this one, which is
+            // what stops an abandoned attempt from writing over a fresher outcome.
+            const message = 'Signed in, but Artemis could not be opened. Reload the window to continue.';
+            if (this.context.handoverFailures.record(generation, message, attemptId)) {
+                this.context.sendMessage({
+                    type: ExtensionMsg.LoginHandoverFailed,
+                    error: message,
+                    attemptId,
+                });
+            }
         }
     };
 

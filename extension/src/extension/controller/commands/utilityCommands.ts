@@ -48,6 +48,7 @@ export class UtilityCommandModule {
     public getHandlers(): CommandMap {
         return {
             [WebviewCmd.OpenSettings]: this.handleOpenSettings,
+            [WebviewCmd.ReloadWindow]: this.handleReloadWindow,
             [WebviewCmd.OpenWebsite]: this.handleOpenWebsite,
             [WebviewCmd.OpenBugReport]: this.handleOpenBugReport,
             [WebviewCmd.OpenInEditor]: this.handleOpenInEditor,
@@ -67,6 +68,27 @@ export class UtilityCommandModule {
         } catch (error: unknown) {
             logger.error('Failed to open settings:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage(`Failed to open settings: ${extractErrorMessage(error)}`);
+        }
+    };
+
+    /**
+     * Offered as the way out when the sign-in worked but the host could not put
+     * the authenticated UI on screen. A reload rebuilds that host state from the
+     * credential, which is still valid.
+     *
+     * The command is wrapped because this also ships to Theia/EduIDE, where
+     * `workbench.action.reloadWindow` may not exist. A button that silently
+     * does nothing is worse than a sentence telling the user to reload
+     * themselves.
+     */
+    private handleReloadWindow = async (_message: WebviewToExtensionMessage): Promise<void> => {
+        try {
+            await vscode.commands.executeCommand('workbench.action.reloadWindow');
+        } catch (error: unknown) {
+            logger.error('Reload window command failed', LogCategory.VIEW, error);
+            vscode.window.showErrorMessage(
+                'Could not reload automatically. Please reload the window to finish signing in.',
+            );
         }
     };
 

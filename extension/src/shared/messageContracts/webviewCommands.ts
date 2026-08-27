@@ -55,6 +55,7 @@ export const WebviewCmd = {
     // Utility
     OpenWebsite: 'openWebsite',
     OpenSettings: 'openSettings',
+    ReloadWindow: 'reloadWindow',
     OpenBugReport: 'openBugReport',
     OpenInEditor: 'openInEditor',
     CopyToClipboard: 'copyToClipboard',
@@ -171,6 +172,7 @@ interface WebviewCmdPayloads {
 
     // Utility
     openWebsite: { path?: string };
+    reloadWindow: undefined;
     openSettings: { setting: string };
     openBugReport: undefined;
     openInEditor: { data: Record<string, unknown> | string; language?: string };

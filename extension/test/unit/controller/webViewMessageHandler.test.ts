@@ -9,6 +9,7 @@ import { AppStateManager } from '@extension/controller/appStateManager';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import { AuthManager } from '@extension/services/auth';
 import { AuthCancellationService } from '@extension/services/auth/authCancellationService';
+import { HandoverFailureStore } from '@extension/services/auth/handoverFailureStore';
 import { OidcLoginService } from '@extension/services/auth/oidcLoginService';
 import { CONFIG } from '@extension/utils/constants';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
@@ -97,6 +98,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             mockApiService,
             oidcLoginService,
             new AuthCancellationService(oidcLoginService),
+            new HandoverFailureStore(),
             mockStateManager,
             actionHandler,
             mockContext,
@@ -157,6 +159,9 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             assert.ok(sent.includes('loginSuccess'));
             assert.ok(!sent.includes('loginError'),
                 'the credential is stored at this point, so a broken view must not claim the login failed');
+            assert.ok(sent.includes('loginHandoverFailed'),
+                'not a failed login, but the view still has to hear it, or it waits on a handover that '
+                + 'is never going to finish');
             assert.strictEqual(await mockContext.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=candidate');
         });
     });

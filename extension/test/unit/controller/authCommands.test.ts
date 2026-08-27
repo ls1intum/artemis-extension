@@ -12,6 +12,7 @@ import type { ArtemisUser, AuthenticationResult } from '@extension/domain';
 import type { LoginOptionsResponse } from '@extension/domain/auth';
 import { AuthCancellationService } from '@extension/services/auth/authCancellationService';
 import { AuthManager } from '@extension/services/auth/authManager';
+import { HandoverFailureStore } from '@extension/services/auth/handoverFailureStore';
 import { OidcLoginService } from '@extension/services/auth/oidcLoginService';
 import { initializeTheiaContext } from '@extension/theia/theiaEnvironment';
 import { CONFIG } from '@extension/utils/constants';
@@ -22,6 +23,7 @@ suite('AuthCommandModule Test Suite', () => {
     let context: MockExtensionContext;
     let authManager: AuthManager;
     let api: sinon.SinonStubbedInstance<ArtemisApiService>;
+    let handoverFailures: HandoverFailureStore;
     let module: AuthCommandModule;
     let sent: ExtensionToWebviewMessage[];
     let showErrorMessage: sinon.SinonStub;
@@ -53,11 +55,13 @@ suite('AuthCommandModule Test Suite', () => {
         } as unknown as vscode.WorkspaceConfiguration);
 
         const oidcLoginService = new OidcLoginService(context, authManager, api as unknown as ArtemisApiService);
+        handoverFailures = new HandoverFailureStore();
         module = new AuthCommandModule({
             authManager,
             artemisApi: api,
             oidcLoginService,
             authCancellation: new AuthCancellationService(oidcLoginService),
+            handoverFailures,
             sendMessage: (message: ExtensionToWebviewMessage) => { sent.push(message); },
             updateAuthContext: async () => {},
             actionHandler: { navigateToStartPage, render: () => {} },

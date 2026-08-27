@@ -321,6 +321,81 @@ describe('LoginView - progress indicator and ownership', () => {
         expect(screen.getByTestId('login-secondary')).toBeInTheDocument();
     });
 
+    it('offers a reload rather than the form when the handover fails', async () => {
+        // The credential is committed, so anything that reads as "authenticate again" would be false.
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        const attemptId = await submitPasswordLogin(mockApi);
+        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
+        await screen.findByTestId('login-progress');
+
+        dispatchExtensionMessage({ type: 'loginHandoverFailed', error: 'could not open Artemis', attemptId });
+
+        expect(await screen.findByTestId('login-reload')).toBeInTheDocument();
+        expect(screen.getByTestId('login-status')).toHaveTextContent('could not open Artemis');
+        expect(screen.queryByTestId('login-submit')).not.toBeInTheDocument();
+    });
+
+    it('asks the host to reload the window', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        const attemptId = await submitPasswordLogin(mockApi);
+        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
+        await screen.findByTestId('login-progress');
+        dispatchExtensionMessage({ type: 'loginHandoverFailed', error: 'could not open', attemptId });
+
+        await userEvent.click(await screen.findByTestId('login-reload'));
+
+        expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'command', command: 'reloadWindow' });
+    });
+
+    it('ignores a live handover failure it does not own', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        const attemptId = await submitPasswordLogin(mockApi);
+        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
+        await screen.findByTestId('login-progress');
+
+        dispatchExtensionMessage({ type: 'loginHandoverFailed', error: 'someone else', attemptId: 'other-1' });
+
+        expect(screen.queryByTestId('login-reload')).not.toBeInTheDocument();
+    });
+
+    it('accepts an init replay when it has no handover of its own', async () => {
+        // The view that started the sign-in is gone: `render()` replaced the document. This one has no
+        // owner to match, and that absence is exactly the case the replay exists for.
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+
+        dispatchExtensionMessage({ type: 'loginHandoverFailedInit', error: 'could not open', generation: 3 });
+
+        expect(await screen.findByTestId('login-reload')).toBeInTheDocument();
+    });
+
+    it('ignores an init replay once this view has started its own sign-in', async () => {
+        // Init is resent on every ready and visibility change, so a replay can arrive well after the
+        // user moved on. It describes something that happened before this view existed.
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        await submitPasswordLogin(mockApi);
+
+        dispatchExtensionMessage({ type: 'loginHandoverFailedInit', error: 'stale', generation: 3 });
+
+        expect(screen.queryByTestId('login-reload')).not.toBeInTheDocument();
+        expect(await screen.findByTestId('login-progress')).toHaveTextContent('Verifying your credentials');
+    });
+
+    it('replaying the same generation changes nothing', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        dispatchExtensionMessage({ type: 'loginHandoverFailedInit', error: 'first', generation: 3 });
+        await screen.findByTestId('login-reload');
+
+        dispatchExtensionMessage({ type: 'loginHandoverFailedInit', error: 'second', generation: 3 });
+
+        expect(screen.getByTestId('login-status')).toHaveTextContent('first');
+    });
+
     it('ignores unowned startup loading messages while an interactive attempt owns the indicator', async () => {
         const mockApi = createMockVsCodeApi();
         render(<LoginView vscodeApi={mockApi} />);

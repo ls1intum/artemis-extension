@@ -52,6 +52,17 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
     }
     const [handover, setHandover] = useState<Handover | null>(null);
 
+    /**
+     * The sign-in worked and the host could not open Artemis behind it. Held
+     * separately from `statusMessage`, which belongs to the form the user is no
+     * longer in.
+     */
+    const [handoverFailure, setHandoverFailure] = useState<{ error: string; generation: number } | null>(null);
+
+    // Whether this MOUNT has started a sign-in. An init replay describes something that happened before
+    // this view existed, so it must not overwrite an attempt the user has since begun here.
+    const startedAttempt = useRef(false);
+
     const [statusMessage, setStatusMessage] = useState('');
     const [statusType, setStatusType] = useState<'success' | 'error' | 'info'>('info');
 
@@ -77,7 +88,10 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
             : Math.random().toString(36).slice(2);
     }
     const attemptCounter = useRef(0);
-    const nextAttemptId = (): AttemptId => `${mountId.current}-${++attemptCounter.current}`;
+    const nextAttemptId = (): AttemptId => {
+        startedAttempt.current = true;
+        return `${mountId.current}-${++attemptCounter.current}`;
+    };
     const [activeAttemptId, setActiveAttemptId] = useState<AttemptId | null>(null);
 
     const loadingSubtexts: Record<string, string> = {
@@ -161,6 +175,13 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         // Nothing below re-reads it, and it has no business outliving the sign-in it belonged to.
         setPassword('');
         showProgress('Signed in, opening Artemis', 'Loading your courses', attemptId);
+    };
+
+    const failHandover = (error: string, generation: number | null) => {
+        setHandover(null);
+        setActiveAttemptId(null);
+        hideProgress();
+        setHandoverFailure({ error, generation: generation ?? -1 });
     };
 
     /**
@@ -277,6 +298,32 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 // still has to wire up the authenticated UI, and that used to happen behind a form that
                 // had just reset itself and claimed nothing was going on.
                 enterHandover(msg.attemptId === undefined ? 'oidc' : 'password', msg.attemptId ?? null);
+                break;
+            }
+
+            case ExtensionMsg.LoginHandoverFailed: {
+                // Live, so it must belong to the handover this view is actually in. An id names the
+                // password attempt; no id is the OIDC signature and is only this view's business while
+                // the handover it holds is an OIDC one.
+                const mine = msg.attemptId !== undefined
+                    ? handover?.attemptId === msg.attemptId
+                    : handover?.source === 'oidc';
+                if (!handover || !mine) {
+                    break;
+                }
+                failHandover(msg.error, null);
+                break;
+            }
+
+            case ExtensionMsg.LoginHandoverFailedInit: {
+                // A replay for a view that did not exist when the failure happened, so there is no owner
+                // to match and the absence of one is the point. It must not speak over a sign-in this
+                // mount has since started, and repeating the same generation changes nothing: init is
+                // resent on every ready, request-init and visibility change.
+                if (startedAttempt.current || handoverFailure?.generation === msg.generation) {
+                    break;
+                }
+                failHandover(msg.error, msg.generation);
                 break;
             }
 
@@ -446,6 +493,35 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
     const handleOpenSettings = () => {
         postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
     };
+
+    if (handoverFailure) {
+        // Deliberately not the login form. The credential is committed and valid, so any affordance
+        // that reads as "authenticate again" would be false. A reload rebuilds the host state that
+        // failed, from a credential that is still there.
+        return (
+            <div className={styles.loginView}>
+                <div style={{ marginBottom: '32px', textAlign: 'center' }}>
+                    <h1 style={{ color: 'var(--vscode-foreground)', fontSize: '24px', marginBottom: '8px' }}>
+                        Artemis Login
+                    </h1>
+                </div>
+                <Container>
+                    <StatusMessage message={handoverFailure.error} type="error" data-testid="login-status" />
+                    <div style={{ marginTop: '16px' }}>
+                        <Button
+                            type="button"
+                            variant="primary"
+                            fullWidth
+                            testId="login-reload"
+                            onClick={() => postCommand(vscodeApi, 'reloadWindow')}
+                        >
+                            Reload Window
+                        </Button>
+                    </div>
+                </Container>
+            </div>
+        );
+    }
 
     return (
         <div className={styles.loginView}>
