@@ -15,10 +15,15 @@
  * every string here is part of the contract. Each case therefore asserts all
  * five `HealthCheckResult` fields rather than just status/message.
  *
- * Scope: normal Artemis response shapes. `json()` resolving `null`, or a truthy
- * non-array `activeProfiles`/`activeModuleFeatures`, take different paths from a
- * REJECTED `json()` and are deliberately not covered. `getPayload` throwing on a
+ * Scope: normal Artemis response shapes, i.e. what `fetch` actually returns.
+ * `json()` resolving `null`, or a truthy non-array
+ * `activeProfiles`/`activeModuleFeatures`, take different paths from a REJECTED
+ * `json()` and are deliberately not covered. `getPayload` throwing on a
  * malformed command is out of scope too: it throws outside the handler's try.
+ *
+ * One case below uses a response whose `status` getter throws. It is there to
+ * pin that a failing check stays contained to itself, NOT to promise fidelity
+ * for arbitrary exotic responses: see the CONTRACT note on `probe`.
  */
 
 import * as assert from 'assert';
@@ -303,21 +308,32 @@ suite('performHealthChecks', () => {
         }
 
         test('is contained to its own check, and the later checks still run', async () => {
-            // The original code wrapped each complete check in its own try, so a
-            // throwing response getter failed only that check. The probe helper
-            // has to preserve that: if it escaped to the outer catch, the info
-            // check below would never run and would still be reported as
-            // 'Not checked'.
+            // This pins ISOLATION, not full fidelity for exotic responses. The
+            // original wrapped each complete check in its own try, so a throwing
+            // getter failed only that check; probe() has to preserve that. If it
+            // escaped to the outer catch, the info check below would never run
+            // and would still read 'Not checked'.
+            //
+            // It does NOT claim that every adversarial response behaves exactly
+            // as before -- see the CONTRACT note on probe(). A getter that
+            // throws on some reads and not others, or one that mutates state
+            // between reads, is out of scope: `fetch` cannot produce one.
             const results = await run(async (url) =>
                 url === HEALTH_URL ? hostileResponse() : allHealthy(url));
 
-            assert.strictEqual(results.apiAvailability.status, 'offline');
-            assert.strictEqual(results.apiAvailability.message, 'Unavailable');
-            assert.strictEqual(results.apiAvailability.response, 'detached response');
-
-            assert.strictEqual(results.irisService.message, 'Active',
-                'the info check must still have run');
-            assert.strictEqual(results.serverReachability.message, 'Available');
+            assert.deepStrictEqual(results.apiAvailability, {
+                status: 'offline', message: 'Unavailable', endpoint: HEALTH_URL,
+                httpStatus: null, response: 'detached response',
+            });
+            assert.deepStrictEqual(results.irisService, {
+                status: 'online', message: 'Active', endpoint: INFO_URL,
+                httpStatus: 200,
+                response: 'Iris module active (1 module features, 0 profiles loaded)',
+            });
+            assert.deepStrictEqual(results.serverReachability, {
+                status: 'online', message: 'Available', endpoint: SERVER,
+                httpStatus: 200, response: '200 OK',
+            });
         });
     });
 

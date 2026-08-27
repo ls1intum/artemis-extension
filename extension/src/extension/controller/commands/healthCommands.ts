@@ -37,6 +37,14 @@ type ProbeOutcome =
  *
  * Reading the body is NOT done here. Each check needs its own handling for an
  * unreadable body, which differs from its handling of an unreachable endpoint.
+ *
+ * CONTRACT: this assumes an ordinary `Response`, whose `ok` / `status` /
+ * `statusText` are stable primitives that cannot throw. That holds for anything
+ * `fetch` returns. It is NOT byte-equivalent to the previous per-check code for
+ * an adversarial response object with throwing or stateful metadata getters:
+ * reading the three fields together, once and up front, differs from reading
+ * them lazily and repeatedly. Preserving that would mean exposing lazy getters,
+ * which is precisely what let a throwing getter escape its own check before.
  */
 async function probe(url: string, init: { method: string; timeoutMs: number }): Promise<ProbeOutcome> {
     try {
