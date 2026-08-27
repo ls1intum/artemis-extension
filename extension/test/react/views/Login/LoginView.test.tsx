@@ -508,6 +508,50 @@ describe('LoginView - progress indicator and ownership', () => {
         expect(screen.getByTestId('login-secondary')).toBeInTheDocument();
     });
 
+    it('leaves the handover when the credential it was waiting on goes away', async () => {
+        // Nothing else reaches the view for this: the app state is already `login` throughout a
+        // handover, so the 401 path's showLogin() returns without a transition and no render replaces
+        // the document. Without this the view keeps promising an Artemis that is not coming.
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        const attemptId = await submitPasswordLogin(mockApi);
+        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
+        await screen.findByTestId('login-progress');
+
+        act(() => { dispatchExtensionMessage({ type: 'loginSessionEnded' }); });
+
+        expect(screen.getByTestId('login-status')).toHaveTextContent('Your session ended');
+        // The form, not the reload: there is no credential left for a reload to rebuild anything from.
+        expect(screen.getByTestId('login-submit')).toBeEnabled();
+        expect(screen.queryByTestId('login-reload')).not.toBeInTheDocument();
+    });
+
+    it('takes back the reload offer when the credential goes away behind it', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        const attemptId = await submitPasswordLogin(mockApi);
+        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
+        await screen.findByTestId('login-progress');
+        dispatchExtensionMessage({ type: 'loginHandoverFailed', error: 'could not open', attemptId });
+        await screen.findByTestId('login-reload');
+
+        act(() => { dispatchExtensionMessage({ type: 'loginSessionEnded' }); });
+
+        expect(screen.queryByTestId('login-reload')).not.toBeInTheDocument();
+        expect(screen.getByTestId('login-status')).toHaveTextContent('Your session ended');
+    });
+
+    it('says nothing about a session ending while the user is just filling in the form', async () => {
+        // A logout from elsewhere reaches every view. On the form it is not news: that is already the
+        // right thing to be looking at.
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+
+        act(() => { dispatchExtensionMessage({ type: 'loginSessionEnded' }); });
+
+        expect(screen.queryByTestId('login-status')).not.toBeInTheDocument();
+    });
+
     it('ignores unowned startup loading messages while an interactive attempt owns the indicator', async () => {
         const mockApi = createMockVsCodeApi();
         render(<LoginView vscodeApi={mockApi} />);

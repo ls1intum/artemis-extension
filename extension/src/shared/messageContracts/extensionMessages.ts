@@ -56,6 +56,7 @@ export const ExtensionMsg = {
     LoginError: 'loginError',
     LoginHandoverFailed: 'loginHandoverFailed',
     LoginHandoverFailedInit: 'loginHandoverFailedInit',
+    LoginSessionEnded: 'loginSessionEnded',
     SetServerUrl: 'setServerUrl',
     LoginOptionsResult: 'loginOptionsResult',
     LoginOptionsError: 'loginOptionsError',
@@ -219,6 +220,17 @@ interface ExtensionMsgPayloads {
      * replay exists for.
      */
     loginHandoverFailedInit: { error: string; generation: number };
+    /**
+     * The stored credential went away: a logout, a rejected token, a server
+     * change. Only the handover phase and its failure screen care, because both
+     * of them tell the user they are signed in.
+     *
+     * Nothing else reaches the view for this. The app state is already `login`
+     * throughout a handover, so `showLogin()` returns without a transition and
+     * no render replaces the document; the view would otherwise go on promising
+     * an Artemis that is no longer coming.
+     */
+    loginSessionEnded: undefined;
     setServerUrl: { serverUrl: string };
     loginOptionsResult: {
         loginMethod: 'PASSWORD' | 'OIDC' | 'SAML2';

@@ -334,6 +334,23 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 break;
             }
 
+            case ExtensionMsg.LoginSessionEnded: {
+                // Only the two states that claim the user is signed in. Everywhere else the form is
+                // already the right thing to be looking at, and interrupting it would be noise.
+                if (!handover && !handoverFailure) {
+                    break;
+                }
+                setHandover(null);
+                setHandoverFailure(null);
+                setActiveAttemptId(null);
+                hideProgress();
+                // Not the reload the failure screen offers: there is no credential left for a reload to
+                // rebuild anything from, so the form is the only honest way on.
+                setStatusMessage('Your session ended before Artemis could be opened. Please sign in again.');
+                setStatusType('error');
+                break;
+            }
+
             case ExtensionMsg.LoginError: {
                 // Never during a handover: the credential is committed, so an id-less error can only be
                 // a stale callback from an older attempt, and acting on it would clear the indicator and
