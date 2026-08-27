@@ -379,7 +379,7 @@ describe('LoginView - progress indicator and ownership', () => {
         render(<LoginView vscodeApi={mockApi} />);
         await submitPasswordLogin(mockApi);
 
-        dispatchExtensionMessage({ type: 'loginHandoverFailedInit', error: 'stale', generation: 3 });
+        act(() => { dispatchExtensionMessage({ type: 'loginHandoverFailedInit', error: 'stale', generation: 3 }); });
 
         expect(screen.queryByTestId('login-reload')).not.toBeInTheDocument();
         expect(await screen.findByTestId('login-progress')).toHaveTextContent('Verifying your credentials');
@@ -391,9 +391,109 @@ describe('LoginView - progress indicator and ownership', () => {
         dispatchExtensionMessage({ type: 'loginHandoverFailedInit', error: 'first', generation: 3 });
         await screen.findByTestId('login-reload');
 
-        dispatchExtensionMessage({ type: 'loginHandoverFailedInit', error: 'second', generation: 3 });
+        // Wrapped, so the assertion below cannot pass merely because a second update has not committed.
+        act(() => { dispatchExtensionMessage({ type: 'loginHandoverFailedInit', error: 'second', generation: 3 }); });
 
         expect(screen.getByTestId('login-status')).toHaveTextContent('first');
+    });
+
+    it('ignores an init replay while it holds a handover of its own', async () => {
+        // An OIDC sign-in allocates no attempt id, so the replay cannot be told apart by ownership. It
+        // still describes an older failure, and letting it through would drop a view that is signed in
+        // and waiting onto a stale error screen.
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        dispatchExtensionMessage({ type: 'loginOptionsResult', loginMethod: 'OIDC', idpName: 'TUM' });
+        await screen.findByTestId('login-oidc-submit');
+        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student' });
+        await screen.findByTestId('login-progress');
+
+        act(() => { dispatchExtensionMessage({ type: 'loginHandoverFailedInit', error: 'stale', generation: 3 }); });
+
+        expect(screen.queryByTestId('login-reload')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('login-status')).not.toBeInTheDocument();
+        expect(await screen.findByTestId('login-progress')).toHaveTextContent('Signed in, opening Artemis');
+    });
+
+    it('ignores an init replay once this view has started a browser sign-in', async () => {
+        // The browser flow allocates no attempt id, so the mount marks itself instead. Without that a
+        // replay from before this view existed could speak over the sign-in the user just started.
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        dispatchExtensionMessage({ type: 'loginOptionsResult', loginMethod: 'OIDC', idpName: 'TUM' });
+        await userEvent.click(await screen.findByTestId('login-oidc-submit'));
+
+        act(() => { dispatchExtensionMessage({ type: 'loginHandoverFailedInit', error: 'stale', generation: 3 }); });
+
+        expect(screen.queryByTestId('login-reload')).not.toBeInTheDocument();
+    });
+
+    it('disables the browser sign-in during the handover', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        dispatchExtensionMessage({ type: 'loginOptionsResult', loginMethod: 'OIDC', idpName: 'TUM' });
+        await screen.findByTestId('login-oidc-submit');
+
+        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student' });
+        await screen.findByTestId('login-progress');
+
+        expect(screen.getByTestId('login-oidc-submit')).toBeDisabled();
+    });
+
+    it('ignores a login error that arrives during the handover', async () => {
+        // The credential is committed, so an id-less error can only belong to an older attempt. Acting
+        // on it would take the indicator away and leave the phase with no way forward and none back.
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        const attemptId = await submitPasswordLogin(mockApi);
+        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
+        await screen.findByTestId('login-progress');
+
+        act(() => { dispatchExtensionMessage({ type: 'loginError', error: 'Login failed' }); });
+
+        expect(screen.getByTestId('login-progress')).toHaveTextContent('Signed in, opening Artemis');
+        expect(screen.queryByTestId('login-status')).not.toBeInTheDocument();
+    });
+
+    it('offers a reload once the handover has run far too long', async () => {
+        // Nothing announces a navigation that never settles: it resolves neither way, so no failure
+        // message is coming. Elapsed time is the only signal left, and the offer is made alongside the
+        // indicator rather than replacing it, because the wait is still legitimate.
+        vi.useFakeTimers();
+        try {
+            const mockApi = createMockVsCodeApi();
+            render(<LoginView vscodeApi={mockApi} />);
+            dispatchExtensionMessage({ type: 'loginOptionsResult', loginMethod: 'OIDC', idpName: 'TUM' });
+            act(() => { dispatchExtensionMessage({ type: 'loginSuccess', username: 'student' }); });
+
+            expect(screen.queryByTestId('login-reload')).not.toBeInTheDocument();
+            act(() => { vi.advanceTimersByTime(20_000); });
+
+            expect(screen.getByTestId('login-reload')).toBeInTheDocument();
+            expect(screen.getByTestId('login-progress')).toHaveTextContent('Still opening Artemis');
+            fireEvent.click(screen.getByTestId('login-reload'));
+            expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'command', command: 'reloadWindow' });
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('does not carry an old attempt\'s outcome into a recreated view', async () => {
+        // `render()` replaces the document and the new view starts its own sign-in. A result still in
+        // flight for the old one names an id this mount never issued, so it answers no question here.
+        const firstApi = createMockVsCodeApi();
+        const first = render(<LoginView vscodeApi={firstApi} />);
+        const firstAttempt = await submitPasswordLogin(firstApi);
+        first.unmount();
+
+        const secondApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={secondApi} />);
+        await submitPasswordLogin(secondApi);
+
+        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId: firstAttempt });
+
+        expect(await screen.findByTestId('login-progress')).toHaveTextContent('Verifying your credentials');
+        expect(screen.getByTestId('login-secondary')).toBeInTheDocument();
     });
 
     it('ignores unowned startup loading messages while an interactive attempt owns the indicator', async () => {

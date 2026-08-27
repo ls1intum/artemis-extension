@@ -50,7 +50,7 @@ suite('HandoverFailureStore', () => {
     });
 
     test('clear drops the record whatever generation it belongs to', () => {
-        // For the two things that make it meaningless regardless: a deliberate new sign-in, and the
+        // For the things that make it meaningless regardless: a deliberate new sign-in, and the
         // credential it refers to going away.
         const store = new HandoverFailureStore();
         store.record(store.begin(), 'obsolete');
@@ -58,5 +58,31 @@ suite('HandoverFailureStore', () => {
         store.clear();
 
         assert.strictEqual(store.current, undefined);
+    });
+
+    test('a handover still open when the credential went away can no longer record', () => {
+        // Logout, an expired session or a server change clears the store while a navigation from the
+        // sign-in before it is still running. When that navigation then fails, its record would claim
+        // the user is signed in and only needs to reload, with no credential behind it.
+        const store = new HandoverFailureStore();
+        const generation = store.begin();
+
+        store.clear();
+
+        assert.strictEqual(store.record(generation, 'signed in, could not open'), undefined);
+        assert.strictEqual(store.current, undefined);
+    });
+
+    test('a handover opened after the credential went away still records', () => {
+        // The invalidation above must not outlive itself: the next sign-in is a fresh credential and
+        // its failure is real news.
+        const store = new HandoverFailureStore();
+        store.begin();
+        store.clear();
+
+        const generation = store.begin();
+
+        assert.ok(store.record(generation, 'could not open'));
+        assert.strictEqual(store.current?.generation, generation);
     });
 });

@@ -59,6 +59,9 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
      */
     const [handoverFailure, setHandoverFailure] = useState<{ error: string; generation: number } | null>(null);
 
+    /** Whether the handover has run long enough to be worth offering a way out of. */
+    const [handoverSlow, setHandoverSlow] = useState(false);
+
     // Whether this MOUNT has started a sign-in. An init replay describes something that happened before
     // this view existed, so it must not overwrite an attempt the user has since begun here.
     const startedAttempt = useRef(false);
@@ -129,12 +132,16 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
     // A handover gets no deadline. Start-page resolution composes several requests, each with its own
     // 30s timeout, so a legitimate slow load can outrun any number picked here and reporting failure
     // would be a lie. This changes only what the view admits to: never the phase, never the form.
+    // The wait can also end in neither success nor failure, when the promise behind it never settles,
+    // so the reload this offers is the only way out of that one.
     useEffect(() => {
+        setHandoverSlow(false);
         if (!handover) {
             return;
         }
         const timer = setTimeout(() => {
             showProgress('Still opening Artemis', 'This is taking longer than usual', handover.attemptId);
+            setHandoverSlow(true);
         }, 20_000);
         return () => clearTimeout(timer);
     }, [handover]);
@@ -320,7 +327,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 // to match and the absence of one is the point. It must not speak over a sign-in this
                 // mount has since started, and repeating the same generation changes nothing: init is
                 // resent on every ready, request-init and visibility change.
-                if (startedAttempt.current || handoverFailure?.generation === msg.generation) {
+                if (handover || startedAttempt.current || handoverFailure?.generation === msg.generation) {
                     break;
                 }
                 failHandover(msg.error, msg.generation);
@@ -328,6 +335,12 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
             }
 
             case ExtensionMsg.LoginError: {
+                // Never during a handover: the credential is committed, so an id-less error can only be
+                // a stale callback from an older attempt, and acting on it would clear the indicator and
+                // leave the phase with neither a way forward nor a way back.
+                if (handover) {
+                    break;
+                }
                 // Gated for the same reason as LoginSuccess above.
                 if (msg.attemptId !== undefined && msg.attemptId !== activeAttemptId) {
                     break;
@@ -366,9 +379,10 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 break;
             }
         }
-        // `activeAttemptId` and `progress` are read from the closure by `ownsProgress`, not through refs,
-        // so a stale render here would let the handler decide ownership off an outdated indicator.
-    }, [serverUrl, activeAttemptId, progress]);
+        // Every piece of state the handler branches on is listed, not just the ones `ownsProgress` reads:
+        // a stale closure here would let it decide ownership off an outdated indicator, or replay a
+        // failure it has already shown.
+    }, [serverUrl, activeAttemptId, progress, handover, handoverFailure]);
 
     const performHealthChecks = () => {
         if (!serverUrl) {
@@ -379,7 +393,8 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
     };
 
     const handleCheckLogin = () => {
-        if (isCheckingOptions) {
+        // Guarded on the phase as well as on the button, for the same reason as `handleOidcLogin`.
+        if (isCheckingOptions || handover) {
             return;
         }
         const trimmedUsername = username.trim();
@@ -405,6 +420,9 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         if (isOidcPending || handover) {
             return;
         }
+        // No attempt id to allocate: the browser callback carries none. The mount is still marked as
+        // having started a sign-in, so a replayed failure from before it cannot speak over this one.
+        startedAttempt.current = true;
         setIsOidcPending(true);
         postCommand(vscodeApi, 'startOidcLogin', { rememberMe });
         setStatusMessage(`Redirecting to ${idpName ?? GENERIC_IDP_NAME}. Please complete the sign-in process in your browser.`);
@@ -486,6 +504,11 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         });
     };
 
+    /** Rebuilds the host state that failed, from a credential that is still committed. */
+    const handleReload = () => {
+        postCommand(vscodeApi, 'reloadWindow');
+    };
+
     const handleOpenWebsite = () => {
         postCommand(vscodeApi, 'openWebsite');
     };
@@ -513,7 +536,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                             variant="primary"
                             fullWidth
                             testId="login-reload"
-                            onClick={() => postCommand(vscodeApi, 'reloadWindow')}
+                            onClick={handleReload}
                         >
                             Reload Window
                         </Button>
@@ -550,6 +573,26 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                         </div>
                         <div className={styles.loadingSubtext}>{progress.subtext}</div>
                     </div>
+                </div>
+            )}
+
+            {/*
+              * The one way out of a handover that never ends. Nothing announces that case, because a
+              * promise that never settles resolves neither way, so the offer is made on elapsed time
+              * instead. Offered, not forced: the wait is still legitimate at this point, and the
+              * indicator above keeps running behind it.
+              */}
+            {handover && handoverSlow && (
+                <div style={{ marginBottom: '16px' }}>
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        fullWidth
+                        testId="login-reload"
+                        onClick={handleReload}
+                    >
+                        Reload Window
+                    </Button>
                 </div>
             )}
 
@@ -649,7 +692,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                                     type="button"
                                     variant="primary"
                                     fullWidth
-                                    disabled={isSubmitting || isCheckingOptions}
+                                    disabled={isSubmitting || isCheckingOptions || handover !== null}
                                     testId="login-next"
                                     onClick={handleCheckLogin}
                                 >
@@ -685,7 +728,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                                         type="button"
                                         variant="primary"
                                         fullWidth
-                                        disabled={isSubmitting || isOidcPending}
+                                        disabled={isSubmitting || isOidcPending || handover !== null}
                                         onClick={handleOidcLogin}
                                         testId="login-oidc-submit"
                                     >

@@ -54,12 +54,19 @@ export class HandoverFailureStore {
     }
 
     /**
-     * Drops the record outright. For the two things that make it meaningless
+     * Drops the record outright. For the three things that make it meaningless
      * regardless of generation: the user deliberately starting another sign-in,
-     * and the credential it refers to going away.
+     * a second one through the browser, and the credential it refers to going
+     * away.
+     *
+     * The generation moves on with it, so a handover that is still open cannot
+     * come back later and record against it. Without that, a navigation still
+     * running when the credential was cleared would write a "signed in, reload"
+     * record with nothing signed in behind it.
      */
     public clear(): void {
         this._failure = undefined;
+        this._generation++;
     }
 
     public get current(): HandoverFailure | undefined {

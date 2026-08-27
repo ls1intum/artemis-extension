@@ -72,6 +72,9 @@ export class AuthCommandModule {
 
             // A password attempt in progress must not be able to commit once the user has moved to OIDC.
             this.context.authCancellation.registerOidcStart();
+            // Same reason as the two handlers above: this is the user starting another sign-in, so a
+            // record from the last one no longer describes where they are.
+            this.context.handoverFailures.clear();
             await this.context.oidcLoginService.start(rememberMe);
         } catch (error: unknown) {
             if (error instanceof LoginCancelledError) {
