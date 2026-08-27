@@ -4,12 +4,18 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Test results while a build runs:** Starting a new submission no longer throws away the test results you already had. Artemis signals a build in progress by leaving the new submission without a result, and the extension was trying to attach the feedback it had just fetched to that empty submission, so the feedback was silently dropped. The exercise view already compensated for this in its own display; the data behind it now does too. The rendered problem statement still shows no test results while a build runs, which is tracked separately.
+
 ### Internal
 
 - **Release tooling:** Removed four shell scripts left over from before the release workflow existed. Nothing referenced them, the workflow does the tagging, release creation and packaging itself, and each carried a way to damage published state: one rewrote the minimum VS Code version back to 1.97, one deleted every GitHub release to recreate it.
 - **Chat provider:** Split the Iris chat's webview provider, a 1528-line class, into the webview surface plus three collaborators: navigation, the send path, and Iris availability. Two duplicated rules went with it. No behaviour change.
 - **Chat view:** Split the Iris chat view, a 1132-line component, into the rendering plus four hooks and a module of pure screen-selection rules that now have their own tests. No behaviour change.
 - **God-file guard:** Lint now fails a file in `src/` over 850 lines. A ratchet, not a target: it sits just above the largest file there and drops again whenever that number does.
+- **One definition of "latest":** Artemis treats the highest id as the newest, not the newest date. That rule was implemented twice, once in the extension and once in the webview, under two names with two test suites, and a third rule for picking a result during a build existed only on one side. All of them now live in one place, so the two halves cannot drift into disagreeing about which result a student is looking at. Also removed a parser that walked through exercises, courses and results to build values nothing ever read.
+- **Copy-paste in workspace detection:** The routine that decides which exercise a cloned repository belongs to built the same result four times and ran the same search twice, differing only in which address it compared against. It is now written once. The two orderings it depends on, checking an exercise's own repository before its participations, and finishing the exact search before falling back to the practice variant, are now stated rather than left to be inferred from the nesting. No behaviour change.
 - **Helpers that already existed:** Four places spelled out the same error-message extraction the shared helper does, and two screens hand-built the "nothing here" panel that is already a component. Both now use the shared version. The two panels shift slightly in spacing and use a real heading element as a result; the surrounding card is unchanged.
 - **Dead code:** Removed three units that nothing reached. A score component no view ever rendered; a registry method for importing exercises from raw course data that no longer had a caller, along with the older `{ id, exercises }` input shape it tolerated; and two of the three copies of the service-health result type, which could have drifted apart from the message it travels in without the compiler noticing. Also removed a date helper and a re-export left unused by those deletions. No behaviour change.
 
