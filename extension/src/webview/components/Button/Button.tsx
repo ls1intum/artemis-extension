@@ -11,8 +11,6 @@ interface ButtonProps {
   className?: string;
   fullWidth?: boolean;
   icon?: ReactNode;
-  width?: string;
-  height?: string;
   alignText?: 'left' | 'center' | 'right';
   type?: 'button' | 'submit' | 'reset';
   testId?: string;
@@ -26,15 +24,12 @@ export function Button({
   className,
   fullWidth = false,
   icon,
-  width,
-  height,
   alignText,
   type = 'button',
   testId,
 }: ButtonProps) {
   const hasIconAndLabel = Boolean(icon && children);
   const isIconOnly = Boolean(icon && !children);
-  const hasFixedSize = Boolean(width || height);
 
   const buttonClasses = clsx(
     styles.btn,
@@ -43,45 +38,20 @@ export function Button({
       [styles.btnFullWidth]: fullWidth,
       [styles.btnDisabled]: disabled,
       [styles.btnWithIcon]: hasIconAndLabel,
-      [styles.btnFixedSize]: hasFixedSize,
       [styles[`btnAlign${alignText?.charAt(0).toUpperCase()}${alignText?.slice(1)}`]]: alignText,
     },
     className
   );
 
-  const inlineStyles: React.CSSProperties = {};
-  if (width) {inlineStyles.width = width;}
-  if (height) {inlineStyles.height = height;}
-
+  let content: ReactNode = children;
   if (isIconOnly) {
-    return (
-      <button
-        type={type}
-        className={buttonClasses}
-        disabled={disabled}
-        onClick={onClick}
-        style={Object.keys(inlineStyles).length > 0 ? inlineStyles : undefined}
-        aria-label="button"
-        data-testid={testId}
-      >
-        {icon}
-      </button>
-    );
-  }
-
-  if (hasIconAndLabel) {
-    return (
-      <button
-        type={type}
-        className={buttonClasses}
-        disabled={disabled}
-        onClick={onClick}
-        style={Object.keys(inlineStyles).length > 0 ? inlineStyles : undefined}
-        data-testid={testId}
-      >
+    content = icon;
+  } else if (hasIconAndLabel) {
+    content = (
+      <>
         <span className={styles.btnIconSlot}>{icon}</span>
         <span className={styles.btnLabel}>{children}</span>
-      </button>
+      </>
     );
   }
 
@@ -91,10 +61,10 @@ export function Button({
       className={buttonClasses}
       disabled={disabled}
       onClick={onClick}
-      style={Object.keys(inlineStyles).length > 0 ? inlineStyles : undefined}
+      aria-label={isIconOnly ? 'button' : undefined}
       data-testid={testId}
     >
-      {children}
+      {content}
     </button>
   );
 }

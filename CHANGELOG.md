@@ -4,9 +4,33 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-08-28
+
+### Changed
+
+- **Trusted domains:** Removed the command "Artemis: Clear Trusted Domains". The list it cleared was written only by the confirmation dialog that used to appear when you opened a link from an exercise description, and that dialog stopped being reached in May, when the description moved to server-side rendering. Nothing writes the list and nothing reads it, so the command had no effect on anything the extension does. A list stored by an older version stays on disk and is ignored.
+
+### Fixed
+
+- **Wrong test results in the exercise description:** With both a graded and a practice participation, the task markers in the exercise description could describe the other one than the card above them, and which one you got was down to the order the server happened to return them in. The extension now renders the description for the repository you actually have open, and says so alongside the result so the two halves of the view cannot disagree. Two related gaps went with it: a build finishing for one participation no longer fails to refresh the description of the other, and while a build is running the description keeps the previous run's markers instead of dropping all of them until it finishes.
+
+- **Login goes quiet after the password is accepted:** Signing in appeared to do nothing. The form reset itself, the progress indicator disappeared, and several seconds later the dashboard simply replaced it. The extension was treating the moment the credential is accepted as the end of the login, when the work of opening Artemis behind it had not started yet. The view now stays with you for that stretch: it reports "Signed in, opening Artemis", keeps the form locked instead of inviting a second sign-in, and says so when the wait is running long. If opening Artemis then fails, you are told that the sign-in itself worked and offered a window reload, rather than being sent back to a login form for a session you already have.
+
+- **Test results while a build runs:** Starting a new submission no longer throws away the test results you already had. Artemis signals a build in progress by leaving the new submission without a result, and the extension was trying to attach the feedback it had just fetched to that empty submission, so the feedback was silently dropped. The exercise view already compensated for this in its own display; the data behind it now does too. The rendered problem statement still shows no test results while a build runs, which is tracked separately.
+
 ### Internal
 
+- **Dead webview commands:** Removed three commands the webview had a handler for but no longer sends. Two of them, opening an external link and previewing an image, lost their senders when the exercise description moved to server-side rendering; the third asked the host for the Git identity, which the host has pushed on its own since March. Five private helpers and a whole utility module went with them, and one command module lost its last use of the extension context. The retired Git-identity handler also held the only test of the local-then-global config fallback, for a rule the surviving code implements a second time, so that test moved down onto the function that still runs instead of being deleted with it.
+
 - **Release tooling:** Removed four shell scripts left over from before the release workflow existed. Nothing referenced them, the workflow does the tagging, release creation and packaging itself, and each carried a way to damage published state: one rewrote the minimum VS Code version back to 1.97, one deleted every GitHub release to recreate it.
+- **Chat provider:** Split the Iris chat's webview provider, a 1528-line class, into the webview surface plus three collaborators: navigation, the send path, and Iris availability. Two duplicated rules went with it. No behaviour change.
+- **Chat view:** Split the Iris chat view, a 1132-line component, into the rendering plus four hooks and a module of pure screen-selection rules that now have their own tests. No behaviour change.
+- **God-file guard:** Lint now fails a file in `src/` over 850 lines. A ratchet, not a target: it sits just above the largest file there and drops again whenever that number does.
+- **One definition of "latest":** Artemis treats the highest id as the newest, not the newest date. That rule was implemented twice, once in the extension and once in the webview, under two names with two test suites, and a third rule for picking a result during a build existed only on one side. All of them now live in one place, so the two halves cannot drift into disagreeing about which result a student is looking at. Also removed a parser that walked through exercises, courses and results to build values nothing ever read.
+- **Copy-paste in workspace detection:** The routine that decides which exercise a cloned repository belongs to built the same result four times and ran the same search twice, differing only in which address it compared against. It is now written once. The two orderings it depends on, checking an exercise's own repository before its participations, and finishing the exact search before falling back to the practice variant, are now stated rather than left to be inferred from the nesting. No behaviour change.
+- **Helpers that already existed:** Four places spelled out the same error-message extraction the shared helper does, and two screens hand-built the "nothing here" panel that is already a component. Both now use the shared version. The two panels shift slightly in spacing and use a real heading element as a result; the surrounding card is unchanged.
+- **Service health checks:** The three checks behind the Service Status view and the login health panel were three near-identical copies with no test coverage at all, which made them risky to touch. They now share one probe and have 22 tests pinning what each one reports, including the parts that read as bugs but are not: an HTTP error still counts as "server reachable", and Iris being switched off is reported differently from the info endpoint being unreachable. No behaviour change.
+- **Dead code:** Removed three units that nothing reached. A score component no view ever rendered; a registry method for importing exercises from raw course data that no longer had a caller, along with the older `{ id, exercises }` input shape it tolerated; and two of the three copies of the service-health result type, which could have drifted apart from the message it travels in without the compiler noticing. Also removed a date helper and a re-export left unused by those deletions. No behaviour change.
 
 ## [0.5.0] - 2026-08-20
 

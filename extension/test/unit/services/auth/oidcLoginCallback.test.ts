@@ -6,6 +6,7 @@ import type { ExtensionToWebviewMessage } from '@shared/messageContracts';
 
 import { ArtemisApiService } from '@extension/api/artemisApi';
 import { AuthManager } from '@extension/services/auth/authManager';
+import { HandoverFailureStore } from '@extension/services/auth/handoverFailureStore';
 import { LoginCancelledError } from '@extension/services/auth/loginCancelledError';
 import { createOidcLoginCallback } from '@extension/services/auth/oidcLoginCallback';
 import { OidcLoginService } from '@extension/services/auth/oidcLoginService';
@@ -34,9 +35,10 @@ suite('OIDC login callback Test Suite', () => {
 
     teardown(() => sandbox.restore());
 
-    function build(overrides: { navigateToStartPage?: () => Promise<void> } = {}) {
+    function build(overrides: { navigateToStartPage?: () => Promise<void>; handoverFailures?: HandoverFailureStore } = {}) {
         return createOidcLoginCallback({
             oidcLoginService: service,
+            handoverFailures: overrides.handoverFailures ?? new HandoverFailureStore(),
             updateAuthContext: async isAuthenticated => { authContextUpdates.push(isAuthenticated); },
             postMessage: message => { messages.push(message); },
             navigateToStartPage: overrides.navigateToStartPage ?? (async () => {}),
@@ -68,14 +70,18 @@ suite('OIDC login callback Test Suite', () => {
         assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=fresh',
             'the credential survives a failure in the wiring that follows it');
         assert.deepStrictEqual(authContextUpdates, [true]);
-        assert.deepStrictEqual(messages.map(m => m.type), ['loginSuccess'],
-            'the user is signed in at this point, so a broken view must not claim the login failed');
+        assert.deepStrictEqual(messages.map(m => m.type), ['loginSuccess', 'loginHandoverFailed'],
+            'the user is signed in at this point, so a broken view must not claim the login FAILED, '
+            + 'but it must still be told, or it waits forever on a handover that is not coming');
+        assert.ok(!messages.some(m => m.type === 'loginError'),
+            'the credential is committed, so nothing here may read as "your login did not work"');
     });
 
     test('a failure in the auth context still tells the view the login succeeded', async () => {
         sandbox.stub(service, 'complete').resolves({ id: 1, login: 'student' } as never);
         const callback = createOidcLoginCallback({
             oidcLoginService: service,
+            handoverFailures: new HandoverFailureStore(),
             updateAuthContext: async () => { throw new Error('context command failed'); },
             postMessage: message => { messages.push(message); },
             navigateToStartPage: async () => {},
@@ -83,8 +89,23 @@ suite('OIDC login callback Test Suite', () => {
 
         await callback.onCode('code');
 
-        // The view clears its pending state only on a success or an error, so staying silent here would
-        // leave it waiting on a login that actually worked.
+        // Success first, because the login really did work. The handover failure after it is what stops
+        // the view waiting on an app that is never going to open.
+        assert.deepStrictEqual(messages.map(m => m.type), ['loginSuccess', 'loginHandoverFailed']);
+    });
+
+    test('a superseded handover cannot record its failure over a newer one', async () => {
+        const handoverFailures = new HandoverFailureStore();
+        sandbox.stub(service, 'complete').resolves({ id: 1, login: 'student' } as never);
+
+        await build({
+            handoverFailures,
+            // A newer sign-in opens its own handover while this one is still wiring up. The old one's
+            // failure is no longer news about anything the user is waiting for.
+            navigateToStartPage: async () => { handoverFailures.begin(); throw new Error('view disposed'); },
+        }).onCode('code');
+
+        assert.strictEqual(handoverFailures.current, undefined);
         assert.deepStrictEqual(messages.map(m => m.type), ['loginSuccess']);
     });
 

@@ -2,6 +2,7 @@ import type * as vscode from 'vscode';
 
 import type { ArtemisApiService } from '@extension/api';
 import type { AuthCancellationService, AuthManager, OidcLoginService } from '@extension/services/auth';
+import type { HandoverFailureStore } from '@extension/services/auth/handoverFailureStore';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type { ITelemetryManager } from '@extension/services/telemetry';
@@ -17,6 +18,7 @@ export interface ArtemisWebviewProviderDeps {
     artemisApi: ArtemisApiService;
     oidcLoginService: OidcLoginService;
     authCancellation: AuthCancellationService;
+    handoverFailures: HandoverFailureStore;
     providerRegistry: IProviderRegistry;
     websocketService: ArtemisWebsocketService;
     buildErrorCodeLensProvider: BuildErrorCodeLensProvider;

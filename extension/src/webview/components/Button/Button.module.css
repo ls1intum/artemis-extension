@@ -24,9 +24,7 @@
 }
 
 /* Wrapped text buttons should be left-aligned */
-.btn[style*="width"],
-.btnFullWidth,
-.btnFixedSize {
+.btnFullWidth {
     text-align: left;
     justify-content: flex-start;
 }
@@ -232,25 +230,6 @@
 /* Button with icon and label - reduce left padding */
 .btnWithIcon {
     padding-left: 8px;
-}
-
-/* Fixed size button - reduces padding */
-.btnFixedSize {
-    padding: 4px 12px;
-    box-sizing: border-box;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-/* Fixed size button with icon - even less left padding */
-.btnFixedSize.btnWithIcon {
-    padding-left: 4px;
-}
-
-/* Fixed size icon-only button - minimal padding */
-.btnFixedSize:empty,
-.btnFixedSize:has(svg):not(:has(.btnLabel)):not(:has(text)) {
-    padding: 4px;
 }
 
 /* Button with only icon (no label) - adjusted spacing */

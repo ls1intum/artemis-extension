@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 
 import type { ExtensionToWebviewMessage } from '@shared/messageContracts';
 import { ExtensionMsg } from '@shared/messageContracts';
+import { selectParticipation } from '@shared/utils/participationSelection';
 
 import type { AppStateManager } from '@extension/controller/appStateManager';
 import { LogCategory, logger } from '@extension/services/loggingService';
@@ -58,28 +59,44 @@ export class WebviewSSRCoordinator implements vscode.Disposable {
 
         const exercise = exerciseData.exercise;
         const exerciseId = exercise.id;
-        const participation = exercise.studentParticipations?.[0];
+        // The same rule the exercise view uses. `[0]` was not a choice but a coin toss, since
+        // Artemis builds this list from an unordered set.
+        const participation = selectParticipation(
+            exercise.studentParticipations,
+            this.deps.appStateManager.workspaceIsPractice,
+        );
+        const participationId = participation?.id;
+        // A pending submission carries no result, so without this every build renders no markers.
+        const buildPending = participationId !== undefined
+            && exerciseData.pendingSubmissionsByParticipationId?.[participationId] !== undefined;
 
         logger.info(`[SSR] Starting background render for exercise ${exerciseId}`, LogCategory.GENERAL);
 
         try {
-            const rendered = await this.deps.renderService.render(exercise, { participation });
+            const rendered = await this.deps.renderService.render(exercise, { participation, buildPending });
 
             // Guard: dispose may have happened during the render await; also
             // verify same exercise is still active.
             if (this._disposed) { return; }
             const current = this.deps.appStateManager.currentExerciseData;
             if (current?.exercise?.id !== exerciseId) { return; }
+            // The exercise id does not cover a participation switch: both belong to one exercise.
+            if (selectParticipation(
+                current?.exercise?.studentParticipations,
+                this.deps.appStateManager.workspaceIsPractice,
+            )?.id !== participationId) { return; }
 
             if (rendered) {
+                // Labelled with the participation THIS render selected, never one from the render
+                // service: its cache keys on the inputs, so two participations with matching
+                // results share an entry and would hand back the wrong id.
+                const payload = { html: rendered.html, participationId };
                 // Store in app state so sendExerciseDetailInit includes it
-                this.deps.appStateManager.serverRenderedProblemStatement = {
-                    html: rendered.html,
-                };
+                this.deps.appStateManager.serverRenderedProblemStatement = payload;
                 // Also send as separate message for cases where init was already sent
                 this.deps.postMessage({
                     type: ExtensionMsg.ProblemStatementRendered,
-                    html: rendered.html,
+                    ...payload,
                 });
                 logger.info(`[SSR] Server render cached + sent (hash: ${rendered.contentHash.slice(0, 8)})`, LogCategory.GENERAL);
             }

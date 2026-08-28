@@ -14,6 +14,8 @@ export const CONFIG = {
             AUTHENTICATE: '/api/core/public/authenticate',
             LOGOUT: '/api/core/public/logout',
             RENDER_PROBLEM_STATEMENT: '/api/exercise/problem-statement/render',
+            MANAGEMENT_HEALTH: '/management/health',
+            MANAGEMENT_INFO: '/management/info',
         },
         // Backstop against a server that accepts the connection but never responds.
         // Generous on purpose so slow networks are not falsely aborted; this only

@@ -6,11 +6,13 @@ import { ExtensionMsg } from '@shared/messageContracts';
 import type { ArtemisUser } from '@extension/domain';
 import { LogCategory, logger } from '@extension/services/loggingService';
 
+import type { HandoverFailureStore } from './handoverFailureStore';
 import { LoginCancelledError } from './loginCancelledError';
 import type { OidcLoginService } from './oidcLoginService';
 
 interface OidcLoginCallbackDeps {
     oidcLoginService: OidcLoginService;
+    handoverFailures: HandoverFailureStore;
     updateAuthContext: (isAuthenticated: boolean) => Promise<void>;
     postMessage: (message: ExtensionToWebviewMessage) => void;
     navigateToStartPage: (user: ArtemisUser) => Promise<void>;
@@ -69,16 +71,25 @@ export function createOidcLoginCallback(deps: OidcLoginCallbackDeps): {
             return;
         }
 
-        // Sent first, for the same reason as the password path: the view clears its pending state only on
-        // a success or an error, so a failure in the wiring below must not leave it waiting.
+        // Still sent before the wiring below, for the same reason as the password path: a failure there
+        // must not leave the view waiting on a login that actually worked. What it announces is the
+        // START of the handover, not the end of the flow.
+        const generation = deps.handoverFailures.begin();
         deps.postMessage({ type: ExtensionMsg.LoginSuccess, username: user.login || 'User' });
 
         try {
             await deps.updateAuthContext(true);
             await deps.navigateToStartPage(user);
             vscode.window.showInformationMessage(`Successfully logged in to Artemis as ${user.login || 'User'}`);
+            deps.handoverFailures.clearFor(generation);
         } catch (error) {
             logger.error('OIDC login succeeded but the UI could not be updated', LogCategory.AUTH, error);
+            // Not a login error: the credential is committed and valid. Saying otherwise would send the
+            // user back to authenticate against a session they already have.
+            const message = 'Signed in, but Artemis could not be opened. Reload the window to continue.';
+            if (deps.handoverFailures.record(generation, message)) {
+                deps.postMessage({ type: ExtensionMsg.LoginHandoverFailed, error: message });
+            }
         }
     };
 

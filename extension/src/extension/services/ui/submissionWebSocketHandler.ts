@@ -1,6 +1,7 @@
 import type { ExtensionToWebviewMessage } from '@shared/messageContracts';
 import { ExtensionMsg } from '@shared/messageContracts';
 
+import { toFeedbackSummary } from '@extension/services/ui/resultSummaryMappers';
 import type { ResultSummary, SubmissionSummary } from '@extension/types';
 import {
     type ProgrammingSubmission,
@@ -34,15 +35,7 @@ export class SubmissionWebSocketHandler {
             testCaseCount: result.testCaseCount,
             passedTestCaseCount: result.passedTestCaseCount,
             codeIssueCount: result.codeIssueCount,
-            feedbacks: result.feedbacks?.map(f => ({
-                id: f.id,
-                text: f.text,
-                detailText: f.detailText,
-                credits: f.credits,
-                positive: f.positive,
-                type: f.type,
-                testCase: f.testCase,
-            })),
+            feedbacks: result.feedbacks?.map(toFeedbackSummary),
             participationId: result.participation?.id,
             buildFailed: result.submission?.buildFailed,
         };
@@ -66,15 +59,7 @@ export class SubmissionWebSocketHandler {
                 completionDate: r.completionDate,
                 successful: r.successful,
                 score: r.score,
-                feedbacks: r.feedbacks?.map(f => ({
-                    id: f.id,
-                    text: f.text,
-                    detailText: f.detailText,
-                    credits: f.credits,
-                    positive: f.positive,
-                    type: f.type,
-                    testCase: f.testCase,
-                })),
+                feedbacks: r.feedbacks?.map(toFeedbackSummary),
             })),
             participationId: submission.participation?.id,
         };

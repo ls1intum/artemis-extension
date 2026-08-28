@@ -253,6 +253,26 @@ suite('AuthManager credential transaction', () => {
         assert.strictEqual(await context.secrets.get(CONFIG.SECRET_KEYS.ARTEMIS_TOKEN), 'jwt=second');
     });
 
+    test('every way the credential can go away announces itself once', async () => {
+        // The single choke point everything downstream hangs off: the handover record is dropped and a
+        // login view that is claiming the user is signed in is told to stop. Hooking the individual
+        // callers instead would miss whichever one is added next.
+        const fired: string[] = [];
+        const subscription = authManager.onDidClearCredential(() => fired.push('cleared'));
+
+        await authManager.storeArtemisCredentials('jwt=first', true);
+        await authManager.clear();
+        await authManager.storeArtemisCredentials('jwt=second', true);
+        await authManager.clearIfUnchanged(authManager.currentCredentialRevision());
+
+        assert.deepStrictEqual(fired, ['cleared', 'cleared']);
+
+        await authManager.clearIfUnchanged(0);
+        assert.strictEqual(fired.length, 2, 'a clear that spared the credential has nothing to announce');
+
+        subscription.dispose();
+    });
+
     test('a rejected mutation does not strand the operations queued behind it', async () => {
         await authManager.storeArtemisCredentials('jwt=existing', true);
         // `secrets` is an instance field, so there is no prototype method to restore from. Keep the

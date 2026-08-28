@@ -2,6 +2,8 @@
  * Webview -> Extension command contracts.
  */
 
+import type { AttemptId } from './domainTypes';
+
 /** Non-command webview message types (ready, requestInit, error) */
 export const WebviewMsgType = {
     Ready: 'ready',
@@ -53,17 +55,15 @@ export const WebviewCmd = {
     // Utility
     OpenWebsite: 'openWebsite',
     OpenSettings: 'openSettings',
+    ReloadWindow: 'reloadWindow',
     OpenBugReport: 'openBugReport',
     OpenInEditor: 'openInEditor',
     CopyToClipboard: 'copyToClipboard',
-    OpenExternalLink: 'openExternalLink',
-    OpenImagePreview: 'openImagePreview',
     SearchMarketplace: 'searchMarketplace',
 
     // Git
     SaveGitIdentity: 'saveGitIdentity',
-    // Internal: dispatched by viewInitDataService, not sent from React UI
-    RequestGitIdentity: 'requestGitIdentity',
+
     // Recording
     OpenRecordingsFolder: 'openRecordingsFolder',
     ReplaySession: 'replaySession',
@@ -128,9 +128,9 @@ export type WebviewCmd = (typeof WebviewCmd)[keyof typeof WebviewCmd];
 /** Payload definitions -- undefined means no payload */
 interface WebviewCmdPayloads {
     // Auth
-    login: { username: string; password: string; rememberMe: boolean; attemptId: number };
+    login: { username: string; password: string; rememberMe: boolean; attemptId: AttemptId };
     logout: undefined;
-    checkLoginOptions: { username: string; attemptId: number };
+    checkLoginOptions: { username: string; attemptId: AttemptId };
     startOidcLogin: { rememberMe: boolean };
     cancelLogin: undefined;
 
@@ -169,12 +169,11 @@ interface WebviewCmdPayloads {
 
     // Utility
     openWebsite: { path?: string };
+    reloadWindow: undefined;
     openSettings: { setting: string };
     openBugReport: undefined;
     openInEditor: { data: Record<string, unknown> | string; language?: string };
     copyToClipboard: { text: string };
-    openExternalLink: { url: string };
-    openImagePreview: { uri: string };
     searchMarketplace: { extensionId: string };
 
     // Recording
@@ -183,7 +182,6 @@ interface WebviewCmdPayloads {
 
     // Git
     saveGitIdentity: { name: string; email: string };
-    requestGitIdentity: undefined;
     // Views
     showAiConfig: undefined;
     showRecommendedExtensions: undefined;
@@ -304,8 +302,6 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.AskIrisAboutExercise,
     WebviewCmd.OpenInEditor,
     WebviewCmd.CopyToClipboard,
-    WebviewCmd.OpenExternalLink,
-    WebviewCmd.OpenImagePreview,
     WebviewCmd.SearchMarketplace,
     WebviewCmd.OpenSettings,
     WebviewCmd.SaveGitIdentity,

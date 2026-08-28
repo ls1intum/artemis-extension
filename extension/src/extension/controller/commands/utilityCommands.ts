@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import * as crypto from 'crypto';
 
 import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { getOptionalPayload, getPayload, WebviewCmd } from '@shared/messageContracts';
+import { selectParticipation } from '@shared/utils/participationSelection';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
@@ -48,13 +48,12 @@ export class UtilityCommandModule {
     public getHandlers(): CommandMap {
         return {
             [WebviewCmd.OpenSettings]: this.handleOpenSettings,
+            [WebviewCmd.ReloadWindow]: this.handleReloadWindow,
             [WebviewCmd.OpenWebsite]: this.handleOpenWebsite,
             [WebviewCmd.OpenBugReport]: this.handleOpenBugReport,
             [WebviewCmd.OpenInEditor]: this.handleOpenInEditor,
             [WebviewCmd.CopyToClipboard]: this.handleCopyToClipboard,
             [WebviewCmd.SearchMarketplace]: this.handleSearchMarketplace,
-            [WebviewCmd.OpenExternalLink]: this.handleOpenExternalLink,
-            [WebviewCmd.OpenImagePreview]: this.handleOpenImagePreview,
             [WebviewCmd.OpenFile]: this.handleOpenFile,
             [WebviewCmd.FreshSsrPreview]: this.handleFreshSsrPreview,
         };
@@ -67,6 +66,27 @@ export class UtilityCommandModule {
         } catch (error: unknown) {
             logger.error('Failed to open settings:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage(`Failed to open settings: ${extractErrorMessage(error)}`);
+        }
+    };
+
+    /**
+     * Offered as the way out when the sign-in worked but the host could not put
+     * the authenticated UI on screen. A reload rebuilds that host state from the
+     * credential, which is still valid.
+     *
+     * The command is wrapped because this also ships to Theia/EduIDE, where
+     * `workbench.action.reloadWindow` may not exist. A button that silently
+     * does nothing is worse than a sentence telling the user to reload
+     * themselves.
+     */
+    private handleReloadWindow = async (_message: WebviewToExtensionMessage): Promise<void> => {
+        try {
+            await vscode.commands.executeCommand('workbench.action.reloadWindow');
+        } catch (error: unknown) {
+            logger.error('Reload window command failed', LogCategory.VIEW, error);
+            vscode.window.showErrorMessage(
+                'Could not reload automatically. Please reload the window to finish signing in.',
+            );
         }
     };
 
@@ -135,131 +155,6 @@ export class UtilityCommandModule {
         }
     };
 
-    /** Untrusted domains require a confirmation dialog before the link opens. */
-    private handleOpenExternalLink = async (message: WebviewToExtensionMessage): Promise<void> => {
-        let url: string | undefined;
-        try {
-            const payload = getPayload<WebCmd<'openExternalLink'>>(message);
-            url = payload.url;
-            if (!url || typeof url !== 'string') {
-                vscode.window.showErrorMessage('Invalid URL: missing or not a string');
-                return;
-            }
-
-            if (!this.isAllowedProtocol(url)) {
-                logger.error('Invalid URL protocol', LogCategory.VIEW, { url });
-                const action = await vscode.window.showErrorMessage(
-                    'Invalid URL protocol. Only http:// and https:// links are allowed.',
-                    'Copy URL'
-                );
-                if (action === 'Copy URL') {
-                    await vscode.env.clipboard.writeText(url);
-                }
-                return;
-            }
-
-            const domain = this.extractDomain(url);
-            if (!domain) {
-                logger.error('Failed to extract domain', LogCategory.VIEW, { url });
-                const action = await vscode.window.showErrorMessage(
-                    'Invalid URL format.',
-                    'Copy URL'
-                );
-                if (action === 'Copy URL') {
-                    await vscode.env.clipboard.writeText(url);
-                }
-                return;
-            }
-
-            const trustedDomains = this.context.extensionContext.globalState.get<string[]>('artemis.trustedDomains', []);
-            const validatedDomains = Array.isArray(trustedDomains) ? trustedDomains : [];
-
-            if (validatedDomains.includes(domain)) {
-                await vscode.env.openExternal(vscode.Uri.parse(url));
-                return;
-            }
-
-            const truncatedUrl = this.truncateUrl(url);
-            const result = await vscode.window.showInformationMessage(
-                `Open external link?\n\n${truncatedUrl}`,
-                { modal: true },
-                'Open',
-                'Trust this domain'
-            );
-
-            if (result === 'Open') {
-                await vscode.env.openExternal(vscode.Uri.parse(url));
-            } else if (result === 'Trust this domain') {
-                const updatedDomains = [...validatedDomains, domain];
-                await this.context.extensionContext.globalState.update('artemis.trustedDomains', updatedDomains);
-                await vscode.env.openExternal(vscode.Uri.parse(url));
-            }
-        } catch (error: unknown) {
-            logger.error('Open external link error:', LogCategory.VIEW, error);
-            const action = await vscode.window.showErrorMessage(
-                `Failed to open external link: ${extractErrorMessage(error)}`,
-                'Copy URL'
-            );
-            if (action === 'Copy URL' && url) {
-                await vscode.env.clipboard.writeText(url);
-            }
-        }
-    };
-
-    /** Handles both data URIs (written to a temp file) and remote URLs. */
-    private handleOpenImagePreview = async (message: WebviewToExtensionMessage): Promise<void> => {
-        let uri: string | undefined;
-        try {
-            const payload = getPayload<WebCmd<'openImagePreview'>>(message);
-            uri = payload.uri;
-            if (!uri || typeof uri !== 'string') {
-                vscode.window.showErrorMessage('Invalid image URI: missing or not a string');
-                return;
-            }
-
-            if (uri.startsWith('data:')) {
-                const parsed = this.parseDataUri(uri);
-                if (!parsed) {
-                    vscode.window.showErrorMessage('Failed to decode image data');
-                    return;
-                }
-
-                const { mimeType, data } = parsed;
-                const extension = this.getExtensionFromMime(mimeType);
-                const tempFileName = `image-${crypto.randomBytes(8).toString('hex')}${extension}`;
-                const tempFileUri = vscode.Uri.joinPath(this.context.extensionContext.globalStorageUri, tempFileName);
-
-                await vscode.workspace.fs.createDirectory(this.context.extensionContext.globalStorageUri);
-                await vscode.workspace.fs.writeFile(tempFileUri, data);
-                await vscode.commands.executeCommand('vscode.open', tempFileUri);
-                return;
-            }
-
-            if (!this.isAllowedProtocol(uri)) {
-                logger.error('Invalid image URL protocol', LogCategory.VIEW, { uri });
-                const action = await vscode.window.showErrorMessage(
-                    'Invalid image URL protocol. Only http:// and https:// are allowed.',
-                    'Copy URL'
-                );
-                if (action === 'Copy URL') {
-                    await vscode.env.clipboard.writeText(uri);
-                }
-                return;
-            }
-
-            await vscode.env.openExternal(vscode.Uri.parse(uri));
-        } catch (error: unknown) {
-            logger.error('Open image preview error:', LogCategory.VIEW, error);
-            const action = await vscode.window.showErrorMessage(
-                `Failed to open image: ${extractErrorMessage(error)}`,
-                'Copy URL'
-            );
-            if (action === 'Copy URL' && uri) {
-                await vscode.env.clipboard.writeText(uri);
-            }
-        }
-    };
-
     private handleOpenFile = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const { filePath } = getPayload<WebCmd<'openFile'>>(message);
@@ -280,8 +175,14 @@ export class UtilityCommandModule {
         const renderService = new ProblemStatementRenderService(this.context.artemisApi);
         try {
             const exercise = exerciseData.exercise;
-            const participation = exercise.studentParticipations?.[0];
-            const rendered = await renderService.render(exercise, { participation, darkModeOverride: darkMode });
+            // The same selection the real render uses, so the preview shows what a student would see.
+            const participation = selectParticipation(
+                exercise.studentParticipations,
+                this.context.appStateManager.workspaceIsPractice,
+            );
+            const buildPending = participation?.id !== undefined
+                && exerciseData.pendingSubmissionsByParticipationId?.[participation.id] !== undefined;
+            const rendered = await renderService.render(exercise, { participation, buildPending, darkModeOverride: darkMode });
             if (!rendered) { return; }
 
             const label = darkMode ? 'Dark' : 'Light';
@@ -302,69 +203,4 @@ export class UtilityCommandModule {
             renderService.dispose();
         }
     };
-
-    private isAllowedProtocol(url: string): boolean {
-        try {
-            const parsed = new URL(url);
-            return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-        } catch {
-            return false;
-        }
-    }
-
-    private extractDomain(url: string): string | null {
-        try {
-            const parsed = new URL(url);
-            return parsed.hostname;
-        } catch {
-            return null;
-        }
-    }
-
-    private truncateUrl(url: string, maxLength: number = 80): string {
-        if (url.length <= maxLength) {
-            return url;
-        }
-        return url.slice(0, maxLength - 3) + '...';
-    }
-
-    private parseDataUri(dataUri: string): { mimeType: string; data: Buffer } | null {
-        try {
-            // Strip the "data:" prefix.
-            const dataContent = dataUri.slice(5);
-            const commaIndex = dataContent.indexOf(',');
-            if (commaIndex === -1) {
-                return null;
-            }
-
-            const metadata = dataContent.slice(0, commaIndex);
-            const dataString = dataContent.slice(commaIndex + 1);
-
-            const isBase64 = metadata.includes(';base64');
-            let mimeType = metadata.split(';')[0] || 'image/png';
-
-            let buffer: Buffer;
-            if (isBase64) {
-                buffer = Buffer.from(dataString, 'base64');
-            } else {
-                buffer = Buffer.from(decodeURIComponent(dataString));
-            }
-
-            return { mimeType, data: buffer };
-        } catch {
-            return null;
-        }
-    }
-
-    private getExtensionFromMime(mimeType: string): string {
-        const mimeMap: Record<string, string> = {
-            'image/png': '.png',
-            'image/jpeg': '.jpg',
-            'image/jpg': '.jpg',
-            'image/gif': '.gif',
-            'image/svg+xml': '.svg',
-            'image/webp': '.webp',
-        };
-        return mimeMap[mimeType] || '.png';
-    }
 }

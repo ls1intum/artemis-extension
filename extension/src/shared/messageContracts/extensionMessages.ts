@@ -10,6 +10,7 @@ import type {
     SubmissionSummary,
 } from '@shared/types/apiResponses';
 
+import type { AttemptId } from './domainTypes';
 import type { ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
 
 /**
@@ -23,6 +24,19 @@ export type WebSocketDisplayStatus =
     | 'connected'
     | 'reconnecting'
     | 'disconnected';
+
+/**
+ * One row of the service health panel. Produced by `healthCommands.ts` and
+ * rendered by both the Service Status view and the Login health panel, so it
+ * lives on the shared contract rather than being re-declared per consumer.
+ */
+export interface HealthCheckResult {
+    status: 'online' | 'offline' | 'unknown';
+    message: string;
+    endpoint: string;
+    httpStatus: number | null;
+    response: string | null;
+}
 
 /** All Extension->Webview message types (const object for string-literal compatibility) */
 export const ExtensionMsg = {
@@ -40,6 +54,9 @@ export const ExtensionMsg = {
     // Auth
     LoginSuccess: 'loginSuccess',
     LoginError: 'loginError',
+    LoginHandoverFailed: 'loginHandoverFailed',
+    LoginHandoverFailedInit: 'loginHandoverFailedInit',
+    LoginSessionEnded: 'loginSessionEnded',
     SetServerUrl: 'setServerUrl',
     LoginOptionsResult: 'loginOptionsResult',
     LoginOptionsError: 'loginOptionsError',
@@ -90,8 +107,17 @@ export const ExtensionMsg = {
 export type ExtensionMsg = (typeof ExtensionMsg)[keyof typeof ExtensionMsg];
 
 /** Server-rendered problem statement fragment (body HTML returned by Artemis SSR endpoint). */
-interface RenderedProblemStatementPayload {
+export interface RenderedProblemStatementPayload {
     html: string;
+    /**
+     * The participation whose test results this HTML was rendered with.
+     *
+     * Host and view pick the same participation but settle on it at different moments, so without a
+     * label the view cannot tell a render meant for the other one from its own.
+     *
+     * Absent for a render made before this field existed, or an exercise with no participation.
+     */
+    participationId?: number;
 }
 
 /**
@@ -179,24 +205,57 @@ interface ExtensionMsgPayloads {
     viewInitError: { error: string };
 
     // Auth
-    loginSuccess: { username: string; attemptId?: number };
-    loginError: { error: string; attemptId?: number };
+    //
+    // `attemptId` correlates an answer with the request that asked for it. It is
+    // unique per view MOUNT, not just per attempt: `render()` replaces the
+    // document, and a counter that restarted at 1 in the new one would let a
+    // message still in flight for the old view match a question the new view
+    // happens to have numbered the same.
+    loginSuccess: { username: string; attemptId?: AttemptId };
+    loginError: { error: string; attemptId?: AttemptId };
+    /**
+     * The credential was committed and then the host failed to wire up the
+     * authenticated UI. Deliberately not a `loginError`: the sign-in worked, and
+     * reporting it as a failed login would send the user back to authenticate
+     * against a session they already have.
+     */
+    loginHandoverFailed: { error: string; attemptId?: AttemptId };
+    /**
+     * The same outcome, replayed to a view that was created after the fact.
+     *
+     * A separate message because the acceptance rules differ: the live one above
+     * requires a matching handover owner, which a freshly mounted view does not
+     * have, so routing the replay through it would reject the one case the
+     * replay exists for.
+     */
+    loginHandoverFailedInit: { error: string; generation: number };
+    /**
+     * The stored credential went away: a logout, a rejected token, a server
+     * change. Only the handover phase and its failure screen care, because both
+     * of them tell the user they are signed in.
+     *
+     * Nothing else reaches the view for this. The app state is already `login`
+     * throughout a handover, so `showLogin()` returns without a transition and
+     * no render replaces the document; the view would otherwise go on promising
+     * an Artemis that is no longer coming.
+     */
+    loginSessionEnded: undefined;
     setServerUrl: { serverUrl: string };
     loginOptionsResult: {
         loginMethod: 'PASSWORD' | 'OIDC' | 'SAML2';
         /** Null for password accounts; the view falls back to its own label. */
         idpName?: string | null;
-        attemptId?: number;
+        attemptId?: AttemptId;
     };
     loginOptionsError: {
         error?: string;
-        attemptId?: number;
+        attemptId?: AttemptId;
     };
 
     // Loading
     showLoading: { message: string };
     hideLoading: undefined;
-    updateLoading: { message: string; subtext?: string; attemptId?: number };
+    updateLoading: { message: string; subtext?: string; attemptId?: AttemptId };
 
     // Dashboard/Course
     archivedCoursesLoaded: { archivedCourses: ArchivedCourse[] };
@@ -429,13 +488,7 @@ interface ExtensionMsgPayloads {
     };
     gitIdentityInfo: { name: string; email: string };
     healthCheckResults: {
-        results: Record<string, {
-            status: 'online' | 'offline' | 'unknown';
-            message: string;
-            endpoint: string;
-            httpStatus: number | null;
-            response: string | null;
-        }>;
+        results: Record<string, HealthCheckResult>;
     };
 
     // Server-side problem statement rendering

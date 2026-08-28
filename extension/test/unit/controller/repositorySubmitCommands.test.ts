@@ -15,7 +15,6 @@ interface GitServiceStubs {
     commit: sinon.SinonStub;
     pullWithRebase: sinon.SinonStub;
     push: sinon.SinonStub;
-    getConfigValue: sinon.SinonStub;
     getIdentity: sinon.SinonStub;
     setGlobalIdentity: sinon.SinonStub;
 }
@@ -36,7 +35,6 @@ suite('RepositorySubmitCommands', () => {
             commit: overrides.commit ?? sandbox.stub().resolves(undefined),
             pullWithRebase: overrides.pullWithRebase ?? sandbox.stub().resolves(undefined),
             push: overrides.push ?? sandbox.stub().resolves(undefined),
-            getConfigValue: overrides.getConfigValue ?? sandbox.stub().resolves(undefined),
             getIdentity: overrides.getIdentity ?? sandbox.stub().resolves({ name: 'Alice', email: 'alice@example.com' }),
             setGlobalIdentity: overrides.setGlobalIdentity ?? sandbox.stub().resolves(undefined),
         };
@@ -112,7 +110,7 @@ suite('RepositorySubmitCommands', () => {
         sandbox.restore();
     });
 
-    test('getHandlers returns exactly submitExercise, saveGitIdentity, requestGitIdentity', () => {
+    test('getHandlers returns exactly submitExercise and saveGitIdentity', () => {
         const { ctx } = buildContext();
         const { svc } = makeGitService();
         const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
@@ -124,7 +122,6 @@ suite('RepositorySubmitCommands', () => {
             [
                 WebviewCmd.SubmitExercise,
                 WebviewCmd.SaveGitIdentity,
-                WebviewCmd.RequestGitIdentity,
             ].sort(),
         );
     });
@@ -392,41 +389,6 @@ suite('RepositorySubmitCommands', () => {
         assert.ok(successMessage, 'Expected a "success" GitCredentialsResult');
 
         sinon.assert.calledOnce(showInformationMessage);
-    });
-
-    test('requestGitIdentity reads local config first then global; sends GitIdentityInfo with empty-string fallbacks when neither has a value', async () => {
-        const { ctx, sendMessage } = buildContext();
-        // Always return undefined so we exercise both local AND global lookups
-        const getConfigValue = sandbox.stub().resolves(undefined);
-        const { svc } = makeGitService({ getConfigValue });
-        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
-
-        await mod.getHandlers()[WebviewCmd.RequestGitIdentity]({
-            type: 'command',
-            command: WebviewCmd.RequestGitIdentity,
-            payload: {},
-        } as never);
-
-        // For each of user.name and user.email: local (globalScope=false) is tried first,
-        // then global (globalScope=true) when local is empty. So 4 calls total, in this order:
-        //   (user.name, _, false), (user.name, _, true), (user.email, _, false), (user.email, _, true)
-        sinon.assert.callCount(getConfigValue, 4);
-        assert.strictEqual(getConfigValue.getCall(0).args[0], 'user.name');
-        assert.strictEqual(getConfigValue.getCall(0).args[2], false);
-        assert.strictEqual(getConfigValue.getCall(1).args[0], 'user.name');
-        assert.strictEqual(getConfigValue.getCall(1).args[2], true);
-        assert.strictEqual(getConfigValue.getCall(2).args[0], 'user.email');
-        assert.strictEqual(getConfigValue.getCall(2).args[2], false);
-        assert.strictEqual(getConfigValue.getCall(3).args[0], 'user.email');
-        assert.strictEqual(getConfigValue.getCall(3).args[2], true);
-
-        const identityInfo = sendMessage.getCalls().find(c => (c.args[0] as { type: string }).type === ExtensionMsg.GitIdentityInfo);
-        assert.ok(identityInfo, 'Expected a GitIdentityInfo message');
-        assert.deepStrictEqual(identityInfo.args[0], {
-            type: ExtensionMsg.GitIdentityInfo,
-            name: '',
-            email: '',
-        });
     });
 
     test('happy path emits started then succeeded (exactly one terminal)', async () => {

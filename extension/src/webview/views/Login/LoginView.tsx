@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 
+import type { AttemptId } from '@shared/messageContracts';
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 
 import { Button } from '@webview/components/Button';
@@ -35,6 +36,36 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
     // a browser sign-in the user has changed their mind about.
     const [isOidcPending, setIsOidcPending] = useState<boolean>(false);
 
+    /**
+     * The phase between "the credential is committed" and "the authenticated UI
+     * is on screen". The host wires that up after announcing success, and it
+     * takes seconds; without a phase of its own the view fell back to an idle
+     * form that claimed nothing was happening.
+     *
+     * It carries its own owner because `activeAttemptId` is released on entry
+     * and because `progress.attemptId === null` already means the startup
+     * credential check, so reusing either would let unrelated messages steer it.
+     */
+    interface Handover {
+        source: 'password' | 'oidc';
+        attemptId: AttemptId | null;
+    }
+    const [handover, setHandover] = useState<Handover | null>(null);
+
+    /**
+     * The sign-in worked and the host could not open Artemis behind it. Held
+     * separately from `statusMessage`, which belongs to the form the user is no
+     * longer in.
+     */
+    const [handoverFailure, setHandoverFailure] = useState<{ error: string; generation: number } | null>(null);
+
+    /** Whether the handover has run long enough to be worth offering a way out of. */
+    const [handoverSlow, setHandoverSlow] = useState(false);
+
+    // Whether this MOUNT has started a sign-in. An init replay describes something that happened before
+    // this view existed, so it must not overwrite an attempt the user has since begun here.
+    const startedAttempt = useRef(false);
+
     const [statusMessage, setStatusMessage] = useState('');
     const [statusType, setStatusType] = useState<'success' | 'error' | 'info'>('info');
 
@@ -42,16 +73,29 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         message: string;
         subtext: string;
         /** The interactive attempt this belongs to, or null for the startup credential check. */
-        attemptId: number | null;
+        attemptId: AttemptId | null;
         hiding: boolean;
     }
 
     const [progress, setProgress] = useState<LoginProgress | null>(null);
 
-    // Monotone, and never reused. `postMessage` gives no delivery guarantee, so a result for a retracted
-    // attempt can still be in flight; the id is how the view knows the answer is not to its question.
-    const nextAttemptId = useRef(0);
-    const [activeAttemptId, setActiveAttemptId] = useState<number | null>(null);
+    // Monotone within this mount, and prefixed so it is unique ACROSS mounts.
+    // `postMessage` gives no delivery guarantee, so a result for a retracted attempt can still be in
+    // flight; the id is how the view knows the answer is not to its question. A bare counter was not
+    // enough for that: `render()` replaces the document, and a counter restarting at 1 in the new view
+    // would match an answer meant for the old one. Generated once, in a ref, never during a render.
+    const mountId = useRef<string>();
+    if (mountId.current === undefined) {
+        mountId.current = typeof crypto?.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : Math.random().toString(36).slice(2);
+    }
+    const attemptCounter = useRef(0);
+    const nextAttemptId = (): AttemptId => {
+        startedAttempt.current = true;
+        return `${mountId.current}-${++attemptCounter.current}`;
+    };
+    const [activeAttemptId, setActiveAttemptId] = useState<AttemptId | null>(null);
 
     const loadingSubtexts: Record<string, string> = {
         'Checking stored credentials...': 'Looking for saved authentication data',
@@ -85,6 +129,23 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         }
     }, []);
 
+    // A handover gets no deadline. Start-page resolution composes several requests, each with its own
+    // 30s timeout, so a legitimate slow load can outrun any number picked here and reporting failure
+    // would be a lie. This changes only what the view admits to: never the phase, never the form.
+    // The wait can also end in neither success nor failure, when the promise behind it never settles,
+    // so the reload this offers is the only way out of that one.
+    useEffect(() => {
+        setHandoverSlow(false);
+        if (!handover) {
+            return;
+        }
+        const timer = setTimeout(() => {
+            showProgress('Still opening Artemis', 'This is taking longer than usual', handover.attemptId);
+            setHandoverSlow(true);
+        }, 20_000);
+        return () => clearTimeout(timer);
+    }, [handover]);
+
     const clearHideTimer = () => {
         if (hideTimerRef.current) {
             clearTimeout(hideTimerRef.current);
@@ -92,7 +153,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         }
     };
 
-    const showProgress = (message: string, subtext: string, attemptId: number | null) => {
+    const showProgress = (message: string, subtext: string, attemptId: AttemptId | null) => {
         // A hide already scheduled would otherwise fire against this new indicator and take it away.
         clearHideTimer();
         setProgress({ message, subtext, attemptId, hiding: false });
@@ -110,8 +171,44 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         }, 300);
     };
 
+    const enterHandover = (source: 'password' | 'oidc', attemptId: AttemptId | null) => {
+        setActiveAttemptId(null);
+        setHandover({ source, attemptId });
+        setStatusMessage('');
+        setIsSubmitting(false);
+        setIsCheckingOptions(false);
+        setIsOidcPending(false);
+        setShowHealthChecks(false);
+        // Nothing below re-reads it, and it has no business outliving the sign-in it belonged to.
+        setPassword('');
+        showProgress('Signed in, opening Artemis', 'Loading your courses', attemptId);
+    };
+
+    const failHandover = (error: string, generation: number | null) => {
+        setHandover(null);
+        setActiveAttemptId(null);
+        hideProgress();
+        setHandoverFailure({ error, generation: generation ?? -1 });
+    };
+
+    /**
+     * Whether an authentication outcome is this view's to act on.
+     *
+     * An id names a password attempt and has to match the one still being waited
+     * on. No id is the OIDC signature: that flow outlives the webview, so there
+     * is no counter to check it against and it is accepted. The exception is a
+     * password attempt or its handover being in flight, where an id-less message
+     * can only be a stale callback from an older attempt.
+     */
+    const acceptsAuthOutcome = (attemptId: AttemptId | undefined): boolean => {
+        if (attemptId !== undefined) {
+            return attemptId === activeAttemptId;
+        }
+        return activeAttemptId === null && handover?.source !== 'password';
+    };
+
     /** Whether a message may touch the indicator: its own attempt's, or anyone's while nobody owns it. */
-    const ownsProgress = (attemptId: number | undefined): boolean => {
+    const ownsProgress = (attemptId: AttemptId | undefined): boolean => {
         if (!progress) {
             return true;
         }
@@ -201,23 +298,66 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
             }
 
             case ExtensionMsg.LoginSuccess: {
-                // An OIDC success carries no attemptId at all (that attempt outlives the webview, so there
-                // is no counter to check it against) and is accepted unconditionally; an interactive one is
-                // checked against the attempt the user is still waiting on, not a retracted one.
-                if (msg.attemptId !== undefined && msg.attemptId !== activeAttemptId) {
+                if (!acceptsAuthOutcome(msg.attemptId)) {
                     break;
                 }
+                // Not the end of the flow, the middle of it. The credential is committed, but the host
+                // still has to wire up the authenticated UI, and that used to happen behind a form that
+                // had just reset itself and claimed nothing was going on.
+                enterHandover(msg.attemptId === undefined ? 'oidc' : 'password', msg.attemptId ?? null);
+                break;
+            }
+
+            case ExtensionMsg.LoginHandoverFailed: {
+                // Live, so it must belong to the handover this view is actually in. An id names the
+                // password attempt; no id is the OIDC signature and is only this view's business while
+                // the handover it holds is an OIDC one.
+                const mine = msg.attemptId !== undefined
+                    ? handover?.attemptId === msg.attemptId
+                    : handover?.source === 'oidc';
+                if (!handover || !mine) {
+                    break;
+                }
+                failHandover(msg.error, null);
+                break;
+            }
+
+            case ExtensionMsg.LoginHandoverFailedInit: {
+                // A replay for a view that did not exist when the failure happened, so there is no owner
+                // to match and the absence of one is the point. It must not speak over a sign-in this
+                // mount has since started, and repeating the same generation changes nothing: init is
+                // resent on every ready, request-init and visibility change.
+                if (handover || startedAttempt.current || handoverFailure?.generation === msg.generation) {
+                    break;
+                }
+                failHandover(msg.error, msg.generation);
+                break;
+            }
+
+            case ExtensionMsg.LoginSessionEnded: {
+                // Only the two states that claim the user is signed in. Everywhere else the form is
+                // already the right thing to be looking at, and interrupting it would be noise.
+                if (!handover && !handoverFailure) {
+                    break;
+                }
+                setHandover(null);
+                setHandoverFailure(null);
                 setActiveAttemptId(null);
                 hideProgress();
-                setStatusMessage('');
-                setIsSubmitting(false);
-                setIsCheckingOptions(false);
-                setIsOidcPending(false);
-                setShowHealthChecks(false);
+                // Not the reload the failure screen offers: there is no credential left for a reload to
+                // rebuild anything from, so the form is the only honest way on.
+                setStatusMessage('Your session ended before Artemis could be opened. Please sign in again.');
+                setStatusType('error');
                 break;
             }
 
             case ExtensionMsg.LoginError: {
+                // Never during a handover: the credential is committed, so an id-less error can only be
+                // a stale callback from an older attempt, and acting on it would clear the indicator and
+                // leave the phase with neither a way forward nor a way back.
+                if (handover) {
+                    break;
+                }
                 // Gated for the same reason as LoginSuccess above.
                 if (msg.attemptId !== undefined && msg.attemptId !== activeAttemptId) {
                     break;
@@ -256,9 +396,10 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 break;
             }
         }
-        // `activeAttemptId` and `progress` are read from the closure by `ownsProgress`, not through refs,
-        // so a stale render here would let the handler decide ownership off an outdated indicator.
-    }, [serverUrl, activeAttemptId, progress]);
+        // Every piece of state the handler branches on is listed, not just the ones `ownsProgress` reads:
+        // a stale closure here would let it decide ownership off an outdated indicator, or replay a
+        // failure it has already shown.
+    }, [serverUrl, activeAttemptId, progress, handover, handoverFailure]);
 
     const performHealthChecks = () => {
         if (!serverUrl) {
@@ -269,7 +410,8 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
     };
 
     const handleCheckLogin = () => {
-        if (isCheckingOptions) {
+        // Guarded on the phase as well as on the button, for the same reason as `handleOidcLogin`.
+        if (isCheckingOptions || handover) {
             return;
         }
         const trimmedUsername = username.trim();
@@ -279,7 +421,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
             return;
         }
 
-        const attemptId = ++nextAttemptId.current;
+        const attemptId = nextAttemptId();
         setActiveAttemptId(attemptId);
         setStatusMessage('');
         setIsCheckingOptions(true);
@@ -290,9 +432,14 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
     const handleOidcLogin = () => {
         // Guarded here as well as on the button: every start replaces the pending attempt on the extension
         // side, so a second one would quietly strand the browser tab the user is already looking at.
-        if (isOidcPending) {
+        // The handover guard is on the handler rather than only the button because a disabled control
+        // still leaves keyboard submits and programmatic calls open.
+        if (isOidcPending || handover) {
             return;
         }
+        // No attempt id to allocate: the browser callback carries none. The mount is still marked as
+        // having started a sign-in, so a replayed failure from before it cannot speak over this one.
+        startedAttempt.current = true;
         setIsOidcPending(true);
         postCommand(vscodeApi, 'startOidcLogin', { rememberMe });
         setStatusMessage(`Redirecting to ${idpName ?? GENERIC_IDP_NAME}. Please complete the sign-in process in your browser.`);
@@ -310,6 +457,11 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
     };
 
     const handleBack = () => {
+        // Past the commit there is nothing left to retract, and dropping the user back onto the form
+        // while they are signed in would be a lie about the state they are in.
+        if (handover) {
+            return;
+        }
         // Retract the attempt too, otherwise a callback from the abandoned browser tab or a late server
         // answer could still sign the user in, possibly under the name they just backed away from.
         cancelAttempt();
@@ -322,6 +474,12 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
+
+        // The credential is already committed; a second sign-in from here would race the one being
+        // wired up. A disabled submit button does not cover a keyboard submit, so the guard is here.
+        if (handover) {
+            return;
+        }
 
         if (stage === 0) {
             handleCheckLogin();
@@ -349,7 +507,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
             return;
         }
 
-        const attemptId = ++nextAttemptId.current;
+        const attemptId = nextAttemptId();
         setActiveAttemptId(attemptId);
         setStatusMessage('');
         setIsSubmitting(true);
@@ -363,6 +521,11 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         });
     };
 
+    /** Rebuilds the host state that failed, from a credential that is still committed. */
+    const handleReload = () => {
+        postCommand(vscodeApi, 'reloadWindow');
+    };
+
     const handleOpenWebsite = () => {
         postCommand(vscodeApi, 'openWebsite');
     };
@@ -370,6 +533,35 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
     const handleOpenSettings = () => {
         postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
     };
+
+    if (handoverFailure) {
+        // Deliberately not the login form. The credential is committed and valid, so any affordance
+        // that reads as "authenticate again" would be false. A reload rebuilds the host state that
+        // failed, from a credential that is still there.
+        return (
+            <div className={styles.loginView}>
+                <div style={{ marginBottom: '32px', textAlign: 'center' }}>
+                    <h1 style={{ color: 'var(--vscode-foreground)', fontSize: '24px', marginBottom: '8px' }}>
+                        Artemis Login
+                    </h1>
+                </div>
+                <Container>
+                    <StatusMessage message={handoverFailure.error} type="error" data-testid="login-status" />
+                    <div style={{ marginTop: '16px' }}>
+                        <Button
+                            type="button"
+                            variant="primary"
+                            fullWidth
+                            testId="login-reload"
+                            onClick={handleReload}
+                        >
+                            Reload Window
+                        </Button>
+                    </div>
+                </Container>
+            </div>
+        );
+    }
 
     return (
         <div className={styles.loginView}>
@@ -398,6 +590,26 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                         </div>
                         <div className={styles.loadingSubtext}>{progress.subtext}</div>
                     </div>
+                </div>
+            )}
+
+            {/*
+              * The one way out of a handover that never ends. Nothing announces that case, because a
+              * promise that never settles resolves neither way, so the offer is made on elapsed time
+              * instead. Offered, not forced: the wait is still legitimate at this point, and the
+              * indicator above keeps running behind it.
+              */}
+            {handover && handoverSlow && (
+                <div style={{ marginBottom: '16px' }}>
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        fullWidth
+                        testId="login-reload"
+                        onClick={handleReload}
+                    >
+                        Reload Window
+                    </Button>
                 </div>
             )}
 
@@ -497,7 +709,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                                     type="button"
                                     variant="primary"
                                     fullWidth
-                                    disabled={isSubmitting || isCheckingOptions}
+                                    disabled={isSubmitting || isCheckingOptions || handover !== null}
                                     testId="login-next"
                                     onClick={handleCheckLogin}
                                 >
@@ -522,10 +734,10 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                                         type="submit"
                                         variant="primary"
                                         fullWidth
-                                        disabled={isSubmitting}
+                                        disabled={isSubmitting || handover !== null}
                                         testId="login-submit"
                                     >
-                                        {isSubmitting ? 'Logging in...' : 'Login to Artemis'}
+                                        {isSubmitting || handover ? 'Logging in...' : 'Login to Artemis'}
                                     </Button>
                                 )}
                                 {loginMethod === 'OIDC' && (
@@ -533,7 +745,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                                         type="button"
                                         variant="primary"
                                         fullWidth
-                                        disabled={isSubmitting || isOidcPending}
+                                        disabled={isSubmitting || isOidcPending || handover !== null}
                                         onClick={handleOidcLogin}
                                         testId="login-oidc-submit"
                                     >
@@ -541,18 +753,27 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                                     </Button>
                                 )}
 
-                                <Button
-                                    type="button"
-                                    variant="secondary"
-                                    fullWidth
-                                    // Not disabled while a password login is in flight: that wait is
-                                    // exactly the one the user needs a way out of, so the button stays
-                                    // live and switches meaning to Cancel instead.
-                                    testId="login-secondary"
-                                    onClick={isSubmitting ? cancelAttempt : handleBack}
-                                >
-                                    {isSubmitting ? 'Cancel' : '← Back'}
-                                </Button>
+                                {/*
+                                  * Gone entirely during the handover, not disabled. Both meanings this
+                                  * button can carry are false once the credential is committed: there is
+                                  * nothing left to Cancel, and Back would offer a way out of a state the
+                                  * user is already past. Driven by the phase rather than `isSubmitting`,
+                                  * which is false throughout an OIDC browser wait.
+                                  */}
+                                {!handover && (
+                                    <Button
+                                        type="button"
+                                        variant="secondary"
+                                        fullWidth
+                                        // Not disabled while a password login is in flight: that wait is
+                                        // exactly the one the user needs a way out of, so the button stays
+                                        // live and switches meaning to Cancel instead.
+                                        testId="login-secondary"
+                                        onClick={isSubmitting ? cancelAttempt : handleBack}
+                                    >
+                                        {isSubmitting ? 'Cancel' : '← Back'}
+                                    </Button>
+                                )}
                             </>
                         )}
                     </div>

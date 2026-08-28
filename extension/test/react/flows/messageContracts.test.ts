@@ -310,7 +310,7 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
                 username: 'student1',
                 password: 'secret',
                 rememberMe: true,
-                attemptId: 0,
+                attemptId: 'a-0',
             },
         } satisfies WebCmd<'login'>;
 
@@ -670,7 +670,7 @@ describe('Message contracts: runtime shape validation', () => {
         const login: WebviewToExtensionMessage = {
             type: 'command',
             command: 'login',
-            payload: { username: 'u', password: 'p', rememberMe: false, attemptId: 0 },
+            payload: { username: 'u', password: 'p', rememberMe: false, attemptId: 'a-0' },
         };
         const reload: WebviewToExtensionMessage = {
             type: 'command',
@@ -695,7 +695,7 @@ describe('Message contracts: runtime shape validation', () => {
                 username: 'student@tum.de',
                 password: 'mypassword',
                 rememberMe: true,
-                attemptId: 0,
+                attemptId: 'a-0',
             },
         };
 

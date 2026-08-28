@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 
-import { BackLink, Badge, Container, PageHeader, SkeletonList } from '@webview/components';
+import { BackLink, Badge, Container, EmptyState, PageHeader, SkeletonList } from '@webview/components';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 
 import styles from './AiConfigView.module.css';
@@ -146,23 +146,10 @@ export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
 
             {isLoaded && extensions.length === 0 && (
                 <Container variant="muted">
-                    <div style={{
-                        textAlign: 'center',
-                        padding: '40px 20px',
-                        color: 'var(--vscode-descriptionForeground)'
-                    }}>
-                        <p style={{
-                            fontSize: '16px',
-                            fontWeight: 600,
-                            margin: '0 0 8px 0',
-                            color: 'var(--vscode-foreground)'
-                        }}>
-                            No blocklisted extensions configured
-                        </p>
-                        <p style={{ margin: 0, fontSize: '14px' }}>
-                            The AI extension blocklist is empty.
-                        </p>
-                    </div>
+                    <EmptyState
+                        title="No blocklisted extensions configured"
+                        message="The AI extension blocklist is empty."
+                    />
                 </Container>
             )}
         </div>

@@ -36,6 +36,11 @@ interface ParticipationLike {
 
 interface RenderOptions {
     readonly participation?: ParticipationLike;
+    /**
+     * Whether a build is in flight for that participation. A pending submission carries no result,
+     * so without this the statement renders no task markers for the length of every build.
+     */
+    readonly buildPending?: boolean;
     readonly darkModeOverride?: boolean;
 }
 
@@ -99,7 +104,7 @@ export class ProblemStatementRenderService implements vscode.Disposable {
         if (this.serverSupportsRendering === false) { return undefined; }
 
         const darkMode = options.darkModeOverride ?? isDarkMode();
-        const rawFeedbacks = extractLatestFeedbacks(options.participation);
+        const rawFeedbacks = extractLatestFeedbacks(options.participation, options.buildPending ?? false);
         const testInputs = rawFeedbacks ? mapFeedbacksToTestInputs(rawFeedbacks as FeedbackLike[]) : undefined;
 
         const request: ProblemStatementRenderRequest = {
@@ -116,6 +121,9 @@ export class ProblemStatementRenderService implements vscode.Disposable {
         const cached = this.cache.get(exerciseId);
         if (cached && cached.inputHash === inputHash) {
             cached.accessedAt = Date.now();
+            // Counts as a request: returning early without claiming the token is the one path
+            // that lets an older render resolve afterwards and overwrite this one.
+            this.requestCounter++;
             return cached.result;
         }
 

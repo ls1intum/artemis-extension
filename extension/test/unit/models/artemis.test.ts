@@ -204,25 +204,42 @@ suite('ArtemisParticipation', () => {
     test('handles missing optional fields', () => {
         const p = parseArtemisParticipation({ id: 1, type: 'template' });
         assert.strictEqual(p.student, undefined);
-        assert.strictEqual(p.exercise, undefined);
         assert.strictEqual(p.repositoryUri, undefined);
-        assert.strictEqual(p.results, undefined);
     });
 
-    test('parses nested student, exercise, results', () => {
+    test('parses nested student', () => {
         const p = parseArtemisParticipation({
             id: 1, type: 'student',
             student: { login: 'student1', id: 42 },
-            exercise: { id: 5, title: 'Ex5', shortName: 'E5', type: 'programming' },
-            results: [{ id: 10, score: 90 }],
         });
         assert.ok(p.student);
         assert.strictEqual(p.student!.login, 'student1');
-        assert.ok(p.exercise);
-        assert.strictEqual(p.exercise!.id, 5);
-        assert.ok(Array.isArray(p.results));
-        assert.strictEqual(p.results!.length, 1);
-        assert.strictEqual(p.results![0].score, 90);
+    });
+
+    test('does not carry exercise or results, even when the server sends them', () => {
+        // Nothing reads either field, so they are not parsed. Asserting ABSENCE
+        // rather than `=== undefined` is deliberate: the latter would still pass
+        // if the property were emitted with an undefined value, which would not
+        // pin the shape at all.
+        const p = parseArtemisParticipation({
+            id: 1, type: 'student',
+            exercise: { id: 5, title: 'Ex5', shortName: 'E5', type: 'programming' },
+            results: [{ id: 10, score: 90 }],
+        });
+        assert.ok(!Object.hasOwn(p, 'exercise'));
+        assert.ok(!Object.hasOwn(p, 'results'));
+    });
+
+    test('tolerates a malformed nested results array instead of throwing', () => {
+        // Declared tolerance change: `results` used to be mapped through
+        // parseArtemisResult unguarded, so `results: [null]` threw and the
+        // websocket layer dropped the whole message. The field is gone, so the
+        // parse now succeeds. (`exercise` never had this problem -- it was
+        // guarded by a typeof check, so a malformed exercise object was already
+        // ignored rather than parsed.)
+        assert.doesNotThrow(() => parseArtemisParticipation({
+            id: 1, type: 'student', results: [null],
+        }));
     });
 
     test('throws on invalid input', () => {

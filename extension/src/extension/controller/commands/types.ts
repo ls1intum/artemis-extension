@@ -6,6 +6,7 @@ import type { ArtemisApiService } from '@extension/api';
 import type { AppStateManager } from '@extension/controller/appStateManager';
 import type { WebViewActionHandler } from '@extension/controller/types';
 import type { AuthCancellationService, AuthManager, OidcLoginService } from '@extension/services/auth';
+import type { HandoverFailureStore } from '@extension/services/auth/handoverFailureStore';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type { IProviderRegistry } from '@extension/services/ui';
@@ -19,6 +20,7 @@ export interface CommandContext {
     artemisApi: ArtemisApiService;
     oidcLoginService: OidcLoginService;
     authCancellation: AuthCancellationService;
+    handoverFailures: HandoverFailureStore;
     appStateManager: AppStateManager;
     actionHandler: WebViewActionHandler;
     sendMessage(message: ExtensionToWebviewMessage): void;

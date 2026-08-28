@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
+import { extractErrorMessage } from '@extension/utils';
+
 const execFileAsync = promisify(execFile);
 
 const CLONE_TIMEOUT_MS = 120_000; // 2 minutes
@@ -38,7 +40,7 @@ export async function cloneRepositoryProgrammatic(
                     timeout: CLONE_TIMEOUT_MS,
                 });
             } catch (error: unknown) {
-                const original = error instanceof Error ? error.message : String(error);
+                const original = extractErrorMessage(error);
                 throw new Error(redactUrlCredentials(original));
             }
         },

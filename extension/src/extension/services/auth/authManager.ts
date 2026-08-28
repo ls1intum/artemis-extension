@@ -20,6 +20,8 @@ export class AuthManager {
      */
     private credentialRevision = 0;
 
+    private readonly _onDidClearCredential = new vscode.EventEmitter<void>();
+
     constructor(context: vscode.ExtensionContext) {
         this.context = context;
     }
@@ -239,10 +241,19 @@ export class AuthManager {
         });
     }
 
+    /**
+     * Fires whenever the stored credential goes away, whatever the reason: logout, an expired session,
+     * a server change. The single choke point below is the only honest place to observe that; hooking
+     * the login view instead would miss the Theia expiry path, which clears the credential and
+     * deliberately shows no login view.
+     */
+    public readonly onDidClearCredential = this._onDidClearCredential.event;
+
     /** The clear itself. Un-queued, because callers of this are already inside the queue. */
     private async clearInternal(): Promise<void> {
         this.memoryToken = undefined;
         this.credentialRevision++;
+        this._onDidClearCredential.fire();
 
         if (this._useBearerAuth) {
             return;
