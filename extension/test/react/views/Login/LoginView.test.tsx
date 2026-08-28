@@ -371,7 +371,7 @@ describe('LoginView - progress indicator and ownership', () => {
         const attemptId = await submitPasswordLogin(mockApi);
         await awaitHandover({ type: 'loginSuccess', username: 'student', attemptId });
 
-        dispatchExtensionMessage({ type: 'loginHandoverFailed', error: 'someone else', attemptId: 'other-1' });
+        act(() => { dispatchExtensionMessage({ type: 'loginHandoverFailed', error: 'someone else', attemptId: 'other-1' }); });
 
         expect(screen.queryByTestId('login-reload')).not.toBeInTheDocument();
     });
@@ -588,11 +588,13 @@ describe('LoginView - progress indicator and ownership', () => {
 
         // A mismatched id, standing in for an answer to an earlier, already-superseded attempt. Given a
         // different login method too, a leak would show up both in the indicator and in the form.
-        dispatchExtensionMessage({
-            type: 'loginOptionsResult',
-            loginMethod: 'OIDC',
-            idpName: 'Some Other IdP',
-            attemptId: attemptId + 1000,
+        act(() => {
+            dispatchExtensionMessage({
+                type: 'loginOptionsResult',
+                loginMethod: 'OIDC',
+                idpName: 'Some Other IdP',
+                attemptId: attemptId + 1000,
+            });
         });
 
         expect(screen.getByTestId('login-progress')).toHaveTextContent('Verifying your credentials');
@@ -612,7 +614,7 @@ describe('LoginView - progress indicator and ownership', () => {
 
             // Still inside the 300ms teardown: the indicator is on screen and must still be owned.
             act(() => { vi.advanceTimersByTime(100); });
-            dispatchExtensionMessage({ type: 'updateLoading', message: 'Loading user information...' });
+            act(() => { dispatchExtensionMessage({ type: 'updateLoading', message: 'Loading user information...' }); });
 
             expect(screen.getByTestId('login-progress')).toHaveTextContent('Verifying your credentials');
         } finally {
@@ -631,7 +633,7 @@ describe('LoginView - progress indicator and ownership', () => {
             dispatchExtensionMessage({ type: 'loginError', error: 'nope', attemptId });
 
             act(() => { vi.advanceTimersByTime(100); });
-            dispatchExtensionMessage({ type: 'hideLoading' });
+            act(() => { dispatchExtensionMessage({ type: 'hideLoading' }); });
 
             // Still fading under its own owner: an unowned startup hideLoading must not disturb it.
             expect(screen.getByTestId('login-progress')).toHaveTextContent('Verifying your credentials');
@@ -704,7 +706,7 @@ describe('LoginView - progress indicator and ownership', () => {
         await userEvent.click(await screen.findByTestId('login-secondary'));
 
         // The extension had already answered the lookup the user has since retracted.
-        dispatchExtensionMessage({ type: 'loginOptionsResult', loginMethod: 'PASSWORD', idpName: null, attemptId });
+        act(() => { dispatchExtensionMessage({ type: 'loginOptionsResult', loginMethod: 'PASSWORD', idpName: null, attemptId }); });
 
         expect(screen.queryByTestId('login-password')).not.toBeInTheDocument();
         expect(screen.getByTestId('login-username')).toBeInTheDocument();
