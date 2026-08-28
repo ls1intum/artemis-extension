@@ -495,4 +495,45 @@ describe('useExerciseDetailStore', () => {
 		expect(result.current.error).toBeNull();
 		expect(result.current.isLoading).toBe(false);
 	});
+
+	describe('repository status across an init that omits it', () => {
+		const practice = { isConnected: true, hasChanges: false, isPracticeRepo: true };
+
+		it('keeps a known status when the init says nothing about the workspace', () => {
+			// The host omits it when a newer probe has already spoken. Reading the absence as
+			// "graded" would undo that newer answer, and the participation guard would then hide the
+			// practice render the host had already produced.
+			const { result } = renderHook(() => useExerciseDetailStore());
+			const data = makeExerciseData();
+			act(() => { result.current.setExerciseData(data, false, practice); });
+
+			act(() => { result.current.setExerciseData(data, false); });
+
+			expect(result.current.repoStatus).toEqual(practice);
+		});
+
+		it('keeps it when the store has no exercise yet, which is the recreated-view order', () => {
+			// Queued messages flush before the first init, so an UpdateRepoStatus can land while the
+			// store is still empty. The message carries no exercise id; what makes keeping it safe is
+			// the host refusing to send one at all once its exercise is no longer active.
+			const { result } = renderHook(() => useExerciseDetailStore());
+			act(() => { result.current.setRepoStatus(practice); });
+
+			act(() => { result.current.setExerciseData(makeExerciseData(), false); });
+
+			expect(result.current.repoStatus).toEqual(practice);
+		});
+
+		it('drops it when the init is for a different exercise', () => {
+			// Carrying it over would describe the previous exercise's repository.
+			const { result } = renderHook(() => useExerciseDetailStore());
+			act(() => { result.current.setExerciseData(makeExerciseData(), false, practice); });
+
+			act(() => {
+				result.current.setExerciseData(makeExerciseData({ exercise: { id: 2 } } as Partial<ExerciseDetailsResponse>), false);
+			});
+
+			expect(result.current.repoStatus).toBeNull();
+		});
+	});
 });

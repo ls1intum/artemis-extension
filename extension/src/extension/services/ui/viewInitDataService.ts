@@ -190,13 +190,25 @@ export class ViewInitDataService {
             .map(p => p.repositoryUri)
             .filter((uri): uri is string => !!uri);
 
+        const exerciseId = exerciseData.exercise?.id;
+        // Claimed before either branch is chosen, so the "no repositories" answer cannot be outranked
+        // by a probe that started earlier and is still running.
+        const ticket = this._appStateManager.beginWorkspaceModeProbe();
+
         if (repoUris.length > 0) {
-            const exerciseId = exerciseData.exercise?.id;
             const gen = this._initGeneration;
             detectWorkspaceForRepoUris(repoUris).then((repoStatus) => {
+                // Recorded BEFORE the generation check, and deliberately so: `_initGeneration`
+                // answers "may I post the payload I captured", which is a different question from
+                // "is this the freshest thing anyone knows about the workspace". Behind that check,
+                // a superseded init would throw away a detection nothing else is going to repeat.
+                const accepted = exerciseId === undefined
+                    ? false
+                    : this._appStateManager.recordWorkspaceMode(ticket, exerciseId, repoStatus.isPracticeRepo).accepted;
+
                 if (gen !== this._initGeneration) { return; }
                 // Set repo context so workspace listeners can auto-detect changes on file save
-                if (repoStatus.matchedUri && exerciseId !== undefined) {
+                if (accepted && repoStatus.matchedUri && exerciseId !== undefined) {
                     const handler = this._messageHandler;
                     handler.setRepositoryContext(repoStatus.matchedUri, exerciseId);
                 }
@@ -205,13 +217,18 @@ export class ViewInitDataService {
                     exerciseData,
                     hideDeveloperTools: !this._isDeveloperMode(),
                     isManagedEnvironment,
-                    repoStatus,
+                    // Omitted when a newer probe has already spoken. The webview keeps what it has
+                    // rather than reading the absence as "graded".
+                    repoStatus: accepted ? repoStatus : undefined,
                     serverRenderedProblemStatement: this._appStateManager.serverRenderedProblemStatement ?? undefined,
                 });
             }).catch((error) => {
                 if (gen !== this._initGeneration) { return; }
                 logger.error('Failed to detect workspace status for exercise detail', LogCategory.VIEW, error);
-                this._messageHandler.clearRepositoryContext();
+                // Nothing recorded and nothing cleared: a probe that threw learned nothing about the
+                // workspace, so it must not erase a context a newer probe established. The base
+                // snapshot still goes out, because it is the only message carrying the exercise data
+                // and a recreated view would otherwise sit on a skeleton forever.
                 this._postMessage({
                     type: ExtensionMsg.ExerciseDetailInit,
                     exerciseData,
@@ -221,7 +238,14 @@ export class ViewInitDataService {
                 });
             });
         } else {
-            this._messageHandler.clearRepositoryContext();
+            // A positive statement about the workspace, not a failure: this exercise has no
+            // repository to be in, so it cannot be the practice one.
+            const accepted = exerciseId === undefined
+                ? true
+                : this._appStateManager.recordWorkspaceMode(ticket, exerciseId, false).accepted;
+            if (accepted) {
+                this._messageHandler.clearRepositoryContext();
+            }
             this._postMessage({
                 type: ExtensionMsg.ExerciseDetailInit,
                 exerciseData,

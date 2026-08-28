@@ -1,4 +1,4 @@
-import type { ArchivedCourse, CourseDetailData } from '@shared/messageContracts';
+import type { ArchivedCourse, CourseDetailData, RenderedProblemStatementPayload } from '@shared/messageContracts';
 
 import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type {
@@ -49,7 +49,10 @@ export class AppStateManager {
     private _payload: NavigationPayload = { kind: 'none' };
     private _aiExtensions?: AiExtension[];
     private _recommendedExtensions?: RecommendedExtensionCategory[];
-    private _serverRenderedPS: { html: string } | null = null;
+    private _serverRenderedPS: RenderedProblemStatementPayload | null = null;
+    private _workspaceMode: { exerciseId: number; isPractice: boolean; ticket: number } | undefined;
+    private _workspaceModeProbe = 0;
+    private _onWorkspaceModeChange?: () => void;
 
     private _onStateChange?: (from: AppState, to: AppState) => void;
 
@@ -62,6 +65,70 @@ export class AppStateManager {
 
     public set onStateChange(handler: (from: AppState, to: AppState) => void) {
         this._onStateChange = handler;
+    }
+
+    /** Fired only when the mode {@link workspaceIsPractice} answers with actually changes. */
+    public set onWorkspaceModeChange(handler: () => void) {
+        this._onWorkspaceModeChange = handler;
+    }
+
+    /**
+     * Whether the student's workspace is the practice repository of the exercise
+     * on screen, as far as anyone has managed to find out.
+     *
+     * A record naming a different exercise is not evidence about this one, so it
+     * reads as `false`. That is also what makes the record self-invalidating:
+     * `refreshFromServer` re-enters `showExerciseDetail` for the same exercise,
+     * and a value cleared there would fall back to graded on every result.
+     */
+    get workspaceIsPractice(): boolean {
+        const current = this.currentExerciseData?.exercise?.id;
+        return this._workspaceMode !== undefined
+            && this._workspaceMode.exerciseId === current
+            && this._workspaceMode.isPractice;
+    }
+
+    /**
+     * Claim a ticket before starting a workspace detection. Never reused.
+     *
+     * Taken at the START of the probe, so a higher ticket always means a
+     * detection that began later, which is the one worth believing.
+     */
+    public beginWorkspaceModeProbe(): number {
+        return ++this._workspaceModeProbe;
+    }
+
+    /**
+     * Report what a detection found.
+     *
+     * `accepted` is false when the result no longer describes where the user is:
+     * it names an exercise that is not the active one, or a newer detection has
+     * already been recorded. The caller must then apply NOTHING it derived from
+     * that result, not merely skip the mode.
+     *
+     * Acceptance compares against the ticket ALREADY RECORDED, not the newest
+     * one handed out, so the freshest SUCCESSFUL detection wins rather than the
+     * freshest attempt. A probe that fails simply does not call this, and cannot
+     * silence an older one that succeeded: with probes 1 and 2 in flight, 1
+     * lands whenever it lands, and 2 overwrites it only by succeeding.
+     */
+    public recordWorkspaceMode(
+        ticket: number,
+        exerciseId: number,
+        isPractice: boolean,
+    ): { accepted: boolean; changed: boolean } {
+        if (exerciseId !== this.currentExerciseData?.exercise?.id) {
+            return { accepted: false, changed: false };
+        }
+        if (this._workspaceMode && this._workspaceMode.ticket > ticket) {
+            return { accepted: false, changed: false };
+        }
+
+        const before = this.workspaceIsPractice;
+        this._workspaceMode = { exerciseId, isPractice, ticket };
+        const changed = before !== isPractice;
+        if (changed) { this._onWorkspaceModeChange?.(); }
+        return { accepted: true, changed };
     }
 
     private _setCurrentState(newState: AppState): void {
@@ -97,11 +164,11 @@ export class AppStateManager {
         return this._payload.kind === 'exercise' ? this._payload.data : undefined;
     }
 
-    get serverRenderedProblemStatement(): { html: string } | null {
+    get serverRenderedProblemStatement(): RenderedProblemStatementPayload | null {
         return this._serverRenderedPS;
     }
 
-    set serverRenderedProblemStatement(value: { html: string } | null) {
+    set serverRenderedProblemStatement(value: RenderedProblemStatementPayload | null) {
         this._serverRenderedPS = value;
     }
 

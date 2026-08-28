@@ -114,11 +114,15 @@ export class RepositoryStatusCommands {
             return;
         }
 
-        this.currentRepoContext = { expectedRepoUrl: repoUris[0], exerciseId: exercise.id };
         await this._checkRepositoryStatusWithContext(repoUris, exercise.id);
     };
 
     private async _checkRepositoryStatusWithContext(repoUris: string[], exerciseId: number): Promise<void> {
+        // Claimed before the first await. Every conclusion below is applied only if this probe is
+        // still the freshest one for the exercise still on screen: `UpdateRepoStatus` carries no
+        // exercise id, so a probe that outlived its exercise would otherwise rewrite the repository
+        // state of whichever one the student moved on to.
+        const ticket = this.context.appStateManager.beginWorkspaceModeProbe();
         try {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             this.currentWorkspacePath = workspaceFolder?.uri.fsPath;
@@ -126,6 +130,9 @@ export class RepositoryStatusCommands {
             for (const uri of repoUris) {
                 const status = await this.deps.getWorkspaceStatus(uri, workspaceFolder);
                 if (status.isConnected) {
+                    if (!this.context.appStateManager.recordWorkspaceMode(ticket, exerciseId, status.isPracticeRepo).accepted) {
+                        return;
+                    }
                     this.currentRepoContext = { expectedRepoUrl: uri, exerciseId };
                     this.context.sendMessage({
                         type: ExtensionMsg.UpdateRepoStatus,
@@ -137,6 +144,16 @@ export class RepositoryStatusCommands {
                 }
             }
 
+            // No repository connected is an answer, not a failure, so it records like one.
+            if (!this.context.appStateManager.recordWorkspaceMode(ticket, exerciseId, false).accepted) {
+                return;
+            }
+            // Kept pointing at the exercise even with nothing connected, which is what the eager
+            // write this replaced achieved: a later save should still re-check, because the student
+            // may have cloned the repository in the meantime. The difference is that it is now
+            // written once the answer is known, so a probe for an exercise the student has left can
+            // no longer claim the context of the one they are on.
+            this.currentRepoContext = { expectedRepoUrl: repoUris[0], exerciseId };
             this.context.sendMessage({
                 type: ExtensionMsg.UpdateRepoStatus,
                 isConnected: false,
@@ -144,6 +161,8 @@ export class RepositoryStatusCommands {
                 isPracticeRepo: false,
             });
         } catch (error: unknown) {
+            // Nothing recorded: a probe that threw learned nothing about the workspace and must not
+            // be able to silence one that did.
             logger.error('Check repository status error:', LogCategory.SUBMISSION, error);
             vscode.window.showErrorMessage('Error checking repository status');
         }
