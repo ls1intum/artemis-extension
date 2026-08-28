@@ -5,5 +5,4 @@ export * from './errorUtils';
 export * from './pathUtils';
 export * from './recommendedExtensions';
 export * from './serverUrl';
-export * from './trustedDomains';
 export * from './userAgent';

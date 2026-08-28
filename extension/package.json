@@ -96,10 +96,6 @@
         "icon": "$(folder)"
       },
       {
-        "command": "artemis.clearTrustedDomains",
-        "title": "Artemis: Clear Trusted Domains"
-      },
-      {
         "command": "artemis.showJwtToken",
         "title": "Artemis: Show JWT Token (Developer)",
         "icon": "$(key)"

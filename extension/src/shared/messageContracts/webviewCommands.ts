@@ -59,8 +59,6 @@ export const WebviewCmd = {
     OpenBugReport: 'openBugReport',
     OpenInEditor: 'openInEditor',
     CopyToClipboard: 'copyToClipboard',
-    OpenExternalLink: 'openExternalLink',
-    OpenImagePreview: 'openImagePreview',
     SearchMarketplace: 'searchMarketplace',
 
     // Git
@@ -177,8 +175,6 @@ interface WebviewCmdPayloads {
     openBugReport: undefined;
     openInEditor: { data: Record<string, unknown> | string; language?: string };
     copyToClipboard: { text: string };
-    openExternalLink: { url: string };
-    openImagePreview: { uri: string };
     searchMarketplace: { extensionId: string };
 
     // Recording
@@ -308,8 +304,6 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.AskIrisAboutExercise,
     WebviewCmd.OpenInEditor,
     WebviewCmd.CopyToClipboard,
-    WebviewCmd.OpenExternalLink,
-    WebviewCmd.OpenImagePreview,
     WebviewCmd.SearchMarketplace,
     WebviewCmd.OpenSettings,
     WebviewCmd.SaveGitIdentity,
