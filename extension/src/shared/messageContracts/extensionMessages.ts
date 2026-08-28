@@ -107,8 +107,22 @@ export const ExtensionMsg = {
 export type ExtensionMsg = (typeof ExtensionMsg)[keyof typeof ExtensionMsg];
 
 /** Server-rendered problem statement fragment (body HTML returned by Artemis SSR endpoint). */
-interface RenderedProblemStatementPayload {
+export interface RenderedProblemStatementPayload {
     html: string;
+    /**
+     * The participation whose test results this HTML was rendered with.
+     *
+     * The host renders for the participation the student's workspace belongs
+     * to, and the view selects the same way, but the two settle on it at
+     * different moments: a render can be in flight while the repository status
+     * that decides the mode is still resolving. Without a label the view cannot
+     * tell a render meant for the other participation from its own, and would
+     * show the wrong task markers.
+     *
+     * Absent for a render made before this field existed, or for an exercise
+     * with no participation at all; both are shown unconditionally.
+     */
+    participationId?: number;
 }
 
 /**

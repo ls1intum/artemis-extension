@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 
 import type { ExtensionToWebviewMessage } from '@shared/messageContracts';
 import { ExtensionMsg } from '@shared/messageContracts';
+import { selectParticipation } from '@shared/utils/participationSelection';
 
 import type { AppStateManager } from '@extension/controller/appStateManager';
 import { LogCategory, logger } from '@extension/services/loggingService';
@@ -58,28 +59,49 @@ export class WebviewSSRCoordinator implements vscode.Disposable {
 
         const exercise = exerciseData.exercise;
         const exerciseId = exercise.id;
-        const participation = exercise.studentParticipations?.[0];
+        // The same rule the exercise view uses, off the same fact: which repository the student
+        // actually has open. Rendering `[0]` instead was not merely a different choice, it was a
+        // nondeterministic one, because Artemis builds this list from an unordered set.
+        const participation = selectParticipation(
+            exercise.studentParticipations,
+            this.deps.appStateManager.workspaceIsPractice,
+        );
+        const participationId = participation?.id;
+        // A pending submission carries no result, so without this the statement would render with no
+        // task markers at all for the length of every build.
+        const buildPending = participationId !== undefined
+            && exerciseData.pendingSubmissionsByParticipationId?.[participationId] !== undefined;
 
         logger.info(`[SSR] Starting background render for exercise ${exerciseId}`, LogCategory.GENERAL);
 
         try {
-            const rendered = await this.deps.renderService.render(exercise, { participation });
+            const rendered = await this.deps.renderService.render(exercise, { participation, buildPending });
 
             // Guard: dispose may have happened during the render await; also
             // verify same exercise is still active.
             if (this._disposed) { return; }
             const current = this.deps.appStateManager.currentExerciseData;
             if (current?.exercise?.id !== exerciseId) { return; }
+            // And that the workspace has not switched participation underneath the render, which the
+            // exercise id alone does not cover: both belong to the same exercise.
+            if (selectParticipation(
+                current?.exercise?.studentParticipations,
+                this.deps.appStateManager.workspaceIsPractice,
+            )?.id !== participationId) { return; }
 
             if (rendered) {
+                // Labelled with the participation THIS render selected, never with one carried inside
+                // the render service. Its cache is keyed on a hash of the render inputs, so two
+                // participations whose test results happen to match share an entry; taking the
+                // identity from there would hand back the other participation's id and the view would
+                // hide HTML that is correct for it.
+                const payload = { html: rendered.html, participationId };
                 // Store in app state so sendExerciseDetailInit includes it
-                this.deps.appStateManager.serverRenderedProblemStatement = {
-                    html: rendered.html,
-                };
+                this.deps.appStateManager.serverRenderedProblemStatement = payload;
                 // Also send as separate message for cases where init was already sent
                 this.deps.postMessage({
                     type: ExtensionMsg.ProblemStatementRendered,
-                    html: rendered.html,
+                    ...payload,
                 });
                 logger.info(`[SSR] Server render cached + sent (hash: ${rendered.contentHash.slice(0, 8)})`, LogCategory.GENERAL);
             }

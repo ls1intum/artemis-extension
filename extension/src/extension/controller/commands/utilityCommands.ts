@@ -3,6 +3,7 @@ import * as crypto from 'crypto';
 
 import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { getOptionalPayload, getPayload, WebviewCmd } from '@shared/messageContracts';
+import { selectParticipation } from '@shared/utils/participationSelection';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
@@ -298,8 +299,14 @@ export class UtilityCommandModule {
         const renderService = new ProblemStatementRenderService(this.context.artemisApi);
         try {
             const exercise = exerciseData.exercise;
-            const participation = exercise.studentParticipations?.[0];
-            const rendered = await renderService.render(exercise, { participation, darkModeOverride: darkMode });
+            // The same selection the real render uses, so the preview shows what a student would see.
+            const participation = selectParticipation(
+                exercise.studentParticipations,
+                this.context.appStateManager.workspaceIsPractice,
+            );
+            const buildPending = participation?.id !== undefined
+                && exerciseData.pendingSubmissionsByParticipationId?.[participation.id] !== undefined;
+            const rendered = await renderService.render(exercise, { participation, buildPending, darkModeOverride: darkMode });
             if (!rendered) { return; }
 
             const label = darkMode ? 'Dark' : 'Light';

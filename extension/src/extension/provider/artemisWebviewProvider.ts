@@ -237,6 +237,17 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._onDidChangeViewNavigation.fire({ from, to });
         };
 
+        // The workspace decides which participation the problem statement is rendered for, and it is
+        // usually learned after the first render has already gone out. Nothing else carried that
+        // news to SSR before: repository status updates simply never reached it.
+        //
+        // Only a render is scheduled. Neither cache needs clearing: the render service's entries are
+        // keyed on a hash of the render inputs, so the other participation either misses or would
+        // produce the same HTML, and the app-state copy now names the participation it belongs to.
+        this._appStateManager.onWorkspaceModeChange = () => {
+            void this._ssrCoordinator.scheduleRender();
+        };
+
         this._disposables.push(this._onDidChangeViewNavigation);
         this._disposables.push(this._onDidChangePanelVisibility);
         this._disposables.push(
