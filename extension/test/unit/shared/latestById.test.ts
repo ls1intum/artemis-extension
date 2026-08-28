@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 
-import { latestById, latestResultAcrossSubmissions } from '@shared/utils/latestById';
+import { displayedResult, latestById, latestResultAcrossSubmissions } from '@shared/utils/latestById';
 
 suite('latestById', () => {
     suite('latestById', () => {
@@ -72,5 +72,39 @@ suite('latestById', () => {
             ]);
             assert.strictEqual(r?.id, 10);
         });
+    });
+});
+
+suite('displayedResult', () => {
+    const withPrevious = [
+        { id: 1, results: [{ id: 10 }] },
+        { id: 2, results: [] },
+    ];
+
+    test('keeps the previous result while a build is running', () => {
+        // A pending submission is by definition resultless, so reading the newest submission alone
+        // would blank the markers a student was looking at a moment ago.
+        assert.deepStrictEqual(displayedResult(withPrevious, true), { id: 10 });
+    });
+
+    test('shows nothing for a resultless newest submission when no build is running', () => {
+        // e.g. a finished build-failed submission. Resurfacing an older result here would attribute
+        // the previous run's outcome to a submission that produced none.
+        assert.strictEqual(displayedResult(withPrevious, false), undefined);
+    });
+
+    test('has nothing to fall back to when no submission carries a result', () => {
+        assert.strictEqual(displayedResult([{ id: 1, results: [] }], true), undefined);
+    });
+
+    test('a re-evaluated older submission does not override the newest one', () => {
+        // Artemis' own helper reduces over every result by max id and has this hole; ours walks
+        // submissions newest-first instead.
+        const reEvaluated = [
+            { id: 1, results: [{ id: 99 }] },
+            { id: 2, results: [{ id: 20 }] },
+        ];
+        assert.deepStrictEqual(displayedResult(reEvaluated, false), { id: 20 });
+        assert.deepStrictEqual(displayedResult(reEvaluated, true), { id: 20 });
     });
 });

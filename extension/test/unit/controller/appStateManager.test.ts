@@ -135,4 +135,126 @@ suite('AppStateManager Test Suite', () => {
         assert.strictEqual(transitions[1].from, 'dashboard');
         assert.strictEqual(transitions[1].to, 'course-list');
     });
+
+    suite('workspace mode', () => {
+        /** Puts an exercise on screen, which is what a mode record has to name to be accepted. */
+        function openExercise(id: number): void {
+            stateManager.showCourseDetail({ course: { id: 1, title: 'Course' } });
+            stateManager.showExerciseDetail({ exercise: { id } } as ExerciseDetailsResponse);
+        }
+
+        test('knows nothing until a probe reports', () => {
+            openExercise(456);
+            assert.strictEqual(stateManager.workspaceIsPractice, false);
+        });
+
+        test('a failing newer probe cannot silence an older one that succeeded', () => {
+            // The interleaving a rollback-based counter gets wrong: probe 2 is outstanding when
+            // probe 1 lands, and then never reports at all. Refusing probe 1 for being older would
+            // leave the mode unknown forever.
+            openExercise(456);
+            const first = stateManager.beginWorkspaceModeProbe();
+            stateManager.beginWorkspaceModeProbe();
+
+            assert.deepStrictEqual(stateManager.recordWorkspaceMode(first, 456, true), { accepted: true });
+            assert.strictEqual(stateManager.workspaceIsPractice, true);
+        });
+
+        test('the later detection wins when both succeed', () => {
+            openExercise(456);
+            const first = stateManager.beginWorkspaceModeProbe();
+            const second = stateManager.beginWorkspaceModeProbe();
+
+            stateManager.recordWorkspaceMode(first, 456, true);
+            stateManager.recordWorkspaceMode(second, 456, false);
+
+            assert.strictEqual(stateManager.workspaceIsPractice, false);
+        });
+
+        test('an older detection landing last is refused', () => {
+            openExercise(456);
+            const first = stateManager.beginWorkspaceModeProbe();
+            const second = stateManager.beginWorkspaceModeProbe();
+
+            stateManager.recordWorkspaceMode(second, 456, true);
+
+            assert.deepStrictEqual(stateManager.recordWorkspaceMode(first, 456, false), { accepted: false });
+            assert.strictEqual(stateManager.workspaceIsPractice, true);
+        });
+
+        test('the oldest probe still counts when every newer one fails', () => {
+            openExercise(456);
+            const first = stateManager.beginWorkspaceModeProbe();
+            stateManager.beginWorkspaceModeProbe();
+            stateManager.beginWorkspaceModeProbe();
+
+            assert.strictEqual(stateManager.recordWorkspaceMode(first, 456, true).accepted, true);
+            assert.strictEqual(stateManager.workspaceIsPractice, true);
+        });
+
+        test('a result for an exercise the user has left is refused', () => {
+            // Its side effects must not be applied either: UpdateRepoStatus carries no exercise id,
+            // so an accepted stale probe would rewrite the new exercise's repository state.
+            openExercise(456);
+            const ticket = stateManager.beginWorkspaceModeProbe();
+            openExercise(789);
+
+            assert.deepStrictEqual(stateManager.recordWorkspaceMode(ticket, 456, true), { accepted: false });
+            assert.strictEqual(stateManager.workspaceIsPractice, false);
+        });
+
+        test('a probe cannot report about an exercise the student has navigated away from', () => {
+            // `showCourseList` leaves the exercise payload in place, so checking the payload alone
+            // would accept this and leave a stale mode for the next time the exercise is opened.
+            openExercise(456);
+            const ticket = stateManager.beginWorkspaceModeProbe();
+            stateManager.showCourseList();
+
+            assert.strictEqual(stateManager.recordWorkspaceMode(ticket, 456, true).accepted, false);
+        });
+
+        test('a signed-out session leaves nothing behind for the next one', () => {
+            openExercise(456);
+            stateManager.recordWorkspaceMode(stateManager.beginWorkspaceModeProbe(), 456, true);
+
+            stateManager.showLogin();
+            openExercise(456);
+
+            assert.strictEqual(stateManager.workspaceIsPractice, false);
+        });
+
+        test('a record for another exercise is not evidence about this one', () => {
+            openExercise(456);
+            stateManager.recordWorkspaceMode(stateManager.beginWorkspaceModeProbe(), 456, true);
+
+            openExercise(789);
+
+            assert.strictEqual(stateManager.workspaceIsPractice, false);
+        });
+
+        test('survives the same-exercise refresh that showExerciseDetail performs', () => {
+            // refreshFromServer re-enters showExerciseDetail for the exercise already on screen, so
+            // a mode cleared there would fall back to graded on every WebSocket result.
+            openExercise(456);
+            stateManager.recordWorkspaceMode(stateManager.beginWorkspaceModeProbe(), 456, true);
+
+            stateManager.showExerciseDetail({ exercise: { id: 456 } } as ExerciseDetailsResponse);
+
+            assert.strictEqual(stateManager.workspaceIsPractice, true);
+        });
+
+        test('only a real change asks for a re-render', () => {
+            // Opening a graded exercise must not schedule a second render on top of the one
+            // navigation already scheduled; opening a practice one must, because the first was wrong.
+            openExercise(456);
+            let fired = 0;
+            stateManager.onWorkspaceModeChange = () => { fired++; };
+
+            stateManager.recordWorkspaceMode(stateManager.beginWorkspaceModeProbe(), 456, false);
+            assert.strictEqual(fired, 0);
+
+            stateManager.recordWorkspaceMode(stateManager.beginWorkspaceModeProbe(), 456, true);
+            assert.strictEqual(fired, 1);
+        });
+    });
 });

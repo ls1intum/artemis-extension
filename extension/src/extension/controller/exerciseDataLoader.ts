@@ -1,7 +1,7 @@
 import type { CourseDetailData } from '@shared/messageContracts';
 import { toCourseDetailData } from '@shared/messageContracts';
 import type { PendingSubmissionStatus } from '@shared/types/apiResponses';
-import { latestById, latestResultAcrossSubmissions } from '@shared/utils/latestById';
+import { displayedResult } from '@shared/utils/latestById';
 
 import type { ArtemisApiService } from '@extension/api';
 import { LogCategory, logger } from '@extension/services/loggingService';
@@ -114,9 +114,7 @@ export async function fetchAndEnrichExerciseDetails(
                 // for an ordinary resultless submission (e.g. a finished
                 // build-failed one).
                 const buildPending = pendingResult.status === 'fulfilled' && !!pendingResult.value;
-                const target = buildPending
-                    ? latestResultAcrossSubmissions(participation.submissions)
-                    : latestById(latestById(participation.submissions)?.results);
+                const target = displayedResult(participation.submissions, buildPending);
                 if (target) {
                     target.feedbacks = resultWithFeedbacks.feedbacks;
                 } else {

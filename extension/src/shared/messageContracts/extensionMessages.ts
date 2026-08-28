@@ -107,8 +107,17 @@ export const ExtensionMsg = {
 export type ExtensionMsg = (typeof ExtensionMsg)[keyof typeof ExtensionMsg];
 
 /** Server-rendered problem statement fragment (body HTML returned by Artemis SSR endpoint). */
-interface RenderedProblemStatementPayload {
+export interface RenderedProblemStatementPayload {
     html: string;
+    /**
+     * The participation whose test results this HTML was rendered with.
+     *
+     * Host and view pick the same participation but settle on it at different moments, so without a
+     * label the view cannot tell a render meant for the other one from its own.
+     *
+     * Absent for a render made before this field existed, or an exercise with no participation.
+     */
+    participationId?: number;
 }
 
 /**

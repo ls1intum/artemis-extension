@@ -91,6 +91,16 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
             dirtyPagesStatus: null,
 
             setExerciseData: (data, hideDeveloperTools, repoStatus) => {
+                // An init that carries no status is saying nothing about the workspace, not saying
+                // "graded". The host omits it when a newer probe has already spoken, and that newer
+                // answer may have arrived here first: queued messages flush before the first init,
+                // so on a recreated view an UpdateRepoStatus can land while the store is still empty.
+                // Cleared only when we positively know the exercise changed; the message carries no
+                // exercise id of its own, and what makes keeping it safe is the host-side gate that
+                // stops a probe from reporting at all once its exercise is no longer active.
+                const previous = get();
+                const sameExercise = previous.exerciseData?.exercise?.id === undefined
+                    || previous.exerciseData.exercise.id === data.exercise?.id;
                 set({
                     exerciseData: data,
                     hideDeveloperTools,
@@ -102,7 +112,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     // displaying "in progress" on the next exercise open.
                     pendingSubmissionsByParticipationId:
                         data.pendingSubmissionsByParticipationId ?? {},
-                    repoStatus: repoStatus ?? null,
+                    repoStatus: repoStatus ?? (sameExercise ? previous.repoStatus : null),
                     clonedNotice: null,
                     dirtyPagesStatus: null,
                 }, false, 'setExerciseData');

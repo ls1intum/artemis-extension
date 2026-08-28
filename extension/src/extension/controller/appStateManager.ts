@@ -1,4 +1,4 @@
-import type { ArchivedCourse, CourseDetailData } from '@shared/messageContracts';
+import type { ArchivedCourse, CourseDetailData, RenderedProblemStatementPayload } from '@shared/messageContracts';
 
 import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type {
@@ -49,7 +49,11 @@ export class AppStateManager {
     private _payload: NavigationPayload = { kind: 'none' };
     private _aiExtensions?: AiExtension[];
     private _recommendedExtensions?: RecommendedExtensionCategory[];
-    private _serverRenderedPS: { html: string } | null = null;
+    private _serverRenderedPS: RenderedProblemStatementPayload | null = null;
+    private _workspaceMode: { exerciseId: number; isPractice: boolean; ticket: number } | undefined;
+    private _workspaceModeProbe = 0;
+    private _workspaceModeFloor = 0;
+    private _onWorkspaceModeChange?: () => void;
 
     private _onStateChange?: (from: AppState, to: AppState) => void;
 
@@ -62,6 +66,56 @@ export class AppStateManager {
 
     public set onStateChange(handler: (from: AppState, to: AppState) => void) {
         this._onStateChange = handler;
+    }
+
+    /** Fired only when the answer {@link workspaceIsPractice} gives actually changes. */
+    public set onWorkspaceModeChange(handler: () => void) {
+        this._onWorkspaceModeChange = handler;
+    }
+
+    /**
+     * Whether the workspace is the practice repository of the exercise on screen. A record for a
+     * different exercise reads as `false` rather than being cleared anywhere, because
+     * `refreshFromServer` re-enters `showExerciseDetail` for the SAME exercise.
+     */
+    get workspaceIsPractice(): boolean {
+        const current = this.currentExerciseData?.exercise?.id;
+        return this._workspaceMode !== undefined
+            && this._workspaceMode.exerciseId === current
+            && this._workspaceMode.isPractice;
+    }
+
+    /** Claim a ticket before starting a detection. Never reused, so a higher one began later. */
+    public beginWorkspaceModeProbe(): number {
+        return ++this._workspaceModeProbe;
+    }
+
+    /**
+     * Report what a detection found. On `accepted: false` the caller must apply NOTHING it derived
+     * from that result, not merely skip the mode.
+     *
+     * Compares against the ticket already RECORDED, not the newest one handed out, so a probe that
+     * fails cannot silence an older one that succeeded.
+     */
+    public recordWorkspaceMode(ticket: number, exerciseId: number, isPractice: boolean): { accepted: boolean } {
+        if (!this.isCurrentWorkspaceModeProbe(ticket, exerciseId)) {
+            return { accepted: false };
+        }
+
+        const before = this.workspaceIsPractice;
+        this._workspaceMode = { exerciseId, isPractice, ticket };
+        if (before !== isPractice) { this._onWorkspaceModeChange?.(); }
+        return { accepted: true };
+    }
+
+    /** Whether a probe's answer is still worth acting on, for conclusions other than the mode. */
+    public isCurrentWorkspaceModeProbe(ticket: number, exerciseId: number): boolean {
+        // The state as well as the payload: `showCourseList` leaves the exercise payload in place.
+        if (this._currentState !== 'exercise-detail') { return false; }
+        if (exerciseId !== this.currentExerciseData?.exercise?.id) { return false; }
+        // Clearing the record alone would let a probe from the previous session through.
+        if (ticket <= this._workspaceModeFloor) { return false; }
+        return !this._workspaceMode || this._workspaceMode.ticket <= ticket;
     }
 
     private _setCurrentState(newState: AppState): void {
@@ -97,11 +151,11 @@ export class AppStateManager {
         return this._payload.kind === 'exercise' ? this._payload.data : undefined;
     }
 
-    get serverRenderedProblemStatement(): { html: string } | null {
+    get serverRenderedProblemStatement(): RenderedProblemStatementPayload | null {
         return this._serverRenderedPS;
     }
 
-    set serverRenderedProblemStatement(value: { html: string } | null) {
+    set serverRenderedProblemStatement(value: RenderedProblemStatementPayload | null) {
         this._serverRenderedPS = value;
     }
 
@@ -142,6 +196,9 @@ export class AppStateManager {
         this._archivedCoursesData = undefined;
         this._payload = { kind: 'none' };
         this._recommendedExtensions = undefined;
+        // Or the next session's exercise with the same id inherits a mode nobody detected for it.
+        this._workspaceMode = undefined;
+        this._workspaceModeFloor = this._workspaceModeProbe;
     }
 
     public showCourseList(): void {

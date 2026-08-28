@@ -44,3 +44,20 @@ export function latestResultAcrossSubmissions<R extends { id?: number }>(
     }
     return undefined;
 }
+
+/**
+ * The result a surface should display for a participation.
+ *
+ * Artemis resolves this with `findLatestResult(getAllResultsOfAllSubmissions(...))`, which keeps
+ * the previous result's task markers while a build runs; the strict half alone shows nothing.
+ *
+ * `buildPending` is required rather than defaulted: the wrong default is silently wrong both ways.
+ */
+export function displayedResult<R extends { id?: number }>(
+    submissions: ReadonlyArray<{ id?: number; results?: readonly R[] }> | undefined,
+    buildPending: boolean,
+): R | undefined {
+    return buildPending
+        ? latestResultAcrossSubmissions(submissions)
+        : latestById(latestById(submissions)?.results);
+}

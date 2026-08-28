@@ -146,6 +146,26 @@ suite('ProblemStatementRenderService', () => {
         assert.strictEqual(renderStub.callCount, 1);
     });
 
+    test('a cache hit retires a render still in flight behind it', async () => {
+        // The hit returns synchronously without claiming the request token, so the older render
+        // resolved afterwards and overwrote what the caller had already been handed.
+        let resolveSlow!: (v: unknown) => void;
+        renderStub.onFirstCall().resolves(mockDto());
+        renderStub.onSecondCall().returns(new Promise(r => { resolveSlow = r; }));
+
+        // Cached first, so the hit below is the ONLY thing between the slow render and its check.
+        // Populating it afterwards would advance the token by itself and prove nothing.
+        await service.render(mockExercise(), { darkModeOverride: true });
+        const slow = service.render(mockExercise(), { darkModeOverride: false });
+        const cached = await service.render(mockExercise(), { darkModeOverride: true });
+        assert.ok(cached, 'the third call must be served from cache');
+
+        resolveSlow(mockDto());
+
+        assert.strictEqual(await slow, undefined,
+            'the render the cache hit overtook must report nothing rather than land last');
+    });
+
     test('re-renders when darkMode changes', async () => {
         renderStub.resolves(mockDto());
         await service.render(mockExercise(), { darkModeOverride: false });
