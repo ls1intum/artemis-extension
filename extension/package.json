@@ -425,7 +425,7 @@
     "shiki": "3.23.0",
     "streamdown": "2.5.0",
     "use-stick-to-bottom": "1.1.6",
-    "ws": "8.21.0",
+    "ws": "8.21.3",
     "zustand": "5.0.14"
   }
 }
