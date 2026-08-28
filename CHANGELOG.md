@@ -4,6 +4,8 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-08-28
+
 ### Changed
 
 - **Trusted domains:** Removed the command "Artemis: Clear Trusted Domains". The list it cleared was written only by the confirmation dialog that used to appear when you opened a link from an exercise description, and that dialog stopped being reached in May, when the description moved to server-side rendering. Nothing writes the list and nothing reads it, so the command had no effect on anything the extension does. A list stored by an older version stays on disk and is ignored.
