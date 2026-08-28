@@ -1,9 +1,11 @@
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
 import { useState } from 'react';
 
+import type { RenderedProblemStatementPayload } from '@shared/messageContracts';
 import { WebviewCmd } from '@shared/messageContracts';
 import { ExtensionMsg, postCommand, requestInit } from '@shared/messageContracts';
-import { latestById, latestResultAcrossSubmissions } from '@shared/utils/latestById';
+import { displayedResult, latestById } from '@shared/utils/latestById';
+import { selectParticipation } from '@shared/utils/participationSelection';
 
 import {
     AskIris,
@@ -93,9 +95,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     useWebSocketUpdates();
 
-    const [serverRenderedPS, setServerRenderedPS] = useState<{
-        html: string;
-    } | null>(null);
+    const [serverRenderedPS, setServerRenderedPS] = useState<RenderedProblemStatementPayload | null>(null);
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.ExerciseDetailInit) {
             if (!msg.exerciseData) { return; }
@@ -112,7 +112,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             setError(msg.error);
         }
         if (msg.type === ExtensionMsg.ProblemStatementRendered) {
-            setServerRenderedPS({ html: msg.html });
+            // Kept whatever it says, and filtered at render time instead. A render for the
+            // participation this view is about to select can arrive before the repository status
+            // that selects it; discarding it here would leave the statement permanently blank in
+            // that order, because nothing would resend it.
+            setServerRenderedPS({ html: msg.html, participationId: msg.participationId });
         }
     }, [vscodeApi, setExerciseData, setError]);
 
@@ -201,11 +205,10 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const exerciseType: ExerciseType = isExerciseType(exercise.type) ? exercise.type : 'programming';
     const isProgramming = exerciseType === 'programming';
 
-    // Select the participation matching the current workspace mode (practice vs graded).
+    // Select the participation matching the current workspace mode (practice vs graded), by the same
+    // rule the host uses for the server-rendered problem statement.
     const isPractice = repoStatus?.isPracticeRepo ?? false;
-    const allParticipations = exercise.studentParticipations ?? [];
-    const participation = allParticipations.find(p => p.testRun === isPractice)
-        ?? allParticipations[0];
+    const participation = selectParticipation(exercise.studentParticipations, isPractice);
     const hasParticipation = !!participation;
     const participationId = participation?.id;
     const repositoryUri = participation?.repositoryUri;
@@ -214,6 +217,25 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // actually surface in this view. The map can carry concurrent pending
     // builds for other participations (graded + practice) without their
     // status leaking into the selected view.
+    // Server-rendered HTML is only this view's to show while it describes the participation the
+    // view has selected. The host settles on that participation from the workspace repository, and
+    // can be a step ahead of or behind the status message that tells the view the same thing.
+    //
+    // Two things are shown regardless. An unlabelled render predates this field or belongs to an
+    // exercise with no participation. And while `repoStatus` is still null this view has no evidence
+    // about the workspace at all, only a default, so it has no standing to overrule the host: there
+    // is no client-side fallback for the problem statement, and hiding the HTML here would leave a
+    // skeleton and then "Failed to load the exercise description" after ten seconds, with no
+    // guarantee of a later status message to recover from.
+    const trustsOwnMode = repoStatus !== null;
+    const displayedServerRenderedPS =
+        serverRenderedPS
+        && (!trustsOwnMode
+            || serverRenderedPS.participationId === undefined
+            || serverRenderedPS.participationId === participationId)
+            ? serverRenderedPS
+            : null;
+
     const pendingSubmission = participationId !== undefined
         ? pendingSubmissionsByParticipationId[participationId] ?? null
         : null;
@@ -229,9 +251,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // resultless newest submission (e.g. a completed build-failed submission)
     // must keep the existing `latestResult` behaviour and NOT resurface stale
     // feedback from an older submission. Card/status/score stay on latestResult.
-    const displayResult = pendingSubmission !== null
-        ? latestResultAcrossSubmissions(participation?.submissions)
-        : latestResult;
+    const displayResult = displayedResult(participation?.submissions, pendingSubmission !== null);
 
     // Build test cases from feedbacks for detailed display. Test-case feedback
     // is identified by isTestCaseFeedback (Artemis parity); the test name may be
@@ -591,7 +611,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             />
 
             <ProblemStatement
-                serverRenderedHtml={serverRenderedPS?.html}
+                serverRenderedHtml={displayedServerRenderedPS?.html}
                 onTaskClick={handleTaskOpen}
                 vscodeApi={vscodeApi}
             />
@@ -608,11 +628,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         >
                             Simulate SSR Loading
                         </Button>
-                        {serverRenderedPS && (
+                        {displayedServerRenderedPS && (
                             <>
                                 <Button
                                     variant="secondary"
-                                    onClick={() => postCommand(vscodeApi, 'openInEditor', { data: serverRenderedPS.html, language: 'html' })}
+                                    onClick={() => postCommand(vscodeApi, 'openInEditor', { data: displayedServerRenderedPS.html, language: 'html' })}
                                 >
                                     View SSR HTML
                                 </Button>

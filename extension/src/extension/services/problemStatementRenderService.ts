@@ -36,6 +36,13 @@ interface ParticipationLike {
 
 interface RenderOptions {
     readonly participation?: ParticipationLike;
+    /**
+     * Whether a build is in flight for that participation. Decides which result
+     * the task markers describe, exactly as it does in the exercise view: a
+     * pending submission carries no result, so without this the statement would
+     * render with no markers at all for the length of every build.
+     */
+    readonly buildPending?: boolean;
     readonly darkModeOverride?: boolean;
 }
 
@@ -99,7 +106,7 @@ export class ProblemStatementRenderService implements vscode.Disposable {
         if (this.serverSupportsRendering === false) { return undefined; }
 
         const darkMode = options.darkModeOverride ?? isDarkMode();
-        const rawFeedbacks = extractLatestFeedbacks(options.participation);
+        const rawFeedbacks = extractLatestFeedbacks(options.participation, options.buildPending ?? false);
         const testInputs = rawFeedbacks ? mapFeedbacksToTestInputs(rawFeedbacks as FeedbackLike[]) : undefined;
 
         const request: ProblemStatementRenderRequest = {
@@ -116,6 +123,10 @@ export class ProblemStatementRenderService implements vscode.Disposable {
         const cached = this.cache.get(exerciseId);
         if (cached && cached.inputHash === inputHash) {
             cached.accessedAt = Date.now();
+            // Counts as a request, so an older render still in flight cannot resolve afterwards and
+            // overwrite what this hit is about to return. Returning early without claiming the token
+            // is the one path that breaks the latest-wins rule below.
+            this.requestCounter++;
             return cached.result;
         }
 

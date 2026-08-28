@@ -880,4 +880,105 @@ describe('ExerciseDetailView', () => {
 			expect(screen.queryByRole('button', { name: 'Scroll to build status' })).not.toBeInTheDocument();
 		});
 	});
+
+	describe('server-rendered problem statement identity', () => {
+		/** An exercise with both participations, the only shape where the identity can be wrong. */
+		function bothParticipations(): ExerciseDetailsResponse {
+			return makeExerciseData({
+				exercise: {
+					studentParticipations: [
+						{ id: 7, testRun: false, repositoryUri: 'https://a/repo.git' },
+						{ id: 8, testRun: true, repositoryUri: 'https://a/repo-practice.git' },
+					],
+				},
+			} as unknown as Partial<ExerciseDetailsResponse>);
+		}
+
+		it('does not show a render made for the other participation', () => {
+			// The host settles on the participation from the workspace repository and the view from
+			// the status message; between the two, a render for the wrong one can arrive.
+			useExerciseDetailStore.setState({
+				exerciseData: bothParticipations(),
+				repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+				isLoading: false,
+			});
+			render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
+
+			act(() => {
+				dispatchExtensionMessage({
+					type: ExtensionMsg.ProblemStatementRendered,
+					html: '<p>practice statement</p>',
+					participationId: 8,
+				});
+			});
+
+			expect(screen.queryByText('practice statement')).not.toBeInTheDocument();
+		});
+
+		it('shows that same render once the view selects the participation it belongs to', () => {
+			// Held rather than discarded on arrival. Discarding would leave the statement blank for
+			// good in this order, because nothing resends it.
+			useExerciseDetailStore.setState({
+				exerciseData: bothParticipations(),
+				repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+				isLoading: false,
+			});
+			render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
+			act(() => {
+				dispatchExtensionMessage({
+					type: ExtensionMsg.ProblemStatementRendered,
+					html: '<p>practice statement</p>',
+					participationId: 8,
+				});
+			});
+
+			act(() => {
+				useExerciseDetailStore.setState({
+					repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: true },
+				});
+			});
+
+			expect(screen.getByText('practice statement')).toBeInTheDocument();
+		});
+
+		it('shows a render it cannot judge, rather than falling through to the failure message', () => {
+			// With no repoStatus the view has only a default, not evidence, so it does not overrule
+			// the host. There is no client-side fallback: hiding here ends in a skeleton and then
+			// "Failed to load the exercise description" after ten seconds.
+			useExerciseDetailStore.setState({
+				exerciseData: bothParticipations(),
+				repoStatus: null,
+				isLoading: false,
+			});
+			render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
+
+			act(() => {
+				dispatchExtensionMessage({
+					type: ExtensionMsg.ProblemStatementRendered,
+					html: '<p>practice statement</p>',
+					participationId: 8,
+				});
+			});
+
+			expect(screen.getByText('practice statement')).toBeInTheDocument();
+		});
+
+		it('shows an unlabelled render, which predates the field', () => {
+			useExerciseDetailStore.setState({
+				exerciseData: bothParticipations(),
+				repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+				isLoading: false,
+			});
+			render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
+
+			act(() => {
+				dispatchExtensionMessage({
+					type: ExtensionMsg.ProblemStatementRendered,
+					html: '<p>legacy statement</p>',
+				});
+			});
+
+			expect(screen.getByText('legacy statement')).toBeInTheDocument();
+		});
+	});
 });
