@@ -115,17 +115,15 @@ export class RepositoryStatusCommands {
         }
 
         // Before the check, not after: the save and rename listeners re-check against this, so an
-        // unset context while the check runs, or when it throws, stops tracking the workspace. Not
-        // stale by construction, since it names the exercise being handled right now; only the
-        // async conclusions below can outlive their exercise, and those are gated.
+        // unset context while it runs, or when it throws, stops tracking the workspace. Not stale
+        // by construction; only the async conclusions below can outlive their exercise.
         this.currentRepoContext = { expectedRepoUrl: repoUris[0], exerciseId: exercise.id };
         await this._checkRepositoryStatusWithContext(repoUris, exercise.id);
     };
 
     private async _checkRepositoryStatusWithContext(repoUris: string[], exerciseId: number): Promise<void> {
         // Claimed before the first await; every conclusion below is gated on it. `UpdateRepoStatus`
-        // carries no exercise id, so a probe that outlived its exercise would otherwise rewrite the
-        // repository state of whichever one the student moved on to.
+        // carries no exercise id, so an outlived probe would rewrite whichever one is on screen.
         const ticket = this.context.appStateManager.beginWorkspaceModeProbe();
         try {
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -152,8 +150,7 @@ export class RepositoryStatusCommands {
             if (!this.context.appStateManager.recordWorkspaceMode(ticket, exerciseId, false).accepted) {
                 return;
             }
-            // Still pointing at the exercise with nothing connected, so a later save re-checks:
-            // the student may have cloned the repository in the meantime.
+            // Still set with nothing connected, so a later save re-checks after a clone.
             this.currentRepoContext = { expectedRepoUrl: repoUris[0], exerciseId };
             this.context.sendMessage({
                 type: ExtensionMsg.UpdateRepoStatus,
@@ -164,8 +161,7 @@ export class RepositoryStatusCommands {
         } catch (error: unknown) {
             // Nothing recorded: a probe that threw must not silence one that learned something.
             logger.error('Check repository status error:', LogCategory.SUBMISSION, error);
-            // Not for an overtaken probe or one whose exercise has been left. The log above is
-            // unconditional; a swallowed failure is still worth a trace.
+            // Not for an overtaken probe or one whose exercise has been left; the log above is.
             if (this.context.appStateManager.isCurrentWorkspaceModeProbe(ticket, exerciseId)) {
                 vscode.window.showErrorMessage('Error checking repository status');
             }

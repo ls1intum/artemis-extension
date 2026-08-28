@@ -112,9 +112,8 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             setError(msg.error);
         }
         if (msg.type === ExtensionMsg.ProblemStatementRendered) {
-            // Kept whatever it says and filtered at render time. A render can arrive before the
-            // status that selects its participation; discarding it here would blank the statement
-            // for good in that order, because nothing resends it.
+            // Kept whatever it says and filtered at render time: a render can arrive before the
+            // status that selects its participation, and nothing would resend it.
             setServerRenderedPS({ html: msg.html, participationId: msg.participationId });
         }
     }, [vscodeApi, setExerciseData, setError]);
@@ -207,9 +206,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // The same rule the host uses for the server-rendered problem statement.
     //
     // Until a status arrives this view has only a default, while the host has already said which
-    // participation it chose by labelling its render. That label is the better information, so it
-    // wins: a recreated view over a known practice exercise would otherwise show graded controls
-    // beside practice markers, and on a failed detection no status is coming at all.
+    // participation it chose by labelling its render, so that label wins. Otherwise a recreated
+    // view over a known practice exercise shows graded controls beside practice markers, and on a
+    // failed detection no status is coming at all.
     const allParticipations = exercise.studentParticipations ?? [];
     const hostRendered = serverRenderedPS?.participationId !== undefined
         ? allParticipations.find(p => p.id === serverRenderedPS.participationId)
@@ -226,10 +225,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // actually surface in this view. The map can carry concurrent pending
     // builds for other participations (graded + practice) without their
     // status leaking into the selected view.
-    // Shown only while it describes the participation this view has selected; the two sides settle
-    // on that at different moments. An unlabelled render predates the field and is shown as before.
-    // Hiding one is not free: there is no client-side fallback, so it leaves a skeleton and then
-    // "Failed to load the exercise description" ten seconds later.
+    // Shown only while it describes the participation this view has selected; an unlabelled render
+    // predates the field. Hiding one is not free: there is no client-side fallback, so it leaves a
+    // skeleton and then "Failed to load the exercise description" ten seconds later.
     const displayedServerRenderedPS =
         serverRenderedPS
         && (serverRenderedPS.participationId === undefined || serverRenderedPS.participationId === participationId)

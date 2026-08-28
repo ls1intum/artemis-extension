@@ -198,9 +198,8 @@ export class ViewInitDataService {
         if (repoUris.length > 0) {
             const gen = this._initGeneration;
             detectWorkspaceForRepoUris(repoUris).then((repoStatus) => {
-                // Recorded BEFORE the generation check: that check answers "may I post the
-                // payload I captured", not "is this the freshest thing known about the workspace".
-                // Behind it, a superseded init discards a detection nothing repeats.
+                // Recorded BEFORE the generation check, which answers "may I post the payload I
+                // captured", not "is this the freshest thing known about the workspace".
                 const accepted = exerciseId === undefined
                     ? false
                     : this._appStateManager.recordWorkspaceMode(ticket, exerciseId, repoStatus.isPracticeRepo).accepted;
@@ -240,9 +239,9 @@ export class ViewInitDataService {
             }).catch((error) => {
                 if (gen !== this._initGeneration) { return; }
                 logger.error('Failed to detect workspace status for exercise detail', LogCategory.VIEW, error);
-                // Nothing recorded and nothing cleared: a probe that threw learned nothing, so it
-                // must not erase what a newer one established. The snapshot still goes out; it is
-                // the only message carrying exercise data, and a recreated view needs it.
+                // Nothing recorded and nothing cleared: a probe that threw must not erase what a
+                // newer one established. The snapshot still goes out, being the only message
+                // carrying exercise data.
                 this._postMessage({
                     type: ExtensionMsg.ExerciseDetailInit,
                     exerciseData,

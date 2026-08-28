@@ -74,11 +74,9 @@ export class AppStateManager {
     }
 
     /**
-     * Whether the workspace is the practice repository of the exercise on screen.
-     *
-     * A record for a different exercise reads as `false` rather than being cleared anywhere:
-     * `refreshFromServer` re-enters `showExerciseDetail` for the SAME exercise, so a clearing hook
-     * there would fall back to graded on every result.
+     * Whether the workspace is the practice repository of the exercise on screen. A record for a
+     * different exercise reads as `false` rather than being cleared anywhere, because
+     * `refreshFromServer` re-enters `showExerciseDetail` for the SAME exercise.
      */
     get workspaceIsPractice(): boolean {
         const current = this.currentExerciseData?.exercise?.id;
@@ -96,9 +94,8 @@ export class AppStateManager {
      * Report what a detection found. On `accepted: false` the caller must apply NOTHING it derived
      * from that result, not merely skip the mode.
      *
-     * Acceptance compares against the ticket already RECORDED, not the newest one handed out, so
-     * the freshest successful detection wins rather than the freshest attempt. A probe that fails
-     * calls nothing, and so cannot silence an older one that succeeded.
+     * Compares against the ticket already RECORDED, not the newest one handed out, so a probe that
+     * fails cannot silence an older one that succeeded.
      */
     public recordWorkspaceMode(ticket: number, exerciseId: number, isPractice: boolean): { accepted: boolean } {
         if (!this.isCurrentWorkspaceModeProbe(ticket, exerciseId)) {
@@ -116,8 +113,7 @@ export class AppStateManager {
         // The state as well as the payload: `showCourseList` leaves the exercise payload in place.
         if (this._currentState !== 'exercise-detail') { return false; }
         if (exerciseId !== this.currentExerciseData?.exercise?.id) { return false; }
-        // Clearing the record on sign-out leaves nothing to compare against, which would let a
-        // probe from the previous session through on its way back.
+        // Clearing the record alone would let a probe from the previous session through.
         if (ticket <= this._workspaceModeFloor) { return false; }
         return !this._workspaceMode || this._workspaceMode.ticket <= ticket;
     }

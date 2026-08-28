@@ -18,13 +18,11 @@ interface ExerciseLike {
  *   - The result must carry a finite, defined participation id.
  *   - That participation must be one of the exercise's own.
  *
- * The last rule used to name `studentParticipations[0]`, which was wrong depending on array order:
- * Artemis builds that list from an unordered set, so a result for whichever participation came
- * second was dropped and the task markers went stale until the view was rebuilt.
- *
- * Matching any of them is deliberately wider than "the one on screen". Telling them apart here
- * would mean carrying the graded/practice mode into a synchronous WebSocket handler; the cost is a
- * refresh whose re-render produces the same HTML, which the cache absorbs.
+ * The last rule used to name `studentParticipations[0]`, which Artemis builds from an unordered
+ * set, so a result for whichever participation came second was dropped and the task markers went
+ * stale. Matching any of them is deliberately wider than "the one on screen": telling them apart
+ * here would mean carrying the graded/practice mode into a synchronous WebSocket handler, and the
+ * cost is a refresh whose re-render produces the same HTML.
  */
 export function shouldRefreshPSForResult(
     currentState: string,

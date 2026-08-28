@@ -59,8 +59,8 @@ export class WebviewSSRCoordinator implements vscode.Disposable {
 
         const exercise = exerciseData.exercise;
         const exerciseId = exercise.id;
-        // The same rule the exercise view uses. Rendering `[0]` was not a different choice but a
-        // nondeterministic one: Artemis builds this list from an unordered set.
+        // The same rule the exercise view uses. `[0]` was not a choice but a coin toss, since
+        // Artemis builds this list from an unordered set.
         const participation = selectParticipation(
             exercise.studentParticipations,
             this.deps.appStateManager.workspaceIsPractice,
@@ -87,9 +87,9 @@ export class WebviewSSRCoordinator implements vscode.Disposable {
             )?.id !== participationId) { return; }
 
             if (rendered) {
-                // Labelled with the participation THIS render selected, never one carried inside
-                // the render service: its cache is keyed on the render inputs, so two participations
-                // with matching results share an entry and would hand back the wrong id.
+                // Labelled with the participation THIS render selected, never one from the render
+                // service: its cache keys on the inputs, so two participations with matching
+                // results share an entry and would hand back the wrong id.
                 const payload = { html: rendered.html, participationId };
                 // Store in app state so sendExerciseDetailInit includes it
                 this.deps.appStateManager.serverRenderedProblemStatement = payload;
