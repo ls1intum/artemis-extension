@@ -63,7 +63,7 @@ export const WebviewCmd = {
 
     // Git
     SaveGitIdentity: 'saveGitIdentity',
-    // Internal: dispatched by viewInitDataService, not sent from React UI
+
     // Recording
     OpenRecordingsFolder: 'openRecordingsFolder',
     ReplaySession: 'replaySession',
