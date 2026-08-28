@@ -11,14 +11,11 @@ interface ParticipationWithFeedbacks {
 }
 
 /**
- * Return raw feedbacks from the result a surface should be displaying for a
- * participation. Callers map to their own DTO shape.
+ * Return raw feedbacks from the result a surface should be displaying for a participation.
+ * Callers map to their own DTO shape.
  *
- * `buildPending` is not optional: a pending submission is by definition
- * resultless, so reading the newest submission alone during a build hands back
- * nothing and the problem statement loses the task markers it was showing a
- * moment ago. That is the state the webview and the Artemis client both keep
- * the previous result for.
+ * `buildPending` is not optional: a pending submission is resultless, so the strict rule loses the
+ * task markers for the length of every build, where the webview and Artemis both keep them.
  */
 export function extractLatestFeedbacks(
     participation: ParticipationWithFeedbacks | undefined,

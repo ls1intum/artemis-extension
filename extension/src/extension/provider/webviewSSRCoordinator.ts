@@ -59,16 +59,14 @@ export class WebviewSSRCoordinator implements vscode.Disposable {
 
         const exercise = exerciseData.exercise;
         const exerciseId = exercise.id;
-        // The same rule the exercise view uses, off the same fact: which repository the student
-        // actually has open. Rendering `[0]` instead was not merely a different choice, it was a
-        // nondeterministic one, because Artemis builds this list from an unordered set.
+        // The same rule the exercise view uses. Rendering `[0]` was not a different choice but a
+        // nondeterministic one: Artemis builds this list from an unordered set.
         const participation = selectParticipation(
             exercise.studentParticipations,
             this.deps.appStateManager.workspaceIsPractice,
         );
         const participationId = participation?.id;
-        // A pending submission carries no result, so without this the statement would render with no
-        // task markers at all for the length of every build.
+        // A pending submission carries no result, so without this every build renders no markers.
         const buildPending = participationId !== undefined
             && exerciseData.pendingSubmissionsByParticipationId?.[participationId] !== undefined;
 
@@ -82,19 +80,16 @@ export class WebviewSSRCoordinator implements vscode.Disposable {
             if (this._disposed) { return; }
             const current = this.deps.appStateManager.currentExerciseData;
             if (current?.exercise?.id !== exerciseId) { return; }
-            // And that the workspace has not switched participation underneath the render, which the
-            // exercise id alone does not cover: both belong to the same exercise.
+            // The exercise id does not cover a participation switch: both belong to one exercise.
             if (selectParticipation(
                 current?.exercise?.studentParticipations,
                 this.deps.appStateManager.workspaceIsPractice,
             )?.id !== participationId) { return; }
 
             if (rendered) {
-                // Labelled with the participation THIS render selected, never with one carried inside
-                // the render service. Its cache is keyed on a hash of the render inputs, so two
-                // participations whose test results happen to match share an entry; taking the
-                // identity from there would hand back the other participation's id and the view would
-                // hide HTML that is correct for it.
+                // Labelled with the participation THIS render selected, never one carried inside
+                // the render service: its cache is keyed on the render inputs, so two participations
+                // with matching results share an entry and would hand back the wrong id.
                 const payload = { html: rendered.html, participationId };
                 // Store in app state so sendExerciseDetailInit includes it
                 this.deps.appStateManager.serverRenderedProblemStatement = payload;

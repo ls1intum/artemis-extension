@@ -48,15 +48,10 @@ export function latestResultAcrossSubmissions<R extends { id?: number }>(
 /**
  * The result a surface should display for a participation.
  *
- * The two halves existed as the same inline ternary in the loader and in the
- * exercise view, and a third copy was about to appear on the SSR path. Artemis'
- * problem statement resolves the equivalent question with
- * `findLatestResult(getAllResultsOfAllSubmissions(...))`, which keeps showing
- * the previous result's task markers while a build runs; the strict half alone
- * shows nothing at all in that state.
+ * Artemis resolves this with `findLatestResult(getAllResultsOfAllSubmissions(...))`, which keeps
+ * the previous result's task markers while a build runs; the strict half alone shows nothing.
  *
- * `buildPending` is required rather than defaulted, because the wrong default
- * is silently wrong in both directions.
+ * `buildPending` is required rather than defaulted: the wrong default is silently wrong both ways.
  */
 export function displayedResult<R extends { id?: number }>(
     submissions: ReadonlyArray<{ id?: number; results?: readonly R[] }> | undefined,

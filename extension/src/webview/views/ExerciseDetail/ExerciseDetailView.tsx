@@ -112,10 +112,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             setError(msg.error);
         }
         if (msg.type === ExtensionMsg.ProblemStatementRendered) {
-            // Kept whatever it says, and filtered at render time instead. A render for the
-            // participation this view is about to select can arrive before the repository status
-            // that selects it; discarding it here would leave the statement permanently blank in
-            // that order, because nothing would resend it.
+            // Kept whatever it says and filtered at render time. A render can arrive before the
+            // status that selects its participation; discarding it here would blank the statement
+            // for good in that order, because nothing resends it.
             setServerRenderedPS({ html: msg.html, participationId: msg.participationId });
         }
     }, [vscodeApi, setExerciseData, setError]);
@@ -205,15 +204,12 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const exerciseType: ExerciseType = isExerciseType(exercise.type) ? exercise.type : 'programming';
     const isProgramming = exerciseType === 'programming';
 
-    // Select the participation matching the current workspace mode (practice vs graded), by the same
-    // rule the host uses for the server-rendered problem statement.
+    // The same rule the host uses for the server-rendered problem statement.
     //
-    // Until a status arrives this view has no evidence about the workspace, only a default, and the
-    // host has already said which participation it settled on by labelling the render it sent. That
-    // label is better information than the default, so it is followed: otherwise a view recreated
-    // over an exercise the host already knows is a practice one would show graded controls beside
-    // practice markers for as long as the status takes to arrive, which on a failed detection is
-    // forever.
+    // Until a status arrives this view has only a default, while the host has already said which
+    // participation it chose by labelling its render. That label is the better information, so it
+    // wins: a recreated view over a known practice exercise would otherwise show graded controls
+    // beside practice markers, and on a failed detection no status is coming at all.
     const allParticipations = exercise.studentParticipations ?? [];
     const hostRendered = serverRenderedPS?.participationId !== undefined
         ? allParticipations.find(p => p.id === serverRenderedPS.participationId)
@@ -230,16 +226,10 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // actually surface in this view. The map can carry concurrent pending
     // builds for other participations (graded + practice) without their
     // status leaking into the selected view.
-    // Server-rendered HTML is only this view's to show while it describes the participation the
-    // view has selected. The host settles on that participation from the workspace repository, and
-    // can be a step ahead of or behind the status message that tells the view the same thing.
-    //
-    // An unlabelled render predates this field, or belongs to an exercise with no participation, and
-    // is shown as before. Everything else has to name the participation this view has selected,
-    // which without a status of its own is the one the host named, so a render is never hidden for
-    // disagreeing with a default this view had no grounds for. That matters because there is no
-    // client-side fallback: hiding the HTML leaves a skeleton and then "Failed to load the exercise
-    // description" after ten seconds.
+    // Shown only while it describes the participation this view has selected; the two sides settle
+    // on that at different moments. An unlabelled render predates the field and is shown as before.
+    // Hiding one is not free: there is no client-side fallback, so it leaves a skeleton and then
+    // "Failed to load the exercise description" ten seconds later.
     const displayedServerRenderedPS =
         serverRenderedPS
         && (serverRenderedPS.participationId === undefined || serverRenderedPS.participationId === participationId)

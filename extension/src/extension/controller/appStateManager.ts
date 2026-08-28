@@ -68,19 +68,17 @@ export class AppStateManager {
         this._onStateChange = handler;
     }
 
-    /** Fired only when the mode {@link workspaceIsPractice} answers with actually changes. */
+    /** Fired only when the answer {@link workspaceIsPractice} gives actually changes. */
     public set onWorkspaceModeChange(handler: () => void) {
         this._onWorkspaceModeChange = handler;
     }
 
     /**
-     * Whether the student's workspace is the practice repository of the exercise
-     * on screen, as far as anyone has managed to find out.
+     * Whether the workspace is the practice repository of the exercise on screen.
      *
-     * A record naming a different exercise is not evidence about this one, so it
-     * reads as `false`. That is also what makes the record self-invalidating:
-     * `refreshFromServer` re-enters `showExerciseDetail` for the same exercise,
-     * and a value cleared there would fall back to graded on every result.
+     * A record for a different exercise reads as `false` rather than being cleared anywhere:
+     * `refreshFromServer` re-enters `showExerciseDetail` for the SAME exercise, so a clearing hook
+     * there would fall back to graded on every result.
      */
     get workspaceIsPractice(): boolean {
         const current = this.currentExerciseData?.exercise?.id;
@@ -89,29 +87,18 @@ export class AppStateManager {
             && this._workspaceMode.isPractice;
     }
 
-    /**
-     * Claim a ticket before starting a workspace detection. Never reused.
-     *
-     * Taken at the START of the probe, so a higher ticket always means a
-     * detection that began later, which is the one worth believing.
-     */
+    /** Claim a ticket before starting a detection. Never reused, so a higher one began later. */
     public beginWorkspaceModeProbe(): number {
         return ++this._workspaceModeProbe;
     }
 
     /**
-     * Report what a detection found.
+     * Report what a detection found. On `accepted: false` the caller must apply NOTHING it derived
+     * from that result, not merely skip the mode.
      *
-     * `accepted` is false when the result no longer describes where the user is:
-     * it names an exercise that is not the active one, or a newer detection has
-     * already been recorded. The caller must then apply NOTHING it derived from
-     * that result, not merely skip the mode.
-     *
-     * Acceptance compares against the ticket ALREADY RECORDED, not the newest
-     * one handed out, so the freshest SUCCESSFUL detection wins rather than the
-     * freshest attempt. A probe that fails simply does not call this, and cannot
-     * silence an older one that succeeded: with probes 1 and 2 in flight, 1
-     * lands whenever it lands, and 2 overwrites it only by succeeding.
+     * Acceptance compares against the ticket already RECORDED, not the newest one handed out, so
+     * the freshest successful detection wins rather than the freshest attempt. A probe that fails
+     * calls nothing, and so cannot silence an older one that succeeded.
      */
     public recordWorkspaceMode(ticket: number, exerciseId: number, isPractice: boolean): { accepted: boolean } {
         if (!this.isCurrentWorkspaceModeProbe(ticket, exerciseId)) {
@@ -124,21 +111,13 @@ export class AppStateManager {
         return { accepted: true };
     }
 
-    /**
-     * Whether a probe's answer would still be worth acting on, without recording anything.
-     *
-     * For the conclusions a probe draws besides the mode, such as an error to show the user: a
-     * message about an exercise nobody is looking at is noise at best and a lie about the exercise
-     * that IS on screen at worst.
-     */
+    /** Whether a probe's answer is still worth acting on, for conclusions other than the mode. */
     public isCurrentWorkspaceModeProbe(ticket: number, exerciseId: number): boolean {
-        // The state as well as the payload: `showCourseList` leaves the exercise payload in place,
-        // so `currentExerciseData` alone would let a probe report about an exercise the student has
-        // navigated away from and leave a stale mode behind for the next time they open it.
+        // The state as well as the payload: `showCourseList` leaves the exercise payload in place.
         if (this._currentState !== 'exercise-detail') { return false; }
         if (exerciseId !== this.currentExerciseData?.exercise?.id) { return false; }
-        // Clearing the record on sign-out is not enough on its own: it leaves nothing to compare
-        // against, so a probe that started in the previous session would be accepted on its way back.
+        // Clearing the record on sign-out leaves nothing to compare against, which would let a
+        // probe from the previous session through on its way back.
         if (ticket <= this._workspaceModeFloor) { return false; }
         return !this._workspaceMode || this._workspaceMode.ticket <= ticket;
     }
@@ -221,9 +200,7 @@ export class AppStateManager {
         this._archivedCoursesData = undefined;
         this._payload = { kind: 'none' };
         this._recommendedExtensions = undefined;
-        // Otherwise the next session's exercise with the same id would inherit a mode nobody
-        // detected for it, and a probe still running from before the sign-out would be free to
-        // report into the session after it.
+        // Or the next session's exercise with the same id inherits a mode nobody detected for it.
         this._workspaceMode = undefined;
         this._workspaceModeFloor = this._workspaceModeProbe;
     }
