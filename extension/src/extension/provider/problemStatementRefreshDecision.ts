@@ -16,10 +16,18 @@ interface ExerciseLike {
  *   - Must be on the exercise-detail view.
  *   - The current exercise must be known (have an id).
  *   - The result must carry a finite, defined participation id.
- *   - That participation id must match the participation the SSR
- *     coordinator currently renders (`studentParticipations[0]`).
- *     TODO: once the coordinator's selection becomes graded/practice aware,
- *     revisit this comparison so other-participation results refresh too.
+ *   - That participation must be one of the exercise's own.
+ *
+ * The last rule used to name `studentParticipations[0]` specifically, which was
+ * wrong in a way that depended on array order: Artemis builds that list from an
+ * unordered set, so with a graded and a practice participation either one could
+ * end up first, and a result for the other was silently dropped. The problem
+ * statement then kept stale task markers until the view was rebuilt.
+ *
+ * Matching any of them is deliberately wider than "the one on screen". Telling
+ * them apart here would mean carrying the graded/practice mode into a
+ * synchronous WebSocket handler; the cost of not doing so is a refresh whose
+ * re-render produces the same HTML, which the render cache absorbs.
  */
 export function shouldRefreshPSForResult(
     currentState: string,
@@ -32,8 +40,5 @@ export function shouldRefreshPSForResult(
     const resultPid = result.participation?.id;
     if (resultPid === undefined || !Number.isFinite(resultPid)) { return false; }
 
-    const renderedPid = exercise.studentParticipations?.[0]?.id;
-    if (renderedPid === undefined) { return false; }
-
-    return resultPid === renderedPid;
+    return (exercise.studentParticipations ?? []).some(p => p.id === resultPid);
 }
