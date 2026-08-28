@@ -182,6 +182,21 @@ describe('LoginView - Two-Stage & OIDC Flow', () => {
 // dispatch under test schedules; every assertion once fake timers are active uses the synchronous
 // `getByTestId`/`queryByTestId` rather than the polling `findByTestId`.
 describe('LoginView - progress indicator and ownership', () => {
+    /**
+     * Enter the handover and wait for it to actually be on screen.
+     *
+     * The submit these tests start from already left an indicator up ("Verifying your credentials"),
+     * so waiting for the element alone resolves against that one and proves nothing: the next
+     * message can land before the view has taken the handover, and is then treated as belonging to
+     * a login still in flight. Wait for the text only the handover indicator carries.
+     */
+    async function awaitHandover(message: Record<string, unknown>): Promise<void> {
+        act(() => { dispatchExtensionMessage(message); });
+        await waitFor(() => {
+            expect(screen.getByTestId('login-progress')).toHaveTextContent('Signed in, opening Artemis');
+        });
+    }
+
     /** Reach stage 1 and submit a password login, returning the id the view sent with it. */
     async function submitPasswordLogin(mockApi: ReturnType<typeof createMockVsCodeApi>): Promise<string> {
         // handleSubmit's password branch validates both fields, so the submit below is a no-op without a
@@ -215,11 +230,13 @@ describe('LoginView - progress indicator and ownership', () => {
 
         await userEvent.click(screen.getByTestId('login-submit'));
 
-        const indicator = await screen.findByTestId('login-progress');
-        expect(indicator).toHaveTextContent('Verifying your credentials');
-        expect(indicator).toHaveTextContent('Checking your username and password');
-        expect(indicator).toHaveAttribute('role', 'status');
-        expect(indicator).toHaveAttribute('aria-live', 'polite');
+        await waitFor(() => {
+            const indicator = screen.getByTestId('login-progress');
+            expect(indicator).toHaveTextContent('Verifying your credentials');
+            expect(indicator).toHaveTextContent('Checking your username and password');
+            expect(indicator).toHaveAttribute('role', 'status');
+            expect(indicator).toHaveAttribute('aria-live', 'polite');
+        });
     });
 
     it('renames the step when the extension moves on', async () => {
@@ -234,7 +251,9 @@ describe('LoginView - progress indicator and ownership', () => {
             attemptId,
         });
 
-        expect(await screen.findByTestId('login-progress')).toHaveTextContent('Loading your profile');
+        await waitFor(() => {
+            expect(screen.getByTestId('login-progress')).toHaveTextContent('Loading your profile');
+        });
     });
 
     it('does not reuse an attempt id after the view is recreated', async () => {
@@ -261,10 +280,7 @@ describe('LoginView - progress indicator and ownership', () => {
         render(<LoginView vscodeApi={mockApi} />);
         const attemptId = await submitPasswordLogin(mockApi);
 
-        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
-
-        const indicator = await screen.findByTestId('login-progress');
-        expect(indicator).toHaveTextContent('Signed in, opening Artemis');
+        await awaitHandover({ type: 'loginSuccess', username: 'student', attemptId });
     });
 
     it('locks the form during the handover and withdraws the way back', async () => {
@@ -272,8 +288,7 @@ describe('LoginView - progress indicator and ownership', () => {
         render(<LoginView vscodeApi={mockApi} />);
         const attemptId = await submitPasswordLogin(mockApi);
 
-        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
-        await screen.findByTestId('login-progress');
+        await awaitHandover({ type: 'loginSuccess', username: 'student', attemptId });
 
         expect(screen.getByTestId('login-submit')).toBeDisabled();
         // Not merely disabled: both meanings this button can carry are false past the commit.
@@ -286,8 +301,7 @@ describe('LoginView - progress indicator and ownership', () => {
         render(<LoginView vscodeApi={mockApi} />);
         const attemptId = await submitPasswordLogin(mockApi);
 
-        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
-        await screen.findByTestId('login-progress');
+        await awaitHandover({ type: 'loginSuccess', username: 'student', attemptId });
 
         const before = (mockApi.postMessage as ReturnType<typeof vi.fn>).mock.calls.length;
         fireEvent.submit(screen.getByTestId('login-form'));
@@ -304,7 +318,9 @@ describe('LoginView - progress indicator and ownership', () => {
 
         dispatchExtensionMessage({ type: 'loginSuccess', username: 'student' });
 
-        expect(await screen.findByTestId('login-progress')).toHaveTextContent('Signed in, opening Artemis');
+        await waitFor(() => {
+            expect(screen.getByTestId('login-progress')).toHaveTextContent('Signed in, opening Artemis');
+        });
     });
 
     it('ignores an id-less success while a password attempt is in flight', async () => {
@@ -317,7 +333,9 @@ describe('LoginView - progress indicator and ownership', () => {
 
         dispatchExtensionMessage({ type: 'loginSuccess', username: 'someone-else' });
 
-        expect(await screen.findByTestId('login-progress')).toHaveTextContent('Verifying your credentials');
+        await waitFor(() => {
+            expect(screen.getByTestId('login-progress')).toHaveTextContent('Verifying your credentials');
+        });
         expect(screen.getByTestId('login-secondary')).toBeInTheDocument();
     });
 
@@ -326,8 +344,7 @@ describe('LoginView - progress indicator and ownership', () => {
         const mockApi = createMockVsCodeApi();
         render(<LoginView vscodeApi={mockApi} />);
         const attemptId = await submitPasswordLogin(mockApi);
-        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
-        await screen.findByTestId('login-progress');
+        await awaitHandover({ type: 'loginSuccess', username: 'student', attemptId });
 
         dispatchExtensionMessage({ type: 'loginHandoverFailed', error: 'could not open Artemis', attemptId });
 
@@ -340,8 +357,7 @@ describe('LoginView - progress indicator and ownership', () => {
         const mockApi = createMockVsCodeApi();
         render(<LoginView vscodeApi={mockApi} />);
         const attemptId = await submitPasswordLogin(mockApi);
-        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
-        await screen.findByTestId('login-progress');
+        await awaitHandover({ type: 'loginSuccess', username: 'student', attemptId });
         dispatchExtensionMessage({ type: 'loginHandoverFailed', error: 'could not open', attemptId });
 
         await userEvent.click(await screen.findByTestId('login-reload'));
@@ -353,10 +369,9 @@ describe('LoginView - progress indicator and ownership', () => {
         const mockApi = createMockVsCodeApi();
         render(<LoginView vscodeApi={mockApi} />);
         const attemptId = await submitPasswordLogin(mockApi);
-        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
-        await screen.findByTestId('login-progress');
+        await awaitHandover({ type: 'loginSuccess', username: 'student', attemptId });
 
-        dispatchExtensionMessage({ type: 'loginHandoverFailed', error: 'someone else', attemptId: 'other-1' });
+        act(() => { dispatchExtensionMessage({ type: 'loginHandoverFailed', error: 'someone else', attemptId: 'other-1' }); });
 
         expect(screen.queryByTestId('login-reload')).not.toBeInTheDocument();
     });
@@ -382,7 +397,9 @@ describe('LoginView - progress indicator and ownership', () => {
         act(() => { dispatchExtensionMessage({ type: 'loginHandoverFailedInit', error: 'stale', generation: 3 }); });
 
         expect(screen.queryByTestId('login-reload')).not.toBeInTheDocument();
-        expect(await screen.findByTestId('login-progress')).toHaveTextContent('Verifying your credentials');
+        await waitFor(() => {
+            expect(screen.getByTestId('login-progress')).toHaveTextContent('Verifying your credentials');
+        });
     });
 
     it('replaying the same generation changes nothing', async () => {
@@ -405,14 +422,15 @@ describe('LoginView - progress indicator and ownership', () => {
         render(<LoginView vscodeApi={mockApi} />);
         dispatchExtensionMessage({ type: 'loginOptionsResult', loginMethod: 'OIDC', idpName: 'TUM' });
         await screen.findByTestId('login-oidc-submit');
-        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student' });
-        await screen.findByTestId('login-progress');
+        await awaitHandover({ type: 'loginSuccess', username: 'student' });
 
         act(() => { dispatchExtensionMessage({ type: 'loginHandoverFailedInit', error: 'stale', generation: 3 }); });
 
         expect(screen.queryByTestId('login-reload')).not.toBeInTheDocument();
         expect(screen.queryByTestId('login-status')).not.toBeInTheDocument();
-        expect(await screen.findByTestId('login-progress')).toHaveTextContent('Signed in, opening Artemis');
+        await waitFor(() => {
+            expect(screen.getByTestId('login-progress')).toHaveTextContent('Signed in, opening Artemis');
+        });
     });
 
     it('ignores an init replay once this view has started a browser sign-in', async () => {
@@ -446,8 +464,7 @@ describe('LoginView - progress indicator and ownership', () => {
         dispatchExtensionMessage({ type: 'loginOptionsResult', loginMethod: 'OIDC', idpName: 'TUM' });
         await screen.findByTestId('login-oidc-submit');
 
-        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student' });
-        await screen.findByTestId('login-progress');
+        await awaitHandover({ type: 'loginSuccess', username: 'student' });
 
         expect(screen.getByTestId('login-oidc-submit')).toBeDisabled();
     });
@@ -458,8 +475,7 @@ describe('LoginView - progress indicator and ownership', () => {
         const mockApi = createMockVsCodeApi();
         render(<LoginView vscodeApi={mockApi} />);
         const attemptId = await submitPasswordLogin(mockApi);
-        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
-        await screen.findByTestId('login-progress');
+        await awaitHandover({ type: 'loginSuccess', username: 'student', attemptId });
 
         act(() => { dispatchExtensionMessage({ type: 'loginError', error: 'Login failed' }); });
 
@@ -504,7 +520,9 @@ describe('LoginView - progress indicator and ownership', () => {
 
         dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId: firstAttempt });
 
-        expect(await screen.findByTestId('login-progress')).toHaveTextContent('Verifying your credentials');
+        await waitFor(() => {
+            expect(screen.getByTestId('login-progress')).toHaveTextContent('Verifying your credentials');
+        });
         expect(screen.getByTestId('login-secondary')).toBeInTheDocument();
     });
 
@@ -515,8 +533,7 @@ describe('LoginView - progress indicator and ownership', () => {
         const mockApi = createMockVsCodeApi();
         render(<LoginView vscodeApi={mockApi} />);
         const attemptId = await submitPasswordLogin(mockApi);
-        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
-        await screen.findByTestId('login-progress');
+        await awaitHandover({ type: 'loginSuccess', username: 'student', attemptId });
 
         act(() => { dispatchExtensionMessage({ type: 'loginSessionEnded' }); });
 
@@ -530,8 +547,7 @@ describe('LoginView - progress indicator and ownership', () => {
         const mockApi = createMockVsCodeApi();
         render(<LoginView vscodeApi={mockApi} />);
         const attemptId = await submitPasswordLogin(mockApi);
-        dispatchExtensionMessage({ type: 'loginSuccess', username: 'student', attemptId });
-        await screen.findByTestId('login-progress');
+        await awaitHandover({ type: 'loginSuccess', username: 'student', attemptId });
         dispatchExtensionMessage({ type: 'loginHandoverFailed', error: 'could not open', attemptId });
         await screen.findByTestId('login-reload');
 
@@ -560,8 +576,9 @@ describe('LoginView - progress indicator and ownership', () => {
         dispatchExtensionMessage({ type: 'hideLoading' });
         dispatchExtensionMessage({ type: 'updateLoading', message: 'Loading user information...' });
 
-        const indicator = await screen.findByTestId('login-progress');
-        expect(indicator).toHaveTextContent('Verifying your credentials');
+        await waitFor(() => {
+            expect(screen.getByTestId('login-progress')).toHaveTextContent('Verifying your credentials');
+        });
     });
 
     it('a stale login-options answer cannot touch a different attempt already in progress', async () => {
@@ -571,11 +588,13 @@ describe('LoginView - progress indicator and ownership', () => {
 
         // A mismatched id, standing in for an answer to an earlier, already-superseded attempt. Given a
         // different login method too, a leak would show up both in the indicator and in the form.
-        dispatchExtensionMessage({
-            type: 'loginOptionsResult',
-            loginMethod: 'OIDC',
-            idpName: 'Some Other IdP',
-            attemptId: attemptId + 1000,
+        act(() => {
+            dispatchExtensionMessage({
+                type: 'loginOptionsResult',
+                loginMethod: 'OIDC',
+                idpName: 'Some Other IdP',
+                attemptId: attemptId + 1000,
+            });
         });
 
         expect(screen.getByTestId('login-progress')).toHaveTextContent('Verifying your credentials');
@@ -595,7 +614,7 @@ describe('LoginView - progress indicator and ownership', () => {
 
             // Still inside the 300ms teardown: the indicator is on screen and must still be owned.
             act(() => { vi.advanceTimersByTime(100); });
-            dispatchExtensionMessage({ type: 'updateLoading', message: 'Loading user information...' });
+            act(() => { dispatchExtensionMessage({ type: 'updateLoading', message: 'Loading user information...' }); });
 
             expect(screen.getByTestId('login-progress')).toHaveTextContent('Verifying your credentials');
         } finally {
@@ -614,7 +633,7 @@ describe('LoginView - progress indicator and ownership', () => {
             dispatchExtensionMessage({ type: 'loginError', error: 'nope', attemptId });
 
             act(() => { vi.advanceTimersByTime(100); });
-            dispatchExtensionMessage({ type: 'hideLoading' });
+            act(() => { dispatchExtensionMessage({ type: 'hideLoading' }); });
 
             // Still fading under its own owner: an unowned startup hideLoading must not disturb it.
             expect(screen.getByTestId('login-progress')).toHaveTextContent('Verifying your credentials');
@@ -687,7 +706,7 @@ describe('LoginView - progress indicator and ownership', () => {
         await userEvent.click(await screen.findByTestId('login-secondary'));
 
         // The extension had already answered the lookup the user has since retracted.
-        dispatchExtensionMessage({ type: 'loginOptionsResult', loginMethod: 'PASSWORD', idpName: null, attemptId });
+        act(() => { dispatchExtensionMessage({ type: 'loginOptionsResult', loginMethod: 'PASSWORD', idpName: null, attemptId }); });
 
         expect(screen.queryByTestId('login-password')).not.toBeInTheDocument();
         expect(screen.getByTestId('login-username')).toBeInTheDocument();
