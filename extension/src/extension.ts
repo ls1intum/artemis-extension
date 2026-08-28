@@ -255,7 +255,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(websocketStatusBarService);
 
 	context.subscriptions.push(registerAllCommands({
-		context, authManager, artemisApiService, artemisWebsocketService,
+		authManager, artemisApiService, artemisWebsocketService,
 		telemetryManager, artemisWebviewProvider, chatWebviewProvider,
 		updateAuthContext, authCancellation,
 	}));

@@ -59,14 +59,11 @@ export const WebviewCmd = {
     OpenBugReport: 'openBugReport',
     OpenInEditor: 'openInEditor',
     CopyToClipboard: 'copyToClipboard',
-    OpenExternalLink: 'openExternalLink',
-    OpenImagePreview: 'openImagePreview',
     SearchMarketplace: 'searchMarketplace',
 
     // Git
     SaveGitIdentity: 'saveGitIdentity',
-    // Internal: dispatched by viewInitDataService, not sent from React UI
-    RequestGitIdentity: 'requestGitIdentity',
+
     // Recording
     OpenRecordingsFolder: 'openRecordingsFolder',
     ReplaySession: 'replaySession',
@@ -177,8 +174,6 @@ interface WebviewCmdPayloads {
     openBugReport: undefined;
     openInEditor: { data: Record<string, unknown> | string; language?: string };
     copyToClipboard: { text: string };
-    openExternalLink: { url: string };
-    openImagePreview: { uri: string };
     searchMarketplace: { extensionId: string };
 
     // Recording
@@ -187,7 +182,6 @@ interface WebviewCmdPayloads {
 
     // Git
     saveGitIdentity: { name: string; email: string };
-    requestGitIdentity: undefined;
     // Views
     showAiConfig: undefined;
     showRecommendedExtensions: undefined;
@@ -308,8 +302,6 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.AskIrisAboutExercise,
     WebviewCmd.OpenInEditor,
     WebviewCmd.CopyToClipboard,
-    WebviewCmd.OpenExternalLink,
-    WebviewCmd.OpenImagePreview,
     WebviewCmd.SearchMarketplace,
     WebviewCmd.OpenSettings,
     WebviewCmd.SaveGitIdentity,

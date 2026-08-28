@@ -8,7 +8,7 @@ import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import { getTheiaEnvironment, KNOWN_BRIDGE_KEYS, probeDataBridge } from '@extension/theia';
-import { clearTrustedDomains, extractErrorMessage, normalizeRelativePath, VSCODE_CONFIG } from '@extension/utils';
+import { extractErrorMessage, normalizeRelativePath, VSCODE_CONFIG } from '@extension/utils';
 
 function registerLoginCommand(): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.login', () => {
@@ -564,20 +564,6 @@ function registerSetServerUrlCommand(): vscode.Disposable {
     });
 }
 
-function registerClearTrustedDomainsCommand(context: vscode.ExtensionContext): vscode.Disposable {
-    return vscode.commands.registerCommand('artemis.clearTrustedDomains', async () => {
-        const result = await vscode.window.showWarningMessage(
-            'Clear all trusted domains? You will be prompted again before opening external links.',
-            { modal: true },
-            'Clear'
-        );
-        if (result === 'Clear') {
-            await clearTrustedDomains(context);
-            vscode.window.showInformationMessage('Trusted domains cleared.');
-        }
-    });
-}
-
 function registerStruggleScoreCommand(telemetryManager: ITelemetryManager): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.showStruggleScore', async () => {
         await telemetryManager.showStruggleScoreDialog();
@@ -729,7 +715,6 @@ function registerShowTheiaEnvironmentCommand(): vscode.Disposable {
 }
 
 interface CommandDeps {
-    context: vscode.ExtensionContext;
     authManager: AuthManager;
     artemisApiService: ArtemisApiService;
     artemisWebsocketService: ArtemisWebsocketService;
@@ -751,7 +736,6 @@ export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
         registerGoToSourceErrorCommand(),
         registerSetServerUrlCommand(),
         registerSetDefaultClonePathCommand(),
-        registerClearTrustedDomainsCommand(deps.context),
         registerStruggleScoreCommand(deps.telemetryManager),
         registerShowJwtTokenCommand(deps.authManager),
         registerShowTheiaEnvironmentCommand(),
