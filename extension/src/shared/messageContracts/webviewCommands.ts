@@ -64,7 +64,6 @@ export const WebviewCmd = {
     // Git
     SaveGitIdentity: 'saveGitIdentity',
     // Internal: dispatched by viewInitDataService, not sent from React UI
-    RequestGitIdentity: 'requestGitIdentity',
     // Recording
     OpenRecordingsFolder: 'openRecordingsFolder',
     ReplaySession: 'replaySession',
@@ -183,7 +182,6 @@ interface WebviewCmdPayloads {
 
     // Git
     saveGitIdentity: { name: string; email: string };
-    requestGitIdentity: undefined;
     // Views
     showAiConfig: undefined;
     showRecommendedExtensions: undefined;
