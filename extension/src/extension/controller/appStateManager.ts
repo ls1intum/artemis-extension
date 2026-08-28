@@ -112,23 +112,31 @@ export class AppStateManager {
      * silence an older one that succeeded: with probes 1 and 2 in flight, 1
      * lands whenever it lands, and 2 overwrites it only by succeeding.
      */
-    public recordWorkspaceMode(
-        ticket: number,
-        exerciseId: number,
-        isPractice: boolean,
-    ): { accepted: boolean; changed: boolean } {
-        if (exerciseId !== this.currentExerciseData?.exercise?.id) {
-            return { accepted: false, changed: false };
-        }
-        if (this._workspaceMode && this._workspaceMode.ticket > ticket) {
-            return { accepted: false, changed: false };
+    public recordWorkspaceMode(ticket: number, exerciseId: number, isPractice: boolean): { accepted: boolean } {
+        if (!this.isCurrentWorkspaceModeProbe(ticket, exerciseId)) {
+            return { accepted: false };
         }
 
         const before = this.workspaceIsPractice;
         this._workspaceMode = { exerciseId, isPractice, ticket };
-        const changed = before !== isPractice;
-        if (changed) { this._onWorkspaceModeChange?.(); }
-        return { accepted: true, changed };
+        if (before !== isPractice) { this._onWorkspaceModeChange?.(); }
+        return { accepted: true };
+    }
+
+    /**
+     * Whether a probe's answer would still be worth acting on, without recording anything.
+     *
+     * For the conclusions a probe draws besides the mode, such as an error to show the user: a
+     * message about an exercise nobody is looking at is noise at best and a lie about the exercise
+     * that IS on screen at worst.
+     */
+    public isCurrentWorkspaceModeProbe(ticket: number, exerciseId: number): boolean {
+        // The state as well as the payload: `showCourseList` leaves the exercise payload in place,
+        // so `currentExerciseData` alone would let a probe report about an exercise the student has
+        // navigated away from and leave a stale mode behind for the next time they open it.
+        if (this._currentState !== 'exercise-detail') { return false; }
+        if (exerciseId !== this.currentExerciseData?.exercise?.id) { return false; }
+        return !this._workspaceMode || this._workspaceMode.ticket <= ticket;
     }
 
     private _setCurrentState(newState: AppState): void {
@@ -209,6 +217,9 @@ export class AppStateManager {
         this._archivedCoursesData = undefined;
         this._payload = { kind: 'none' };
         this._recommendedExtensions = undefined;
+        // Otherwise the next session's exercise with the same id would inherit a mode nobody
+        // detected for it.
+        this._workspaceMode = undefined;
     }
 
     public showCourseList(): void {

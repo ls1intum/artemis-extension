@@ -124,19 +124,23 @@ suite('ViewInitDataService.sendExerciseDetailInit', () => {
         // The record must not sit behind the generation check. A superseded init would otherwise
         // throw away a detection nothing is going to repeat, and the mode would stay unknown.
         const { service, appState, posted } = buildExerciseService();
-        let resolveDetection!: (v: unknown) => void;
-        sandbox.stub(workspaceDetection, 'detectWorkspaceForRepoUris')
-            .returns(new Promise(r => { resolveDetection = r; }) as never);
+        let resolveFirst!: (v: unknown) => void;
+        const detect = sandbox.stub(workspaceDetection, 'detectWorkspaceForRepoUris');
+        detect.onFirstCall().returns(new Promise(r => { resolveFirst = r; }) as never);
+        // The newer init's own detection fails, so it records nothing. Only the older one can, and
+        // it can only do so from in front of the generation check.
+        detect.onSecondCall().rejects(new Error('git unavailable'));
 
         service.sendExerciseDetailInit();
-        // A second init advances the generation while the first detection is still in flight.
         service.sendInitData();
-        resolveDetection({ isConnected: true, hasChanges: false, isPracticeRepo: true, matchedUri: 'https://a/repo.git' });
+        await new Promise(r => setImmediate(r));
+        resolveFirst({ isConnected: true, hasChanges: false, isPracticeRepo: true, matchedUri: 'https://a/repo.git' });
         await new Promise(r => setImmediate(r));
 
         assert.strictEqual(appState.workspaceIsPractice, true);
-        assert.strictEqual(exerciseInits(posted).length, 1,
-            'the superseded init must not post its captured payload a second time');
+        // And the webview is told, through the other channel, since this init's payload is stale.
+        assert.ok(posted.some(m => m.type === 'updateRepoStatus'),
+            'a mode the host accepted has to reach the webview or the two will select differently');
     });
 
     test('a superseded detection still posts the exercise snapshot, without a status', async () => {

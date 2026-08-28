@@ -931,6 +931,9 @@ describe('ExerciseDetailView', () => {
 					participationId: 8,
 				});
 			});
+			// Asserted here too: without it the test would pass on an implementation that never
+			// filtered at all, which is the opposite of what it claims to show.
+			expect(screen.queryByText('practice statement')).not.toBeInTheDocument();
 
 			act(() => {
 				useExerciseDetailStore.setState({
@@ -941,6 +944,8 @@ describe('ExerciseDetailView', () => {
 			expect(screen.getByText('practice statement')).toBeInTheDocument();
 		});
 
+		// Characterisation: unlabelled and unjudgeable renders were shown before this change too.
+		// They are here to stop the new guard from swallowing them, not to prove the guard exists.
 		it('shows a render it cannot judge, rather than falling through to the failure message', () => {
 			// With no repoStatus the view has only a default, not evidence, so it does not overrule
 			// the host. There is no client-side fallback: hiding here ends in a skeleton and then

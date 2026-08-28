@@ -114,6 +114,12 @@ export class RepositoryStatusCommands {
             return;
         }
 
+        // Written before the check, not after it. The context is what the save, create and rename
+        // listeners re-check against, so leaving it unset while the first check runs, or when that
+        // check throws, silently stops tracking the workspace. This write is not stale by
+        // construction: it names the exercise whose command is being handled right now. Only the
+        // ASYNC conclusions below can outlive their exercise, and those are gated.
+        this.currentRepoContext = { expectedRepoUrl: repoUris[0], exerciseId: exercise.id };
         await this._checkRepositoryStatusWithContext(repoUris, exercise.id);
     };
 
@@ -164,7 +170,11 @@ export class RepositoryStatusCommands {
             // Nothing recorded: a probe that threw learned nothing about the workspace and must not
             // be able to silence one that did.
             logger.error('Check repository status error:', LogCategory.SUBMISSION, error);
-            vscode.window.showErrorMessage('Error checking repository status');
+            // Not shown for a probe that has already been overtaken or whose exercise has been left.
+            // The logging above is unconditional because a swallowed failure is still worth a trace.
+            if (this.context.appStateManager.isCurrentWorkspaceModeProbe(ticket, exerciseId)) {
+                vscode.window.showErrorMessage('Error checking repository status');
+            }
         }
     }
 

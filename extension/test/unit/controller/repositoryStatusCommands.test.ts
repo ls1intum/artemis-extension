@@ -275,6 +275,48 @@ suite('RepositoryStatusCommands', () => {
         assert.strictEqual(updateCalls.length, 0);
     });
 
+    test('a check that throws still leaves a context for later saves to re-check against', async () => {
+        // The context is what the save, create and rename listeners re-check against. Writing it only
+        // once the answer is known would stop tracking the workspace whenever the answer never comes.
+        getWorkspaceStatus.rejects(new Error('git unavailable'));
+
+        const exerciseData = {
+            exercise: { id: 12, studentParticipations: [{ repositoryUri: 'https://a/repo1.git' }] },
+        };
+        const { ctx } = buildContext({ currentExerciseData: exerciseData });
+        const mod = new RepositoryStatusCommands(ctx, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.CheckRepositoryStatus]({
+            type: 'command', command: WebviewCmd.CheckRepositoryStatus,
+        } as never);
+        getWorkspaceStatus.resetHistory();
+        getWorkspaceStatus.resolves({ isConnected: true, hasChanges: false, isPracticeRepo: false });
+        await mod.recheckCurrentRepoStatus();
+
+        sinon.assert.calledOnce(getWorkspaceStatus);
+        assert.strictEqual(getWorkspaceStatus.firstCall.args[0], 'https://a/repo1.git');
+    });
+
+    test('a probe that threw after its exercise was left says nothing to the user', async () => {
+        // "Error checking repository status" over a view the student has already moved on from is
+        // noise at best, and a claim about the wrong exercise at worst.
+        const exerciseData = {
+            exercise: { id: 12, studentParticipations: [{ repositoryUri: 'https://a/repo1.git' }] },
+        };
+        const { ctx, appStateManager } = buildContext({ currentExerciseData: exerciseData });
+        const mod = new RepositoryStatusCommands(ctx, makeDeps());
+        getWorkspaceStatus.callsFake(async () => {
+            appStateManager.showCourseList();
+            throw new Error('git unavailable');
+        });
+
+        await mod.getHandlers()[WebviewCmd.CheckRepositoryStatus]({
+            type: 'command', command: WebviewCmd.CheckRepositoryStatus,
+        } as never);
+
+        sinon.assert.notCalled(showErrorMessage);
+    });
+
     test('recheckCurrentRepoStatus is a no-op when no context is set', async () => {
         const { ctx } = buildContext();
         const mod = new RepositoryStatusCommands(ctx, makeDeps());

@@ -524,6 +524,8 @@ describe('useExerciseDetailStore', () => {
 			expect(result.current.repoStatus).toEqual(practice);
 		});
 
+		// Characterisation: the old `repoStatus ?? null` cleared this too. It is here so the new
+		// preservation rule cannot quietly widen into carrying a status across exercises.
 		it('drops it when the init is for a different exercise', () => {
 			// Carrying it over would describe the previous exercise's repository.
 			const { result } = renderHook(() => useExerciseDetailStore());

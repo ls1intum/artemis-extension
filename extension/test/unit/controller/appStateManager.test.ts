@@ -156,10 +156,7 @@ suite('AppStateManager Test Suite', () => {
             const first = stateManager.beginWorkspaceModeProbe();
             stateManager.beginWorkspaceModeProbe();
 
-            assert.deepStrictEqual(
-                stateManager.recordWorkspaceMode(first, 456, true),
-                { accepted: true, changed: true },
-            );
+            assert.deepStrictEqual(stateManager.recordWorkspaceMode(first, 456, true), { accepted: true });
             assert.strictEqual(stateManager.workspaceIsPractice, true);
         });
 
@@ -181,10 +178,7 @@ suite('AppStateManager Test Suite', () => {
 
             stateManager.recordWorkspaceMode(second, 456, true);
 
-            assert.deepStrictEqual(
-                stateManager.recordWorkspaceMode(first, 456, false),
-                { accepted: false, changed: false },
-            );
+            assert.deepStrictEqual(stateManager.recordWorkspaceMode(first, 456, false), { accepted: false });
             assert.strictEqual(stateManager.workspaceIsPractice, true);
         });
 
@@ -205,10 +199,27 @@ suite('AppStateManager Test Suite', () => {
             const ticket = stateManager.beginWorkspaceModeProbe();
             openExercise(789);
 
-            assert.deepStrictEqual(
-                stateManager.recordWorkspaceMode(ticket, 456, true),
-                { accepted: false, changed: false },
-            );
+            assert.deepStrictEqual(stateManager.recordWorkspaceMode(ticket, 456, true), { accepted: false });
+            assert.strictEqual(stateManager.workspaceIsPractice, false);
+        });
+
+        test('a probe cannot report about an exercise the student has navigated away from', () => {
+            // `showCourseList` leaves the exercise payload in place, so checking the payload alone
+            // would accept this and leave a stale mode for the next time the exercise is opened.
+            openExercise(456);
+            const ticket = stateManager.beginWorkspaceModeProbe();
+            stateManager.showCourseList();
+
+            assert.strictEqual(stateManager.recordWorkspaceMode(ticket, 456, true).accepted, false);
+        });
+
+        test('a signed-out session leaves nothing behind for the next one', () => {
+            openExercise(456);
+            stateManager.recordWorkspaceMode(stateManager.beginWorkspaceModeProbe(), 456, true);
+
+            stateManager.showLogin();
+            openExercise(456);
+
             assert.strictEqual(stateManager.workspaceIsPractice, false);
         });
 
@@ -239,10 +250,10 @@ suite('AppStateManager Test Suite', () => {
             let fired = 0;
             stateManager.onWorkspaceModeChange = () => { fired++; };
 
-            assert.strictEqual(stateManager.recordWorkspaceMode(stateManager.beginWorkspaceModeProbe(), 456, false).changed, false);
+            stateManager.recordWorkspaceMode(stateManager.beginWorkspaceModeProbe(), 456, false);
             assert.strictEqual(fired, 0);
 
-            assert.strictEqual(stateManager.recordWorkspaceMode(stateManager.beginWorkspaceModeProbe(), 456, true).changed, true);
+            stateManager.recordWorkspaceMode(stateManager.beginWorkspaceModeProbe(), 456, true);
             assert.strictEqual(fired, 1);
         });
     });

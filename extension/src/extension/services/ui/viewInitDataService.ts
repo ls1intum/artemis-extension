@@ -206,7 +206,21 @@ export class ViewInitDataService {
                     ? false
                     : this._appStateManager.recordWorkspaceMode(ticket, exerciseId, repoStatus.isPracticeRepo).accepted;
 
-                if (gen !== this._initGeneration) { return; }
+                if (gen !== this._initGeneration) {
+                    // The payload is stale but the detection is not, and it has just become the
+                    // host's answer. Whatever the webview last heard, it has to hear this too, or it
+                    // will keep selecting the other participation and hide every render the host
+                    // produces from here on.
+                    if (accepted) {
+                        this._postMessage({
+                            type: ExtensionMsg.UpdateRepoStatus,
+                            isConnected: repoStatus.isConnected,
+                            hasChanges: repoStatus.hasChanges,
+                            isPracticeRepo: repoStatus.isPracticeRepo,
+                        });
+                    }
+                    return;
+                }
                 // Set repo context so workspace listeners can auto-detect changes on file save
                 if (accepted && repoStatus.matchedUri && exerciseId !== undefined) {
                     const handler = this._messageHandler;
@@ -251,6 +265,12 @@ export class ViewInitDataService {
                 exerciseData,
                 hideDeveloperTools: !this._isDeveloperMode(),
                 isManagedEnvironment,
+                // Stated rather than omitted. "This exercise has no repository" is an answer, and
+                // leaving it out would let the webview keep a practice status from an earlier
+                // exercise while the host has already moved to graded.
+                repoStatus: accepted
+                    ? { isConnected: false, hasChanges: false, isPracticeRepo: false }
+                    : undefined,
                 serverRenderedProblemStatement: this._appStateManager.serverRenderedProblemStatement ?? undefined,
             });
         }
