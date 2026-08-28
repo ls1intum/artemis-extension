@@ -944,12 +944,11 @@ describe('ExerciseDetailView', () => {
 			expect(screen.getByText('practice statement')).toBeInTheDocument();
 		});
 
-		// Characterisation: unlabelled and unjudgeable renders were shown before this change too.
-		// They are here to stop the new guard from swallowing them, not to prove the guard exists.
-		it('shows a render it cannot judge, rather than falling through to the failure message', () => {
-			// With no repoStatus the view has only a default, not evidence, so it does not overrule
-			// the host. There is no client-side fallback: hiding here ends in a skeleton and then
-			// "Failed to load the exercise description" after ten seconds.
+		it('follows the host when it has no status of its own', () => {
+			// A recreated view over an exercise the host already knows is a practice one. If the new
+			// detection fails no status is coming at all, and defaulting to graded would leave
+			// graded controls beside practice markers for good. The guard below is unconditional, so
+			// this render only appears because the whole view followed the host's label.
 			useExerciseDetailStore.setState({
 				exerciseData: bothParticipations(),
 				repoStatus: null,
@@ -968,6 +967,8 @@ describe('ExerciseDetailView', () => {
 			expect(screen.getByText('practice statement')).toBeInTheDocument();
 		});
 
+		// Characterisation: unlabelled renders were shown before this change too. Here so the new
+		// guard cannot quietly swallow them.
 		it('shows an unlabelled render, which predates the field', () => {
 			useExerciseDetailStore.setState({
 				exerciseData: bothParticipations(),

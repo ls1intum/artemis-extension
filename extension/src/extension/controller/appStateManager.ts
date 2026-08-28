@@ -52,6 +52,7 @@ export class AppStateManager {
     private _serverRenderedPS: RenderedProblemStatementPayload | null = null;
     private _workspaceMode: { exerciseId: number; isPractice: boolean; ticket: number } | undefined;
     private _workspaceModeProbe = 0;
+    private _workspaceModeFloor = 0;
     private _onWorkspaceModeChange?: () => void;
 
     private _onStateChange?: (from: AppState, to: AppState) => void;
@@ -136,6 +137,9 @@ export class AppStateManager {
         // navigated away from and leave a stale mode behind for the next time they open it.
         if (this._currentState !== 'exercise-detail') { return false; }
         if (exerciseId !== this.currentExerciseData?.exercise?.id) { return false; }
+        // Clearing the record on sign-out is not enough on its own: it leaves nothing to compare
+        // against, so a probe that started in the previous session would be accepted on its way back.
+        if (ticket <= this._workspaceModeFloor) { return false; }
         return !this._workspaceMode || this._workspaceMode.ticket <= ticket;
     }
 
@@ -218,8 +222,10 @@ export class AppStateManager {
         this._payload = { kind: 'none' };
         this._recommendedExtensions = undefined;
         // Otherwise the next session's exercise with the same id would inherit a mode nobody
-        // detected for it.
+        // detected for it, and a probe still running from before the sign-out would be free to
+        // report into the session after it.
         this._workspaceMode = undefined;
+        this._workspaceModeFloor = this._workspaceModeProbe;
     }
 
     public showCourseList(): void {

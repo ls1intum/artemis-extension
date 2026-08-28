@@ -212,6 +212,12 @@ export class ViewInitDataService {
                     // will keep selecting the other participation and hide every render the host
                     // produces from here on.
                     if (accepted) {
+                        // Registered here too, not only on the current-generation path below: the
+                        // save, create and rename listeners re-check against it, and this detection
+                        // is the freshest thing anyone knows about the workspace.
+                        if (repoStatus.matchedUri && exerciseId !== undefined) {
+                            this._messageHandler.setRepositoryContext(repoStatus.matchedUri, exerciseId);
+                        }
                         this._postMessage({
                             type: ExtensionMsg.UpdateRepoStatus,
                             isConnected: repoStatus.isConnected,

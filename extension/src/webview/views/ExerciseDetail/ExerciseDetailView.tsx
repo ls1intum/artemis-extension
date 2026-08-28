@@ -207,8 +207,21 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     // Select the participation matching the current workspace mode (practice vs graded), by the same
     // rule the host uses for the server-rendered problem statement.
+    //
+    // Until a status arrives this view has no evidence about the workspace, only a default, and the
+    // host has already said which participation it settled on by labelling the render it sent. That
+    // label is better information than the default, so it is followed: otherwise a view recreated
+    // over an exercise the host already knows is a practice one would show graded controls beside
+    // practice markers for as long as the status takes to arrive, which on a failed detection is
+    // forever.
+    const allParticipations = exercise.studentParticipations ?? [];
+    const hostRendered = serverRenderedPS?.participationId !== undefined
+        ? allParticipations.find(p => p.id === serverRenderedPS.participationId)
+        : undefined;
     const isPractice = repoStatus?.isPracticeRepo ?? false;
-    const participation = selectParticipation(exercise.studentParticipations, isPractice);
+    const participation = repoStatus === null && hostRendered
+        ? hostRendered
+        : selectParticipation(exercise.studentParticipations, isPractice);
     const hasParticipation = !!participation;
     const participationId = participation?.id;
     const repositoryUri = participation?.repositoryUri;
@@ -221,18 +234,15 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     // view has selected. The host settles on that participation from the workspace repository, and
     // can be a step ahead of or behind the status message that tells the view the same thing.
     //
-    // Two things are shown regardless. An unlabelled render predates this field or belongs to an
-    // exercise with no participation. And while `repoStatus` is still null this view has no evidence
-    // about the workspace at all, only a default, so it has no standing to overrule the host: there
-    // is no client-side fallback for the problem statement, and hiding the HTML here would leave a
-    // skeleton and then "Failed to load the exercise description" after ten seconds, with no
-    // guarantee of a later status message to recover from.
-    const trustsOwnMode = repoStatus !== null;
+    // An unlabelled render predates this field, or belongs to an exercise with no participation, and
+    // is shown as before. Everything else has to name the participation this view has selected,
+    // which without a status of its own is the one the host named, so a render is never hidden for
+    // disagreeing with a default this view had no grounds for. That matters because there is no
+    // client-side fallback: hiding the HTML leaves a skeleton and then "Failed to load the exercise
+    // description" after ten seconds.
     const displayedServerRenderedPS =
         serverRenderedPS
-        && (!trustsOwnMode
-            || serverRenderedPS.participationId === undefined
-            || serverRenderedPS.participationId === participationId)
+        && (serverRenderedPS.participationId === undefined || serverRenderedPS.participationId === participationId)
             ? serverRenderedPS
             : null;
 
