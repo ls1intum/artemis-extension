@@ -14,6 +14,15 @@ interface WireMessage {
     content: string;
     timestamp: number;
     helpful?: boolean | null;
+    /**
+     * The three PERSISTED proactive fields. Without them a reloaded hint arrives as an ordinary
+     * assistant bubble: `groupByEpisode` needs `origin` + `proactiveEpisodeId` to form a group at
+     * all, and `proactiveOutcome` supplies the fold line's label. The ephemeral `offer` marker is
+     * deliberately NOT here; it dies with the session it was raised in.
+     */
+    origin?: 'proactive';
+    proactiveOutcome?: 'DISMISSED' | 'RECOVERED' | 'ABANDONED';
+    proactiveEpisodeId?: string;
     activities?: ReturnType<typeof toActivities>;
     final?: boolean;
 }
@@ -51,6 +60,13 @@ export function toWireMessages(messages: IrisChatMessage[] | undefined): WireMes
             content: extractIrisMessageContent(message.content),
             timestamp,
             helpful: (message as { helpful?: boolean | null }).helpful,
+            // Conditional, never `origin: undefined`. `mergeHistory` merges as `{ ...prev, ...inc }`
+            // and a spread copies own properties INCLUDING undefined ones, so an unconditionally
+            // mapped field would blank a live bubble's episode identity on every reconnect. Absent
+            // means "this row says nothing about it", which is what a merge has to be able to say.
+            ...(message.origin === 'PROACTIVE_STRUGGLE' ? { origin: 'proactive' as const } : {}),
+            ...(message.proactiveOutcome !== undefined ? { proactiveOutcome: message.proactiveOutcome } : {}),
+            ...(message.proactiveEpisodeId !== undefined ? { proactiveEpisodeId: message.proactiveEpisodeId } : {}),
             activities: toActivities(message),
             final: typeof message.final === 'boolean' ? message.final : undefined,
         };

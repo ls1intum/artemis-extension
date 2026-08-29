@@ -571,6 +571,17 @@ interface ExtensionMsgPayloads {
             content: string;
             timestamp: number;
             helpful?: boolean | null;
+            /**
+             * Same persisted proactive fields as `loadMessages`, and for the same producer
+             * (`toWireMessages` serves both modes). A merge is where a proactive row that landed
+             * while the client was disconnected gets its episode identity for the first time, so
+             * omitting them here would leave exactly those rows as plain bubbles. Safe because the
+             * producer emits them conditionally and `toChatMessage` omits absent keys, so an
+             * incoming row can add identity but never blank it (see `mergeHistory`).
+             */
+            origin?: 'proactive';
+            proactiveOutcome?: 'DISMISSED' | 'RECOVERED' | 'ABANDONED';
+            proactiveEpisodeId?: string;
             activities?: IrisActivityDTO[];
             final?: boolean;
         }>;
