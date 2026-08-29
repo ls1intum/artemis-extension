@@ -12,9 +12,12 @@
 }
 .noticeIcon { flex: none; opacity: 0.8; }
 
-/* Top row: Iris logo, chat blurb, Ask button. */
+/* Top row: Iris logo, chat blurb, Ask button. Wraps because the logo and the
+   Ask button do not shrink; without it the blurb keeps only the leftover width
+   and thins to a couple of words per line in a narrow sidebar. */
 .main {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--theme-container-padding);
 }
@@ -39,7 +42,7 @@
 }
 
 .textCol {
-  flex: 1;
+  flex: 1 1 160px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -85,15 +88,21 @@
   gap: 6px;
 }
 
+/* Wraps for the same reason as .main: the segmented control below never
+   shrinks, so the description would otherwise collapse to a few characters
+   per line. */
 .proactiveRow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
 }
 
 .proactiveText {
-  flex: 1;
+  /* Basis, not just grow: below ~200px of text the control wraps to its own
+     line. min-width keeps a long word from overflowing after the wrap. */
+  flex: 1 1 200px;
   min-width: 0;
   display: flex;
   flex-direction: column;
