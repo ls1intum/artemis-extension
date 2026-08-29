@@ -181,8 +181,8 @@ export class EgressController {
             // clears the in-flight marker (onConsentRevoked -> reset), so a token
             // mismatch equally means this request was superseded. A POST already on
             // the wire below cannot be recalled; that residual window is accepted.
-            if (!this._p.deps.isEgressEnabled() || this._rt.inFlightMarker?.requestToken !== requestToken) {
-                this._p.dbg('  -> ABORT (consent revoked or request superseded during collection)');
+            if (!this._mayStillPost(requestToken)) {
+                this._p.dbg('  -> ABORT (opted out or request superseded during collection)');
                 return;
             }
 
@@ -256,6 +256,42 @@ export class EgressController {
         // Clear the in-flight marker regardless of result (the reply has landed)
         this._p.setInFlightMarker(undefined);
         return stamp;
+    }
+
+    /**
+     * The student-controlled switches that must STILL hold when a `collectFiles` await returns.
+     *
+     * #349 re-validated consent after the await, but only consent: a `.noai` file appearing, Iris
+     * being disabled, or proactivity being switched to Off during the collection would all still
+     * have put the collected workspace content on the wire. Each of the three egress paths checks
+     * some subset of these before its await; re-checking the whole set afterwards is defence in
+     * depth on bytes that are already in memory. Deliberately excludes `serverAvailable()`, which
+     * is a reachability latch rather than a student decision -- the POST result handles that.
+     */
+    private _egressStillAllowed(): boolean {
+        return this._p.deps.isIrisEnabled()
+            && this._p.deps.isEgressEnabled()
+            && !this._p.deps.hasNoaiMarker()
+            && this._p.deps.isStudentProactiveOn();
+    }
+
+    /**
+     * The post-collection checkpoint every egress path runs: may `requestToken`'s payload still go
+     * on the wire?
+     *
+     * Two ways to fail, and they need opposite handling. A token MISMATCH means this request was
+     * superseded or already settled, so the marker belongs to somebody else and clearing it would
+     * strand the live request. A closed gate means this request is still the live one and nobody
+     * else will ever settle it, so it has to tear its own state down here or the wire stays busy
+     * forever (and with it the chat's "preparing your hint" indicator). Before the gate widened,
+     * the only way to fail it was a consent revoke, which clears the marker through its own path;
+     * `.noai` and Iris-disabled have no such path.
+     */
+    private _mayStillPost(requestToken: string): boolean {
+        if (this._rt.inFlightMarker?.requestToken !== requestToken) { return false; }
+        if (this._egressStillAllowed()) { return true; }
+        this.clearInFlight();
+        return false;
     }
 
     /**
@@ -336,8 +372,8 @@ export class EgressController {
             if (this._rt.inFlightMarker?.requestToken === requestToken) {
                 this._rt.inFlightMarker.baseline = uncommittedFiles;   // rebase baseline for an anchored follow-up
             }
-            // #349 TOCTOU: re-validate consent + in-flight ownership after the await.
-            if (!this._p.deps.isEgressEnabled() || this._rt.inFlightMarker?.requestToken !== requestToken) {
+            // #349 TOCTOU: re-validate every student switch + in-flight ownership after the await.
+            if (!this._mayStillPost(requestToken)) {
                 return;
             }
             const result = await this._p.deps.postIntervention(exerciseId, {
@@ -384,6 +420,9 @@ export class EgressController {
         // Defense-in-depth (#349): confirm_close carries uncommitted files - never egress
         // without the proactive consent (mirrors the isIrisEnabled gate above).
         if (!this._p.deps.isEgressEnabled()) { return; }
+        // Same reasoning for the student's proactivity level: Off means nothing about this exercise
+        // goes to the server, and a drain is the one egress path with no alert gating it upstream.
+        if (!this._p.deps.isStudentProactiveOn()) { return; }
         // Wire must be free to drain. A local boolean, not a direct narrow on `this._rt.inFlightMarker`
         // (mirrors _sendHelpRequest's `inFlight` pattern) -- narrowing the field itself here would
         // collapse it to `undefined` for the rest of the method, breaking the later #349 TOCTOU
@@ -417,8 +456,10 @@ export class EgressController {
 
             try {
                 const uncommittedFiles = await this._p.deps.collectFiles(this._p.deps.getExerciseRoot());
-                // #349 TOCTOU: re-validate consent + in-flight ownership after the await.
-                if (!this._p.deps.isEgressEnabled() || this._rt.inFlightMarker?.requestToken !== requestToken) {
+                // #349 TOCTOU: re-validate every student switch + in-flight ownership after the await.
+                // `_owedConfirmClose` deliberately survives: the close is still owed, and the next
+                // drain re-checks the same gates at its own top before collecting anything again.
+                if (!this._mayStillPost(requestToken)) {
                     return;
                 }
                 const result = await this._p.deps.postIntervention(exerciseId, {

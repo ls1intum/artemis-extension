@@ -50,6 +50,9 @@ export class ProactiveChatPresenter {
     /** Last live-episode snapshot posted (SetLiveEpisode); replayed to re-created webviews on init. */
     private _liveEpisodeId: string | null = null;
 
+    /** Whether a student-initiated help_request is in flight; replayed to a freshly-ready webview. */
+    private _thinking = false;
+
     constructor(private readonly _deps: ProactiveChatDeps) { }
 
 
@@ -122,6 +125,23 @@ export class ProactiveChatPresenter {
                 offer: { offerId: o.offerId, moment: o.moment },
             }
         });
+    }
+
+    /**
+     * "Iris is preparing the hint you asked for", mirrored into the chat while a student-initiated
+     * `help_request` is in flight. The flag is kept here as well as posted, because the first-ever
+     * chat open resolves the view AFTER the accept and `_resetReadyState()` drops the queued
+     * message; `ChatWebviewProvider._onReady` replays it through {@link replayThinking}.
+     */
+    setThinking(on: boolean): void {
+        this._thinking = on;
+        this._deps.postMessage({ type: ExtensionMsg.SetProactiveThinking, thinking: on });
+    }
+
+    /** Re-post a still-true thinking flag to a freshly-ready webview. No-op when nothing is pending. */
+    replayThinking(): void {
+        if (!this._thinking) { return; }
+        this._deps.postMessage({ type: ExtensionMsg.SetProactiveThinking, thinking: true });
     }
 
     /**

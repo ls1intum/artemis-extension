@@ -125,6 +125,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         showGutterOnly: (f, l) => inline.showGutterOnly(f, l),
         clearInline: () => inline.clear(),
         postBubble: (text, id, episodeId) => deps.postOptimisticBubble(text, id, episodeId),
+        setProactiveThinking: on => deps.setProactiveThinking?.(on),
         setChatLiveEpisode: episodeId => deps.postLiveEpisode(episodeId),
         isStudentProactiveOn: () => deps.isStudentProactiveOn(),
         getProactiveLevel: () => deps.getProactiveLevel(),

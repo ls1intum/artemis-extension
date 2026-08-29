@@ -97,6 +97,8 @@ function EpisodeFoldLine({
 interface ChatMessageListProps {
     messages: ChatMessage[];
     streaming: StreamingState;
+    /** Host-owned: a proactive hint the student asked for is being prepared. Absent = none. */
+    proactiveThinking?: boolean;
     /** Live tool/command activity for the in-flight run. */
     activities: IrisActivityDTO[];
     /** The streaming answer draft, or null when none is in flight. */
@@ -139,6 +141,7 @@ const FOLD_DELAY_MS = 5000;
 export function ChatMessageList({
     messages,
     streaming,
+    proactiveThinking = false,
     activities,
     liveDraft,
     runState,
@@ -229,12 +232,18 @@ export function ChatMessageList({
     // An in-flight (or just-failed) run has its own surfaces to show even
     // before the first message lands, so it suppresses the welcome state.
     const hasRunSurface =
-        streaming.isStreaming || activities.length > 0 || !!liveDraft || runState === 'FAILED';
+        streaming.isStreaming || proactiveThinking || activities.length > 0 || !!liveDraft || runState === 'FAILED';
     const showWelcome = messages.length === 0 && !hasRunSurface;
 
     // The thinking indicator is the "nothing to show yet" placeholder: once the
     // run has produced activities or a draft, those richer surfaces replace it.
-    const showThinking = streaming.isStreaming && activities.length === 0 && !liveDraft;
+    const showThinking = (streaming.isStreaming || proactiveThinking) && activities.length === 0 && !liveDraft;
+    // ThinkingIndicator is really two surfaces in one: a run's terminal error (rendered BEFORE the
+    // isVisible gate) and the "preparing" spinner. Once a proactive request can be in flight while a
+    // normal run has already failed, both facts are true at once and neither may hide the other, so
+    // they get an instance each. With `proactiveThinking` false this is exactly the single call it
+    // has always been. A LIVE run still wins: its activities/draft gate the spinner off below.
+    const showProactiveThinking = proactiveThinking && activities.length === 0 && !liveDraft;
 
     // Closed-ness of a proactive episode: an explicit host fold frame (foldStates entry) decides
     // alone when present -- folded=false is the praise window (stays open until the ~5 s timer
@@ -366,10 +375,11 @@ export function ChatMessageList({
                         )}
 
                         <ThinkingIndicator
-                            isVisible={showThinking}
+                            isVisible={showThinking && !proactiveThinking}
                             runState={runState}
                             error={runError}
                         />
+                        {showProactiveThinking && <ThinkingIndicator isVisible runState={null} error={null} />}
                     </>
                 )}
             </div>

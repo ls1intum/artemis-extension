@@ -34,6 +34,7 @@ export function fakeDeps(over: Partial<StruggleInterventionDeps> = {}): Struggle
         showOfferBanner: vi.fn(),
         postBubble: vi.fn(),
         setChatLiveEpisode: vi.fn(),
+        setProactiveThinking: vi.fn(),
         log: { record: vi.fn(async () => undefined) } as unknown as StruggleInterventionDeps['log'],
         setTimeoutFn: vi.fn(),
         reconcileOptimisticBubble: vi.fn(),

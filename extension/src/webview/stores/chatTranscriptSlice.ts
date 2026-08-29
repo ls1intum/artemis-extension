@@ -73,6 +73,15 @@ export interface ChatTranscriptSlice {
 
     streaming: StreamingState;
 
+    /**
+     * "Iris is preparing the hint you asked for", mirrored from the host while a student-initiated
+     * proactive help_request is in flight. Deliberately NOT folded into `streaming`: that one is
+     * owned by the normal chat run, so `applyRunUi`, `resetTransientChatUi`, a history load and a
+     * websocket disconnect all write it, and any of them would clear this out from under the host.
+     * `setProactiveThinking` is the only writer here.
+     */
+    proactiveThinking: boolean;
+
     // Run UI (streaming draft, activities, run state), projected atomically
     // with the webview's active session/revision via applyRunUi/applyCommit.
     liveDraft: { runId: string; text: string } | null;
@@ -144,6 +153,8 @@ export interface ChatTranscriptSlice {
      * the only writer of `answered`.
      */
     resolveOffer: (offerId: string, answered: 'accept' | 'decline' | 'timeout') => void;
+    /** Host-owned mirror of an in-flight proactive help_request. See {@link proactiveThinking}. */
+    setProactiveThinking: (on: boolean) => void;
     /**
      * Drop the transcript and everything derived from it: `messages`, the run
      * UI, `suppressedIds` and `foldStates`. `liveEpisodeIds` deliberately
@@ -276,6 +287,7 @@ export const createChatTranscriptSlice: StateCreator<
             pendingEcho: null,
             loadedSessionId: null,
             streaming: IDLE_STREAMING,
+            proactiveThinking: false,
             liveDraft: null,
             activities: [],
             runState: null,
@@ -445,6 +457,10 @@ export const createChatTranscriptSlice: StateCreator<
                         suppressedIds: next,
                     };
                 }, false, 'removeMessageById');
+            },
+
+            setProactiveThinking: (on) => {
+                set({ proactiveThinking: on }, false, 'setProactiveThinking');
             },
 
             resolveOffer: (offerId, answered) => {

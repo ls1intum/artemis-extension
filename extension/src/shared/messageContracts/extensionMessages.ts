@@ -284,6 +284,7 @@ export const ExtensionMsg = {
     SetLiveEpisode: 'setLiveEpisode',
     RemoveMessage: 'removeMessage',
     ResolveOffer: 'resolveOffer',
+    SetProactiveThinking: 'setProactiveThinking',
     CollapseProactiveEpisodes: 'collapseProactiveEpisodes',
     MergeSessionMessages: 'mergeSessionMessages',
     ConfirmSentMessage: 'confirmSentMessage',
@@ -721,6 +722,14 @@ interface ExtensionMsgPayloads {
      * itself is client-local/ephemeral (see `ChatMessage.offer`), so this is the only wire round-trip.
      */
     resolveOffer: { offerId: string; answered: 'accept' | 'decline' | 'timeout' };
+    /**
+     * "Iris is preparing the hint you asked for." Host-owned mirror of a student-initiated
+     * `help_request` being in flight, so an accepted offer gets feedback during the seconds the
+     * round trip takes. Deliberately its own bit rather than the run's `streaming.isStreaming`:
+     * that one belongs to the normal chat run, and a run projection, a history load or a
+     * disconnect would clear it out from under us.
+     */
+    setProactiveThinking: { thinking: boolean };
     /**
      * Posted when the student switches proactive help to Off: the webview collapses every proactive
      * episode in the transcript to a fold line (Off = get out of the way). No payload — the store folds

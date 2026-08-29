@@ -78,6 +78,7 @@ export function useIrisInboundMessages({ onCourseRefreshAnswered }: InboundOptio
             resetTransientChatUi, applyRunUi, applyCommit, markMessageFailed,
             removeMessageById, foldEpisode, setLiveEpisode, resolveOffer, foldAllEpisodes,
             setOpenSessionError, mergeLoadedMessages, confirmSentMessage, showNotice,
+            setProactiveThinking,
         } = useChatStore.getState();
         const belongsHere = (m: { sessionId: number }): boolean =>
             m.sessionId === useChatStore.getState().currentSessionId;
@@ -106,6 +107,13 @@ export function useIrisInboundMessages({ onCourseRefreshAnswered }: InboundOptio
 
             case ExtensionMsg.UpdateIrisRunUi: {
                 applyRunUi(msg.projection);
+                break;
+            }
+
+            // Host-owned and deliberately outside `belongsHere`: the flag is not addressed to a
+            // conversation, and the host is the only thing that can turn it off.
+            case ExtensionMsg.SetProactiveThinking: {
+                setProactiveThinking(msg.thinking);
                 break;
             }
 

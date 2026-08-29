@@ -119,6 +119,13 @@ export interface StruggleInterventionDeps {
      */
     resolveOfferBubble(offerId: string, answered: 'accept' | 'decline' | 'timeout'): void;
     /**
+     * Mirror "a hint the student asked for is being prepared" into the chat, so an accepted offer
+     * gets feedback during the seconds the round trip takes. Derived from the in-flight marker, see
+     * `StruggleInterventionService._syncHelpPending`. Optional: the chat provider is constructed
+     * after the engine, and the engine is fully usable without a chat.
+     */
+    setProactiveThinking?(on: boolean): void;
+    /**
      * Show the proactive nudge banner as an offer (spec B+): carries `moment`/`offerId` context
      * so the banner can render offer-specific copy and echo the answer back on resolution.
      */

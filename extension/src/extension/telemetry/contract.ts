@@ -108,6 +108,11 @@ export interface StruggleEngineDeps {
      */
     postOptimisticBubble(text: string, messageId: number | null, episodeId?: string): void;
     /**
+     * Mirror "Iris is preparing the hint you asked for" into the chat while a student-initiated
+     * help_request is in flight. Lazy, like the bubble hooks above.
+     */
+    setProactiveThinking?(on: boolean): void;
+    /**
      * Push the host-authoritative live-episode snapshot to the chat webview (SetLiveEpisode
      * state frame): the DELIVERED episode's id, or null when no episode is live. The provider
      * caches the value and replays it on webview init, so a re-created webview renders the

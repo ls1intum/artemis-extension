@@ -7,6 +7,7 @@ import { suppressReason } from './alertSuppression';
 import type { EgressPort } from './egressController';
 import { EgressController } from './egressController';
 import { EpisodeHistory } from './episodeHistory';
+import { HelpPendingIndicator } from './helpPendingIndicator';
 import type { InFlightMarker, OwedConfirmClose, StruggleInterventionDeps } from './interventionDeps';
 import { DEFAULT_PROGRESS_CFG } from './interventionDeps';
 import type { OutstandingOffer } from './offerController';
@@ -29,6 +30,7 @@ import type { StruggleSignal } from './struggleContract';
 export type { StruggleInterventionDeps } from './interventionDeps';
 
 
+
 /**
  * Orchestrates the proactive struggle intervention on the client (spec §4). Implements {@link AlertSink}; alerts
  * arrive via the coordinator's sink chain (BackoffGate -> ThrottledAlertSink -> this, see telemetry/index.ts)
@@ -39,6 +41,7 @@ export type { StruggleInterventionDeps } from './interventionDeps';
 export class StruggleInterventionService implements AlertSink {
     private _serverAvailable = true;
     private _courseProactiveOff = false;
+
 
 
     /**
@@ -81,6 +84,9 @@ export class StruggleInterventionService implements AlertSink {
     // Reveal persistence + the terminal outcomes that race it (owns the consent-epoch generation).
     private readonly _reveal: RevealController;
 
+    // The chat's "preparing your hint" indicator, fed from _setInFlightMarker.
+    private readonly _helpPending: HelpPendingIndicator;
+
 
     /**
      * Evidence gate after idle-abandon: set when the stale watchdog silently frees a slot
@@ -114,6 +120,12 @@ export class StruggleInterventionService implements AlertSink {
             isWireBusy: () => this._inFlightMarker !== undefined,
             resetWatchdogProgress: () => this._watchdog?.resetProgress(Date.now()),
             sendHelpRequest: () => { void this._sendHelpRequest(); },
+        });
+        this._helpPending = new HelpPendingIndicator({
+            setProactiveThinking: on => _deps.setProactiveThinking?.(on),
+            schedule: _deps.setTimeoutFn ?? ((fn, ms) => { setTimeout(fn, ms); }),
+            postDeadlineNote: () => _deps.postBubble('Nothing more I can add right now.', null, this._deliveredEpisodeId()),
+            dbg: msg => this._dbg(msg),
         });
         this._egress = new EgressController(this._rt, this._egressPort());
         this._frames = new ServerFrameHandler(this._rt, this._framePort());
@@ -192,6 +204,17 @@ export class StruggleInterventionService implements AlertSink {
      * Push the live-episode snapshot to the chat webview when it changed (SetLiveEpisode frame).
      * PARKED is deliberately not live: no chat rows exist for a parked episode.
      */
+    /**
+     * Best-effort scoped cancel of whatever is on the wire, so the server frees its job slot. Never
+     * awaited and never allowed to throw: the local teardown that follows every caller is what
+     * actually makes the state consistent.
+     */
+    private _cancelInFlightJob(): void {
+        const inflight = this._inFlightMarker;
+        if (inflight?.exerciseId === undefined) { return; }
+        this._deps.cancelOutstandingStruggleJob(inflight.exerciseId, inflight.requestToken).catch(() => { /* best-effort */ });
+    }
+
     private _pushChatLiveEpisode(): void {
         const live = this._deliveredEpisodeId() ?? null;
         if (live === this._lastChatLiveEpisodeId) { return; }
@@ -200,7 +223,15 @@ export class StruggleInterventionService implements AlertSink {
     }
 
     // Notifying setters (complete-by-construction notify coverage).
-    private _setInFlightMarker(v: InFlightMarker | undefined): void { this._inFlightMarker = v; this.notifySlotDebugChanged(); }
+    private _setInFlightMarker(v: InFlightMarker | undefined): void {
+        this._inFlightMarker = v;
+        // `intent === 'help_request'` is exactly "the student asked for this": `accept` and
+        // `needMoreHelp` send it, the automatic `decide` POST does not, so passive detection stays invisible.
+        this._helpPending.sync(v?.intent === 'help_request' ? v.requestToken : undefined);
+        this.notifySlotDebugChanged();
+    }
+
+
     private _setOwedConfirmClose(v: OwedConfirmClose | undefined): void { this._owedConfirmClose = v; this.notifySlotDebugChanged(); }
     private _setAwaitingEvidence(value: boolean, reason: string): void {
         if (this._awaitingEvidence === value) { return; }
@@ -405,13 +436,7 @@ export class StruggleInterventionService implements AlertSink {
         // revealParkedHint (non-terminal) cancels its own in-flight and does NOT call here.
         // replace-parked / replace-delivered (non-terminal) do NOT call here either, so
         // the in-flight decide completing into the replacement is NOT cancelled.
-        if (this._inFlightMarker) {
-            const exerciseId = this._inFlightMarker.exerciseId;
-            if (exerciseId !== undefined) {
-                const token = this._inFlightMarker.requestToken;
-                this._deps.cancelOutstandingStruggleJob(exerciseId, token).catch(() => { /* best-effort */ });
-            }
-        }
+        this._cancelInFlightJob();
         // Clear the in-flight marker (slot is terminal, nothing to reply to)
         this._setInFlightMarker(undefined);
         this._candidate = undefined;
@@ -535,6 +560,19 @@ export class StruggleInterventionService implements AlertSink {
             this._deps.setBadge(false);
             this._deps.hideActiveBanner();
             this._offers.clearOutstanding();
+            // Off means no proactivity, including the request that is already on the wire. Without
+            // this the wire stays busy until the reply lands and the chat keeps claiming Iris is
+            // preparing a hint the student just said they do not want. `clearInFlight` exists for
+            // exactly this ("student opt-out mid-flight"); the collection-side abort is
+            // `_egressStillAllowed`.
+            //
+            // The scoped cancel is not optional here. Dropping the marker alone frees the wire, so
+            // Off -> On -> a new request for the same episode can now overtake the abandoned one,
+            // and a websocket reply carries episode identity rather than the client request token
+            // (see InFlightGuard): the stale reply would be consumed as the new request's. Cancelling
+            // server-side first is what keeps that reply from ever being produced.
+            this._cancelInFlightJob();
+            this._egress.clearInFlight();
         }
     }
 

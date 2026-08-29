@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
-import type { ProactiveLevel } from '@shared/messageContracts';
+import type { ProactiveLevel, WebCmd } from '@shared/messageContracts';
+import { WebviewCmd } from '@shared/messageContracts';
 
 import { registerAllCommands } from '@extension/activation/extensionCommands';
 import {
@@ -125,6 +126,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		openProactiveSession: async (courseId, sessionId) => { await chatWebviewProvider?.proactive.openProactiveSession(courseId, sessionId); },
 		setProactiveBadge: on => chatWebviewProvider?.proactive.setProactiveBadge(on),
 		postOptimisticBubble: (text, messageId, episodeId) => chatWebviewProvider?.proactive.postOptimisticBubble(text, messageId, episodeId),
+		setProactiveThinking: on => chatWebviewProvider?.proactive.setThinking(on),
 		// State frame (not an event): the engine dedups by value, so a frame swallowed by the
 		// optional chain would never be re-sent. Safe only because the provider is constructed
 		// below before any slot transition can fire (alerts need the warmup; server events need
@@ -331,14 +333,18 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Route a nudge-banner button back to the engine outcome. "Show me" jumps to the flagged line
 	// (via the jump lamp, inside handleBannerAction) and opens the chat. A dev mock banner (sentinel
 	// id) is visual only: its buttons neither record an outcome nor open the chat.
-	context.subscriptions.push(artemisWebviewProvider.onDidNudgeBannerAction((payload) => {
+	// Both webviews raise this: the sidebar's banner and the chat's offer bubble. One handler, two
+	// sources, so an offer answered inside the chat takes exactly the same path as one answered
+	// from the banner.
+	const onNudgeBannerAction = (payload: WebCmd<typeof WebviewCmd.NudgeBannerAction>['payload']): void => {
 		handleBannerAction?.(payload);
 		// Any "see the hint" action opens the Iris chat: the active banner's "Show me" AND the offer
 		// banner's accept ("Show me" / "I need more help"). #344: the offer path was previously excluded.
 		if (bannerActionOpensChat(payload)) {
 			void vscode.commands.executeCommand('iris.chatView.focus');
 		}
-	}));
+	};
+	context.subscriptions.push(artemisWebviewProvider.onDidNudgeBannerAction(onNudgeBannerAction));
 
 	// Developer-only: surface the engine's live alert decision (firing / gated /
 	// armed) in the status bar. Reads the coordinator's tick stream; no-op
@@ -407,6 +413,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		struggleCoordinator.startExerciseSession(exerciseId, exerciseRoot);
 	});
 	chatWebviewProvider.proactive.setStruggleCallbacks({ onEpisodeDismiss: dismissEpisode, onEpisodeResolve: resolveEpisode });
+	// Same handler as the sidebar banner above: an offer answered in the chat bubble must reach the
+	// engine, not the unhandled-command log. Subscribed here because the provider exists only now.
+	context.subscriptions.push(chatWebviewProvider.onDidNudgeBannerAction(onNudgeBannerAction));
 	// C3: in-session flag: toggle the slot's quiet/loud escalation branch as the chat view opens/closes.
 	if (setInSession) {
 		context.subscriptions.push(chatWebviewProvider.onDidChangePanelVisibility(open => setInSession(open)));

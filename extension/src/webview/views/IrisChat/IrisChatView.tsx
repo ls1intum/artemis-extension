@@ -460,6 +460,7 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     <ChatMessageList
                         messages={store.messages}
                         streaming={store.streaming}
+                        proactiveThinking={store.proactiveThinking}
                         activities={store.activities}
                         liveDraft={store.liveDraft}
                         runState={store.runState}

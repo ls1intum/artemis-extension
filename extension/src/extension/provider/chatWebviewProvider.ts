@@ -145,6 +145,15 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
 
+    /**
+     * Offer buttons live in BOTH webviews: the sidebar renders the offer banner, the chat renders
+     * the offer bubble (`IrisChatView.handleOfferAnswer`). Both post the same `nudgeBannerAction`
+     * command, so both providers need to surface it or the chat-side click is silently dropped in
+     * the unhandled-command path. `extension.ts` subscribes one handler to both events.
+     */
+    private readonly _onDidNudgeBannerAction = new vscode.EventEmitter<WebCmd<typeof WebviewCmd.NudgeBannerAction>['payload']>();
+    public readonly onDidNudgeBannerAction = this._onDidNudgeBannerAction.event;
+
     constructor(
         private readonly _extensionUri: vscode.Uri,
         _extensionContext: vscode.ExtensionContext,
@@ -168,6 +177,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._disposables.push(this._onDidChangeExerciseContext);
         this._disposables.push(this._onDidProvideIrisChatFeedback);
         this._disposables.push(this._onDidChangePanelVisibility);
+        this._disposables.push(this._onDidNudgeBannerAction);
         // Struggle detection follows the WORKSPACE, never the chat topic: the
         // detector observes the code that is open, and `workspaceDetectionService`
         // derives that from the folder's git remote. A topic change points the
@@ -589,6 +599,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     protected _onReady(): void {
         this._sendInitData();
+        // A banner-raised offer is accepted BEFORE the chat exists: `handleBannerAction` runs, then
+        // `iris.chatView.focus` resolves the view and `_resetReadyState()` throws the queued message
+        // away. Replaying here is what makes the student land on a chat that already shows Iris
+        // working. Nothing in the load path can clear the flag, so the order against LoadMessages
+        // does not matter.
+        this.proactive.replayThinking();
     }
 
     protected _handleCommand(message: Extract<WebviewToExtensionMessage, { type: 'command' }>): void {
@@ -692,6 +708,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 }
                 case WebviewCmd.OpenHelpPopup:
                     this._handleOpenHelpPopup();
+                    break;
+                case WebviewCmd.NudgeBannerAction:
+                    // The chat's offer bubble. Unlike the sidebar there is no banner cache to
+                    // invalidate here; the bubble resolves itself through resolveOffer.
+                    this._onDidNudgeBannerAction.fire(getPayload<WebCmd<typeof WebviewCmd.NudgeBannerAction>>(message));
                     break;
                 default:
                     void this._handleUtilityCommand(message).then(handled => {
