@@ -196,8 +196,9 @@
     justify-content: space-between;
 }
 
-/* One footer row per message carrying BOTH hover surfaces: feedback buttons on the left, the
-   timestamp on the right. Always mounted and always occupying its space, so hover only changes
+/* One footer row per message carrying BOTH hover surfaces: the timestamp on the left, the feedback
+   buttons grouped at the trailing edge, matching the episode timeline's foot. Always mounted and
+   always occupying its space, so hover only changes
    colour and the list can never reflow under the cursor. Because the space is reserved exactly
    once (rather than once for the buttons and again as dead space under the bubble for an
    absolutely positioned timestamp), the list rhythm can be tight. At rest it recedes rather than
@@ -215,9 +216,9 @@
     transition: color 120ms ease;
 }
 
-/* The assistant column is laid out flex-start, so the row would shrink-wrap and the timestamp's
+/* The assistant column is laid out flex-start, so the row would shrink-wrap and the buttons'
    `margin-left: auto` would have no free space to push into. Stretching it to the column width is
-   what puts the time at the trailing edge, opposite the buttons. */
+   what puts the buttons at the trailing edge, opposite the time. */
 .messageWrapper.assistant .footRow {
     align-self: stretch;
 }
@@ -246,6 +247,9 @@
 .feedbackContainer {
     display: flex;
     gap: 4px;
+    /* Pushes the whole group to the trailing edge, so two buttons stay side by side there instead
+       of being spread apart by the row's own spacing. */
+    margin-left: auto;
 }
 
 .feedbackButton {
@@ -269,10 +273,9 @@
     color: var(--vscode-charts-blue);
 }
 
-/* Pushed to the trailing edge, so it reads right-aligned next to the buttons and stays
-   right-aligned on a user message, which has no buttons at all. */
+/* Sits at the leading edge of the foot row; the feedback group takes the trailing edge. On a user
+   message there are no buttons, and the row's own row-reverse still carries it to the right. */
 .timestamp {
-    margin-left: auto;
     font-size: 11px;
     color: inherit;
 }

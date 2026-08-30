@@ -244,6 +244,9 @@ function MessageBubbleComponent({
                     the timeline owns the per-row chrome. */}
                 {!grouped && (
                     <div className={clsx(styles.footRow, { [styles.visible]: hasFeedback })}>
+                        <span className={styles.timestamp} data-testid="message-timestamp">
+                            {relativeTime}
+                        </span>
                         {showFeedback && (
                             <div className={styles.feedbackContainer}>
                                 <button
@@ -272,9 +275,6 @@ function MessageBubbleComponent({
                                 </button>
                             </div>
                         )}
-                        <span className={styles.timestamp} data-testid="message-timestamp">
-                            {relativeTime}
-                        </span>
                     </div>
                 )}
             </div>

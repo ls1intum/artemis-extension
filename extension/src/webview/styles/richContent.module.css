@@ -1,6 +1,9 @@
 .richContent {
     color: inherit;
     line-height: 1.5;
+    /* Prose can carry tokens with no break opportunity at all (identifiers, paths, URLs). Let them
+       break rather than push the container wider than its column. */
+    overflow-wrap: break-word;
 }
 
 .richContent p {
@@ -28,6 +31,11 @@
     border-radius: 3px;
     font-family: var(--vscode-editor-font-family);
     font-size: 0.9em;
+    /* `anywhere` rather than `break-word`: only `anywhere` also shrinks the intrinsic min-content
+       width, which is what a flex or grid parent measures when deciding how far the column may
+       shrink. With `break-word` the token still wraps, but the parent has already been sized to
+       fit it unbroken. */
+    overflow-wrap: anywhere;
 }
 
 .richContent a {

@@ -71,7 +71,11 @@
 .body {
     position: relative;
     padding-bottom: 16px;
-    border-radius: 6px;
+    /* A grid item's automatic minimum size is its min-content width, so without this the `1fr`
+       track is inflated by the longest unbreakable token in the hint (a fully qualified method
+       name in inline code, say) and the whole card overhangs the panel, cutting off the action
+       row. Zero lets the track shrink to the space actually available. */
+    min-width: 0;
 }
 
 /* The last row needs no spacer below it — the card's own padding closes the episode. */
@@ -127,9 +131,12 @@
     color: inherit;
 }
 
-.row:hover .body,
-.row:focus-within .body {
-    background: color-mix(in srgb, var(--vscode-foreground) 5%, transparent);
+/* The row's actions as ONE flex item, so the foot's `space-between` reads as "timestamp left,
+   actions right" no matter how many buttons the row carries. */
+.actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 /* Must not wrap: out of flow it has no height budget beyond the one reserved line, so a second line
