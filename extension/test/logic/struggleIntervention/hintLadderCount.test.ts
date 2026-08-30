@@ -29,7 +29,7 @@ function postedHintCounts(postIntervention: ReturnType<typeof vi.fn>): number[] 
 describe('hint-ladder rung count', () => {
     it('an unsolicited escalation counts toward the rung, exactly like a requested follow-up', () => {
         const slot = new SlotManager();
-        const episode = { episodeId: 'ep-1', isNew: true, hints: [] };
+        const episode = { episodeId: 'ep-1', isNew: true, hints: [], createdAtMs: 0 };
 
         slot.takeDelivered(0, episode, hint('opening', 'ambient'));
         expect(slot.snapshot().state).toMatchObject({ kind: 'delivered', level: 'ambient' });
