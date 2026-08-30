@@ -277,9 +277,9 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
             if (active) { orchestrator.onServerActive(episodeId, sid, anchorFile, anchorLine, inlineHint, c, message, messageId, rationale); }
             else { retireDroppedFrameRow(exerciseId, messageId); }
         },
-        onServerSilent: (episodeId, messageId) => {
-            devLog(`◀ Iris SILENT episodeId=${episodeId ?? '–'}`);
-            orchestrator.onServerSilent(episodeId, messageId);
+        onServerSilent: (episodeId, messageId, c, rationale) => {
+            devLog(`◀ Iris SILENT episodeId=${episodeId ?? '–'} conf=${c ?? '–'}`);
+            orchestrator.onServerSilent(episodeId, messageId, c, rationale);
         },
         onServerClose: (episodeId, resolved, messageId, closingSentence, episodeLabel) => {
             devLog(`◀ Iris CLOSE episodeId=${episodeId ?? '–'} resolved=${resolved}`);

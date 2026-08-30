@@ -827,8 +827,8 @@ export class StruggleInterventionService implements AlertSink {
     }
 
     /** Inbound silent event: the server decided no intervention is needed. */
-    onServerSilent(episodeId: string | undefined, messageId: number | undefined): void {
-        this._frames.onServerSilent(episodeId, messageId);
+    onServerSilent(episodeId: string | undefined, messageId: number | undefined, confidence?: number, rationale?: string): void {
+        this._frames.onServerSilent(episodeId, messageId, confidence, rationale);
     }
 
     /** Inbound confirmClose response (C4 dispatch). */

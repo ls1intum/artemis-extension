@@ -225,7 +225,7 @@ export class ServerFrameHandler {
      * Frees PARKED (discard-free), suppresses for DELIVERED (no-op).
      * C4: accepts `episodeId` echo (stale-drop if mismatch) and `messageId` for stale-row suppression.
      */
-    onServerSilent(episodeId: string | undefined, messageId: number | undefined): void {
+    onServerSilent(episodeId: string | undefined, messageId: number | undefined, confidence?: number, rationale?: string): void {
         this._p.setServerAvailable(true);
 
         // C4 echo check: verify the wire's episodeId matches what was requested.
@@ -245,6 +245,7 @@ export class ServerFrameHandler {
                 if (messageId !== undefined) { this._p.dropStaleRow(messageId); }
                 return;
             }
+            this._recordSilent(confidence, rationale);
             this._p.deps.postBubble('Nothing more I can add right now.', null, this._p.deliveredEpisodeId());
             return;
         }
@@ -255,6 +256,8 @@ export class ServerFrameHandler {
             if (messageId !== undefined) { this._p.dropStaleRow(messageId); }
             return;
         }
+
+        this._recordSilent(confidence, rationale);
 
         const snap = this._rt.slot.snapshot();
         const decision = { action: 'silent' as const, text: null, hardEvent: false };
@@ -270,6 +273,23 @@ export class ServerFrameHandler {
             // FREE + silent -> suppress -> discard the pending candidate.
             this._rt.candidate = undefined;
         }
+    }
+
+    /**
+     * The eval row for a gate that declined to say anything (spec §12).
+     *
+     * The outbound row written when the request goes out already reads `finalAction: 'silent'`, but it is
+     * written before any reply exists, so it carries neither the confidence nor the reason. An ambient or
+     * active reply appends its own row; without this one a silent reply appended nothing, so the case where
+     * the detector fired and the gate still surfaced nothing was the one case the log could not explain.
+     *
+     * Only reached once a reply is correlated, so a stale or superseded frame adds no row.
+     */
+    private _recordSilent(confidence: number | undefined, rationale: string | undefined): void {
+        void this._p.deps.log.record({
+            action: 'silent', finalAction: 'silent', surface: 'none', source: 'server',
+            signal: this._rt.lastSignal, confidence, rationale,
+        });
     }
 
     /**

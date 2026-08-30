@@ -335,7 +335,12 @@ describe('subscribeStruggleEvents -- C4 new handler dispatch', () => {
             onServerSilent, onServerClose: vi.fn(),
         });
         emit({ exerciseId: 7, kind: 'decide', action: 'silent', episodeId: 'ep-silent', messageId: 11 });
-        expect(onServerSilent).toHaveBeenCalledWith('ep-silent', 11);
+        expect(onServerSilent).toHaveBeenCalledWith('ep-silent', 11, undefined, undefined);
+
+        // A silent gate is the case the eval log could not explain, so confidence and the reason
+        // have to reach the handler here just as they do on the ambient/active paths.
+        emit({ exerciseId: 7, kind: 'decide', action: 'silent', episodeId: 'ep-q', confidence: 0.31, rationale: 'same diagnosis as the earlier hint' });
+        expect(onServerSilent).toHaveBeenLastCalledWith('ep-q', undefined, 0.31, 'same diagnosis as the earlier hint');
     });
 
     it('dispatches kind=confirm_close to onServerClose', async () => {

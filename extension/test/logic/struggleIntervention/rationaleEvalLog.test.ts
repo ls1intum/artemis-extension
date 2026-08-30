@@ -53,4 +53,37 @@ describe('rationale reaches the eval log', () => {
         expect(entry).toBeDefined();
         expect(entry.rationale).toBeUndefined();
     });
+
+    it('a silent decide records its own row, with the reason it stayed quiet', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        const gen = svc._slot.generation();
+        const stamp: PendingStamp = { episodeId: 'ep-s', generation: gen, hardEvent: true, requestToken: 'tok' };
+        const localToken = svc._guard.issue('decide', stamp);
+        svc._inFlightMarker = { requestToken: 'tok', episodeId: 'ep-s', generation: gen, intent: 'decide', localToken };
+        svc._candidate = { episodeId: 'ep-s', hints: [], createdAtMs: 0 };
+
+        svc.onServerSilent('ep-s', undefined, 0.42, 'the earlier hint already says this');
+        await Promise.resolve();
+
+        const rows = recorded(deps).filter(e => e.finalAction === 'silent' && e.source === 'server');
+        expect(rows).toHaveLength(1);
+        expect(rows[0].confidence).toBe(0.42);
+        expect(rows[0].rationale).toBe('the earlier hint already says this');
+    });
+
+    it('an uncorrelated silent frame records nothing', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        const gen = svc._slot.generation();
+        const stamp: PendingStamp = { episodeId: 'ep-live', generation: gen, hardEvent: true, requestToken: 'tok' };
+        const localToken = svc._guard.issue('decide', stamp);
+        svc._inFlightMarker = { requestToken: 'tok', episodeId: 'ep-live', generation: gen, intent: 'decide', localToken };
+
+        // A late reply for a superseded episode must not pollute the eval log.
+        svc.onServerSilent('ep-stale', undefined, 0.9, 'should never be recorded');
+        await Promise.resolve();
+
+        expect(recorded(deps).filter(e => e.finalAction === 'silent' && e.source === 'server')).toHaveLength(0);
+    });
 });

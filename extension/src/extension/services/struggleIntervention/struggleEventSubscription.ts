@@ -101,7 +101,7 @@ export interface StruggleEventHandlers {
     onServerActive(exerciseId: number, episodeId: string | undefined, sessionId: number, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence: number | undefined, message: string | undefined, messageId: number | null, rationale: string | undefined): void;
     /** Server decided no intervention is needed. Frees PARKED (discard-free), suppresses for DELIVERED.
      *  `episodeId` is echoed from the request; used by the orchestrator for stale-drop validation (C4). */
-    onServerSilent(episodeId: string | undefined, messageId: number | undefined): void;
+    onServerSilent(episodeId: string | undefined, messageId: number | undefined, confidence: number | undefined, rationale: string | undefined): void;
     /** Server confirms or denies the close request (C4). Routes by the client's current slot state. */
     onServerClose(episodeId: string | undefined, resolved: boolean, messageId: number | undefined, closingSentence: string | undefined, episodeLabel: string | undefined): void;
 }
@@ -129,7 +129,7 @@ export function subscribeStruggleEvents(
         // decide frame (kind='decide' or backwards-compat ambient/active)
         const messageId = e.messageId ?? null;
         if (e.action === 'silent') {
-            handlers.onServerSilent(e.episodeId, e.messageId);
+            handlers.onServerSilent(e.episodeId, e.messageId, e.confidence, e.rationale);
             return;
         }
         if (e.action === 'ambient') {
