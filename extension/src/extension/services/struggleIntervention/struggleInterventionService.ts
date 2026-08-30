@@ -813,17 +813,17 @@ export class StruggleInterventionService implements AlertSink {
     /** Inbound ambient event (PARKED pointer only: spec §5 pull model). */
     onServerAmbient(
         episodeId: string | undefined, hint: string, anchorFile: string | undefined, anchorLine: number | undefined,
-        inlineHint: string | undefined, confidence?: number, messageId?: number | null, sessionId?: number,
+        inlineHint: string | undefined, confidence?: number, messageId?: number | null, sessionId?: number, rationale?: string,
     ): void {
-        this._frames.onServerAmbient(episodeId, hint, anchorFile, anchorLine, inlineHint, confidence, messageId, sessionId);
+        this._frames.onServerAmbient(episodeId, hint, anchorFile, anchorLine, inlineHint, confidence, messageId, sessionId, rationale);
     }
 
     /** Inbound active event (delivered: bubble + notification), subject to the Pull re-route. */
     onServerActive(
         episodeId: string | undefined, sessionId: number, anchorFile?: string, anchorLine?: number,
-        inlineHint?: string, confidence?: number, message?: string, messageId?: number | null,
+        inlineHint?: string, confidence?: number, message?: string, messageId?: number | null, rationale?: string,
     ): void {
-        this._frames.onServerActive(episodeId, sessionId, anchorFile, anchorLine, inlineHint, confidence, message, messageId);
+        this._frames.onServerActive(episodeId, sessionId, anchorFile, anchorLine, inlineHint, confidence, message, messageId, rationale);
     }
 
     /** Inbound silent event: the server decided no intervention is needed. */

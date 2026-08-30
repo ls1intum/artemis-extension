@@ -8,6 +8,9 @@ export interface InterventionLogEvent {
     /** The originating signal (alert + trajectory) - the analytic payload (spec §12). */
     signal?: StruggleSignal;
     confidence?: number;                     // server confidence (active/ambient AI path), when known
+    /** The gate's own one-sentence reason for the decision. Never shown to the student; it is here so the
+     *  eval can read WHY a run decided as it did, not just what it decided (spec §12). */
+    rationale?: string;
     studentOutcome?: 'shown' | 'clicked' | 'dismissed';
 }
 

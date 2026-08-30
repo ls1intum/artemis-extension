@@ -246,7 +246,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         void deps.deleteSupersededProactiveMessage(frameExerciseId, messageId).catch(() => { /* best-effort */ });
     };
     deps.context.subscriptions.push(subscribeStruggleEvents(deps.subscribeStruggleTopic, {
-        onServerAmbient: (exerciseId, episodeId, hint, anchorFile, anchorLine, inlineHint, c, messageId) => {
+        onServerAmbient: (exerciseId, episodeId, hint, anchorFile, anchorLine, inlineHint, c, messageId, rationale) => {
             // #349 Finding 4: never surface late inbound hint content (even to the dev log) once
             // consent is revoked; log only redacted metadata and drop the frame before the
             // orchestrator (whose own consent guard stays as defence in depth).
@@ -261,10 +261,10 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
             const active = exerciseId === coordinator.activeExerciseId;
             devLog(`◀ Iris AMBIENT exercise=${exerciseId} conf=${c ?? 'n/a'}`
                 + `${active ? '' : ` DROPPED (active exercise=${coordinator.activeExerciseId})`}`);
-            if (active) { orchestrator.onServerAmbient(episodeId, hint, anchorFile, anchorLine, inlineHint, c, messageId); }
+            if (active) { orchestrator.onServerAmbient(episodeId, hint, anchorFile, anchorLine, inlineHint, c, messageId, undefined, rationale); }
             else { retireDroppedFrameRow(exerciseId, messageId); }
         },
-        onServerActive: (exerciseId, episodeId, sid, anchorFile, anchorLine, inlineHint, c, message, messageId) => {
+        onServerActive: (exerciseId, episodeId, sid, anchorFile, anchorLine, inlineHint, c, message, messageId, rationale) => {
             // #349 Finding 4: as onServerAmbient - drop late content once consent is revoked.
             if (!consent.isEnabled) {
                 devLog(`◀ Iris ACTIVE dropped (consent revoked) exercise=${exerciseId}`);
@@ -274,7 +274,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
             const active = exerciseId === coordinator.activeExerciseId;
             devLog(`◀ Iris ACTIVE exercise=${exerciseId} session=${sid} conf=${c ?? '–'}`
                 + `${active ? '' : ` DROPPED (active exercise=${coordinator.activeExerciseId})`}`);
-            if (active) { orchestrator.onServerActive(episodeId, sid, anchorFile, anchorLine, inlineHint, c, message, messageId); }
+            if (active) { orchestrator.onServerActive(episodeId, sid, anchorFile, anchorLine, inlineHint, c, message, messageId, rationale); }
             else { retireDroppedFrameRow(exerciseId, messageId); }
         },
         onServerSilent: (episodeId, messageId) => {

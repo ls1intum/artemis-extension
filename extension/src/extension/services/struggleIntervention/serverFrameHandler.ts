@@ -69,7 +69,7 @@ export class ServerFrameHandler {
      * Routes through reconcile; may take-parked (FREE), replace-parked (PARKED), or suppress (DELIVERED).
      * sessionId is stored for the reveal flow (C2).
      */
-    onServerAmbient(episodeId: string | undefined, hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number, messageId?: number | null, sessionId?: number): void {
+    onServerAmbient(episodeId: string | undefined, hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence?: number, messageId?: number | null, sessionId?: number, rationale?: string): void {
         // #349 Finding 1: inbound stale-frame correlation. Drop a late reply whose echoed
         // episodeId does not match the in-flight request (e.g. a pre-revoke POST landing after
         // a regrant issued a fresh marker) WITHOUT clearing the marker, so the current request's
@@ -124,7 +124,7 @@ export class ServerFrameHandler {
         const decision = { action: 'ambient' as const, text: hint, hardEvent: accepted.hardEvent };
         const action = reconcile(snap.state, decision);
 
-        this._applyDecideAction(action, hint, { level: 'ambient', text: hint, atSessionS: Date.now() / 1000 }, messageId ?? null, anchorFile, anchorLine, inlineHint, confidence, baseline);
+        this._applyDecideAction(action, hint, { level: 'ambient', text: hint, atSessionS: Date.now() / 1000 }, messageId ?? null, anchorFile, anchorLine, inlineHint, confidence, baseline, undefined, rationale);
     }
 
     /**
@@ -134,7 +134,7 @@ export class ServerFrameHandler {
      * Pull re-route (spec §12.2): when the active exercise's level is `less`, this delegates to
      * {@link onServerAmbient} instead, so Less never creates a DELIVERED episode/bubble/notification.
      */
-    onServerActive(episodeId: string | undefined, sessionId: number, anchorFile?: string, anchorLine?: number, inlineHint?: string, confidence?: number, message?: string, messageId?: number | null): void {
+    onServerActive(episodeId: string | undefined, sessionId: number, anchorFile?: string, anchorLine?: number, inlineHint?: string, confidence?: number, message?: string, messageId?: number | null, rationale?: string): void {
         // #349 Finding 1: inbound stale-frame correlation (see onServerAmbient). Drop a late
         // reply for a superseded request without clearing the current request's marker; retire
         // the stale frame's persisted chat row so it cannot surface via history (wave 2).
@@ -197,7 +197,7 @@ export class ServerFrameHandler {
         // marker, so a second call here would read it as stale and silently drop the reply).
         const level = this._p.deps.getProactiveLevel();
         if (level === 'less') {
-            this.onServerAmbient(episodeId, message ?? '', anchorFile, anchorLine, inlineHint, confidence, messageId, sessionId);
+            this.onServerAmbient(episodeId, message ?? '', anchorFile, anchorLine, inlineHint, confidence, messageId, sessionId, rationale);
             return;
         }
 
@@ -217,7 +217,7 @@ export class ServerFrameHandler {
         const decision = { action: 'active' as const, text, hardEvent: accepted.hardEvent };
         const action = reconcile(snap.state, decision);
 
-        this._applyDecideAction(action, text, { level: 'active', text, atSessionS: Date.now() / 1000 }, messageId ?? null, anchorFile, anchorLine, inlineHint, confidence, baseline, sessionId);
+        this._applyDecideAction(action, text, { level: 'active', text, atSessionS: Date.now() / 1000 }, messageId ?? null, anchorFile, anchorLine, inlineHint, confidence, baseline, sessionId, rationale);
     }
 
     /**
@@ -350,6 +350,7 @@ export class ServerFrameHandler {
         confidence: number | undefined,
         baseline: Record<string, string> | undefined,
         sessionId?: number,
+        rationale?: string,
     ): void {
         const now = Date.now();
 
@@ -384,7 +385,7 @@ export class ServerFrameHandler {
                     this._p.deps.clearInline();
                 }
                 this._p.dbg(`  -> TAKE-PARKED badge+lamp${anchorFile ? '+gutter' : ''} hint="${text}"`);
-                void this._p.deps.log.record({ action: 'ambient', finalAction: 'ambient', surface: 'lamp', source: 'server', signal: this._rt.lastSignal, confidence });
+                void this._p.deps.log.record({ action: 'ambient', finalAction: 'ambient', surface: 'lamp', source: 'server', signal: this._rt.lastSignal, confidence, rationale });
                 break;
             }
 
@@ -397,7 +398,7 @@ export class ServerFrameHandler {
                 this._rt.watchdog.arm(now, false /* delivered */);
                 this._rt.latch.reset();
                 this._applyActiveSurface(text, messageId, anchorFile, effectiveAnchorLine, inlineHint, sessionId);
-                void this._p.deps.log.record({ action: 'active', finalAction: 'active', surface: 'bubble', source: 'server', signal: this._rt.lastSignal, confidence });
+                void this._p.deps.log.record({ action: 'active', finalAction: 'active', surface: 'bubble', source: 'server', signal: this._rt.lastSignal, confidence, rationale });
                 break;
             }
 
@@ -422,7 +423,7 @@ export class ServerFrameHandler {
                     this._p.deps.clearInline();
                 }
                 this._p.dbg(`  -> REPLACE-PARKED new hint="${text}"`);
-                void this._p.deps.log.record({ action: 'ambient', finalAction: 'ambient', surface: 'lamp', source: 'server', signal: this._rt.lastSignal, confidence });
+                void this._p.deps.log.record({ action: 'ambient', finalAction: 'ambient', surface: 'lamp', source: 'server', signal: this._rt.lastSignal, confidence, rationale });
                 break;
             }
 
@@ -438,7 +439,7 @@ export class ServerFrameHandler {
                 this._rt.watchdog.arm(now, false /* delivered */);
                 this._rt.latch.reset();
                 this._applyActiveSurface(text, messageId, anchorFile, effectiveAnchorLine, inlineHint, sessionId);
-                void this._p.deps.log.record({ action: 'active', finalAction: 'active', surface: 'bubble', source: 'server', signal: this._rt.lastSignal, confidence });
+                void this._p.deps.log.record({ action: 'active', finalAction: 'active', surface: 'bubble', source: 'server', signal: this._rt.lastSignal, confidence, rationale });
                 break;
             }
 
@@ -448,7 +449,7 @@ export class ServerFrameHandler {
                 const inSession = this._rt.slot.snapshot().inSession;
                 this._applyEscalation(inSession, text, anchorFile, effectiveAnchorLine, inlineHint, messageId);
                 // Watchdog: resetProgress is NOT called here (escalation is not "hard progress")
-                void this._p.deps.log.record({ action: 'active', finalAction: 'active', surface: 'bubble', source: 'server', signal: this._rt.lastSignal, confidence });
+                void this._p.deps.log.record({ action: 'active', finalAction: 'active', surface: 'bubble', source: 'server', signal: this._rt.lastSignal, confidence, rationale });
                 break;
             }
 

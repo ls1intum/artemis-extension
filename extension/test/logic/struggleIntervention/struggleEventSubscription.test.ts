@@ -150,19 +150,29 @@ describe('subscribeStruggleEvents dispatch', () => {
 
         // Ambient: episodeId threaded, messageId absent -> null
         onFrame!({ exerciseId: 42, action: 'ambient', episodeId: 'ep-a', message: 'Re-check the logic.', anchorFile: 'src/A.java', anchorLine: 42, inlineHint: 'off-by-one?' });
-        expect(onServerAmbient).toHaveBeenCalledWith(42, 'ep-a', 'Re-check the logic.', 'src/A.java', 42, 'off-by-one?', undefined, null);
+        expect(onServerAmbient).toHaveBeenCalledWith(42, 'ep-a', 'Re-check the logic.', 'src/A.java', 42, 'off-by-one?', undefined, null, undefined);
 
         // Active without anchor: episodeId threaded, messageId absent -> null, message absent -> undefined
         onFrame!({ exerciseId: 99, action: 'active', episodeId: 'ep-b', sessionId: 7, confidence: 0.5 });
-        expect(onServerActive).toHaveBeenCalledWith(99, 'ep-b', 7, undefined, undefined, undefined, 0.5, undefined, null);
+        expect(onServerActive).toHaveBeenCalledWith(99, 'ep-b', 7, undefined, undefined, undefined, 0.5, undefined, null, undefined);
 
         // Active with anchor and messageId
         onFrame!({ exerciseId: 99, action: 'active', episodeId: 'ep-c', sessionId: 8, anchorFile: 'src/B.java', anchorLine: 84, inlineHint: 'check punctuation', confidence: 0.9 });
-        expect(onServerActive).toHaveBeenCalledWith(99, 'ep-c', 8, 'src/B.java', 84, 'check punctuation', 0.9, undefined, null);
+        expect(onServerActive).toHaveBeenCalledWith(99, 'ep-c', 8, 'src/B.java', 84, 'check punctuation', 0.9, undefined, null, undefined);
 
         // Active with messageId set: threads through; frame with NO episodeId forwards undefined
         onFrame!({ exerciseId: 5, action: 'active', sessionId: 3, message: 'Try X.', messageId: 556 });
-        expect(onServerActive).toHaveBeenCalledWith(5, undefined, 3, undefined, undefined, undefined, undefined, 'Try X.', 556);
+        expect(onServerActive).toHaveBeenCalledWith(5, undefined, 3, undefined, undefined, undefined, undefined, 'Try X.', 556, undefined);
+
+        // rationale is eval-log telemetry: it rides beside confidence and must reach the handler,
+        // on the ambient path as much as the active one.
+        onFrame!({ exerciseId: 42, action: 'ambient', episodeId: 'ep-r', message: 'm', rationale: 'earlier hint already said this' });
+        expect(onServerAmbient).toHaveBeenLastCalledWith(42, 'ep-r', 'm', undefined, undefined, undefined, undefined, null, 'earlier hint already said this');
+        onFrame!({ exerciseId: 42, action: 'active', episodeId: 'ep-s', sessionId: 4, rationale: 'compile error still present at the anchor' });
+        expect(onServerActive).toHaveBeenLastCalledWith(42, 'ep-s', 4, undefined, undefined, undefined, undefined, undefined, null, 'compile error still present at the anchor');
+        // A non-string rationale is dropped rather than forwarded.
+        onFrame!({ exerciseId: 42, action: 'active', episodeId: 'ep-t', sessionId: 4, rationale: 42 });
+        expect(onServerActive).toHaveBeenLastCalledWith(42, 'ep-t', 4, undefined, undefined, undefined, undefined, undefined, null, undefined);
     });
 });
 

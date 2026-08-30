@@ -81,6 +81,9 @@ export interface StruggleInterventionEvent {
     messageId?: number;
     /** Server-computed Pyris confidence, forwarded by Plan 2 (Task 4b 5-component DTO) for the client eval log (§12). */
     confidence?: number;
+    /** The gate's one-sentence reason for the decision. Never shown to the student; it rides beside
+     *  `confidence` so the eval log records WHY a run decided as it did (§12). */
+    rationale?: string;
     /** Inline anchor + cue (spec §4/§8). All optional; present only when the gate localized the nudge to one line. */
     anchorFile?: string;
     anchorLine?: number;

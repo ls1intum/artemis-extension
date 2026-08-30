@@ -14,7 +14,7 @@ export function classifyStruggleEvent(data: unknown): StruggleInterventionEvent 
         sessionId?: unknown; messageId?: unknown; confidence?: unknown; episodeId?: unknown;
         anchorFile?: unknown; anchorLine?: unknown; inlineHint?: unknown;
         resolved?: unknown; closingSentence?: unknown; episodeLabel?: unknown;
-        ask?: unknown; question?: unknown;
+        ask?: unknown; question?: unknown; rationale?: unknown;
     };
     if (typeof f.exerciseId !== 'number') {
         return undefined;
@@ -22,6 +22,7 @@ export function classifyStruggleEvent(data: unknown): StruggleInterventionEvent 
 
     const exerciseId = f.exerciseId;
     const kind = typeof f.kind === 'string' ? f.kind : undefined;
+    const rationale = typeof f.rationale === 'string' ? f.rationale : undefined;
     const episodeId = typeof f.episodeId === 'string' ? f.episodeId : undefined;
     const messageId = typeof f.messageId === 'number' ? f.messageId : undefined;
 
@@ -54,6 +55,7 @@ export function classifyStruggleEvent(data: unknown): StruggleInterventionEvent 
             sessionId,
             messageId,
             confidence: typeof f.confidence === 'number' ? f.confidence : undefined,
+            rationale,
         };
     }
 
@@ -78,6 +80,7 @@ export function classifyStruggleEvent(data: unknown): StruggleInterventionEvent 
             anchorFile,
             anchorLine,
             inlineHint,
+            rationale,
         };
     }
 
@@ -91,11 +94,11 @@ export interface StruggleEventHandlers {
      *  `episodeId` is the echoed request episode; the orchestrator correlates it against the
      *  in-flight marker to drop a late reply for a superseded request (#349 Finding 1).
      *  `messageId` is forwarded for slot correlation (C3/C4); null when absent. */
-    onServerAmbient(exerciseId: number, episodeId: string | undefined, hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence: number | undefined, messageId: number | null): void;
+    onServerAmbient(exerciseId: number, episodeId: string | undefined, hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence: number | undefined, messageId: number | null, rationale: string | undefined): void;
     /** Active also carries the optional anchor (spec §6.1) and the hint `message` text for the
      *  optimistic bubble. `episodeId` correlates against the in-flight marker (#349 Finding 1).
      *  `messageId` enables webview-side dedup; null when server persist failed (A9). */
-    onServerActive(exerciseId: number, episodeId: string | undefined, sessionId: number, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence: number | undefined, message: string | undefined, messageId: number | null): void;
+    onServerActive(exerciseId: number, episodeId: string | undefined, sessionId: number, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence: number | undefined, message: string | undefined, messageId: number | null, rationale: string | undefined): void;
     /** Server decided no intervention is needed. Frees PARKED (discard-free), suppresses for DELIVERED.
      *  `episodeId` is echoed from the request; used by the orchestrator for stale-drop validation (C4). */
     onServerSilent(episodeId: string | undefined, messageId: number | undefined): void;
@@ -130,11 +133,11 @@ export function subscribeStruggleEvents(
             return;
         }
         if (e.action === 'ambient') {
-            handlers.onServerAmbient(e.exerciseId, e.episodeId, e.message ?? '', e.anchorFile, e.anchorLine, e.inlineHint, e.confidence, messageId);
+            handlers.onServerAmbient(e.exerciseId, e.episodeId, e.message ?? '', e.anchorFile, e.anchorLine, e.inlineHint, e.confidence, messageId, e.rationale);
             return;
         }
         if (e.action === 'active') {
-            handlers.onServerActive(e.exerciseId, e.episodeId, e.sessionId as number, e.anchorFile, e.anchorLine, e.inlineHint, e.confidence, e.message, messageId);
+            handlers.onServerActive(e.exerciseId, e.episodeId, e.sessionId as number, e.anchorFile, e.anchorLine, e.inlineHint, e.confidence, e.message, messageId, e.rationale);
         }
     });
 }
