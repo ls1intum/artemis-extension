@@ -412,7 +412,7 @@
     "typescript": "5.9.3",
     "typescript-plugin-css-modules": "5.2.0",
     "vitest": "4.1.10",
-    "vscode-extension-tester": "8.22.0"
+    "vscode-extension-tester": "8.25.0"
   },
   "dependencies": {
     "@stomp/stompjs": "7.3.0",
