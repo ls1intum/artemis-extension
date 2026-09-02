@@ -385,7 +385,7 @@
     "@types/react": "18.3.31",
     "@types/react-dom": "18.3.7",
     "@types/sinon": "21.0.0",
-    "@types/vscode": "1.93.0",
+    "@types/vscode": "1.136.0",
     "@types/ws": "8.18.1",
     "@typescript-eslint/eslint-plugin": "8.58.0",
     "@typescript-eslint/parser": "8.58.0",
