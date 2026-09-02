@@ -977,4 +977,125 @@ describe('ExerciseDetailView', () => {
 			expect(screen.queryByRole('button', { name: 'Scroll to build status' })).not.toBeInTheDocument();
 		});
 	});
+
+	describe('server-rendered problem statement identity', () => {
+		/** An exercise with both participations, the only shape where the identity can be wrong. */
+		function bothParticipations(): ExerciseDetailsResponse {
+			return makeExerciseData({
+				exercise: {
+					// Spelled out because `makeExerciseData` spreads the whole override last: an
+					// `exercise` override REPLACES the default one rather than merging into it, and
+					// the view drops a render whose exercise it cannot match.
+					id: 42,
+					title: 'My Exercise',
+					type: 'programming',
+					maxPoints: 10,
+					bonusPoints: 0,
+					problemStatement: 'Solve the problem.',
+					course: { id: 1, title: 'Test Course', shortName: 'TC' },
+					studentParticipations: [
+						{ id: 7, testRun: false, repositoryUri: 'https://a/repo.git' },
+						{ id: 8, testRun: true, repositoryUri: 'https://a/repo-practice.git' },
+					],
+				},
+			} as unknown as Partial<ExerciseDetailsResponse>);
+		}
+
+		it('does not show a render made for the other participation', () => {
+			// The host settles on the participation from the workspace repository and the view from
+			// the status message; between the two, a render for the wrong one can arrive.
+			useExerciseDetailStore.setState({
+				exerciseData: bothParticipations(),
+				repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+				isLoading: false,
+			});
+			render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
+
+			act(() => {
+				dispatchExtensionMessage({
+					type: ExtensionMsg.ProblemStatementRendered,
+					html: '<p>practice statement</p>',
+					exerciseId: 42,
+					participationId: 8,
+				});
+			});
+
+			expect(screen.queryByText('practice statement')).not.toBeInTheDocument();
+		});
+
+		it('shows that same render once the view selects the participation it belongs to', () => {
+			// Held rather than discarded on arrival. Discarding would leave the statement blank for
+			// good in this order, because nothing resends it.
+			useExerciseDetailStore.setState({
+				exerciseData: bothParticipations(),
+				repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+				isLoading: false,
+			});
+			render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
+			act(() => {
+				dispatchExtensionMessage({
+					type: ExtensionMsg.ProblemStatementRendered,
+					html: '<p>practice statement</p>',
+					exerciseId: 42,
+					participationId: 8,
+				});
+			});
+			// Asserted here too: without it the test would pass on an implementation that never
+			// filtered at all, which is the opposite of what it claims to show.
+			expect(screen.queryByText('practice statement')).not.toBeInTheDocument();
+
+			act(() => {
+				useExerciseDetailStore.setState({
+					repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: true },
+				});
+			});
+
+			expect(screen.getByText('practice statement')).toBeInTheDocument();
+		});
+
+		it('follows the host when it has no status of its own', () => {
+			// A recreated view over an exercise the host already knows is a practice one. If the new
+			// detection fails no status is coming at all, and defaulting to graded would leave
+			// graded controls beside practice markers for good. The guard below is unconditional, so
+			// this render only appears because the whole view followed the host's label.
+			useExerciseDetailStore.setState({
+				exerciseData: bothParticipations(),
+				repoStatus: null,
+				isLoading: false,
+			});
+			render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
+
+			act(() => {
+				dispatchExtensionMessage({
+					type: ExtensionMsg.ProblemStatementRendered,
+					html: '<p>practice statement</p>',
+					exerciseId: 42,
+					participationId: 8,
+				});
+			});
+
+			expect(screen.getByText('practice statement')).toBeInTheDocument();
+		});
+
+		// Characterisation: unlabelled renders were shown before this change too. Here so the new
+		// guard cannot quietly swallow them.
+		it('shows an unlabelled render, which predates the field', () => {
+			useExerciseDetailStore.setState({
+				exerciseData: bothParticipations(),
+				repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+				isLoading: false,
+			});
+			render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
+
+			act(() => {
+				dispatchExtensionMessage({
+					type: ExtensionMsg.ProblemStatementRendered,
+					html: '<p>legacy statement</p>',
+					exerciseId: 42,
+				});
+			});
+
+			expect(screen.getByText('legacy statement')).toBeInTheDocument();
+		});
+	});
 });

@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 
-import { LoginCancelledError } from '@extension/services/auth';
+import { LoginCancelledError, performLogout } from '@extension/services/auth';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { normalizeServerUrl } from '@extension/services/session/identityKeys';
 import { resolveServerUrl } from '@extension/utils';
@@ -26,6 +26,9 @@ export class AuthCommandModule {
     private handleCheckLoginOptions = async (message: WebviewToExtensionMessage): Promise<void> => {
         const payload = getPayload<WebCmd<'checkLoginOptions'>>(message);
         const attemptId = payload.attemptId;
+        // A deliberate new sign-in supersedes whatever the last one failed to finish. Only this and a
+        // vanished credential drop the record; a render, a ready or an init send must not.
+        this.context.handoverFailures.clear();
 
         const controller = new AbortController();
         this.context.authCancellation.register(controller);
@@ -69,6 +72,9 @@ export class AuthCommandModule {
 
             // A password attempt in progress must not be able to commit once the user has moved to OIDC.
             this.context.authCancellation.registerOidcStart();
+            // Same reason as the two handlers above: this is the user starting another sign-in, so a
+            // record from the last one no longer describes where they are.
+            this.context.handoverFailures.clear();
             await this.context.oidcLoginService.start(rememberMe);
         } catch (error: unknown) {
             if (error instanceof LoginCancelledError) {
@@ -94,6 +100,7 @@ export class AuthCommandModule {
     private handleLogin = async (message: WebviewToExtensionMessage): Promise<void> => {
         const payload = getPayload<WebCmd<'login'>>(message);
         const attemptId = payload.attemptId;
+        this.context.handoverFailures.clear();
 
         const controller = new AbortController();
         this.context.authCancellation.register(controller);
@@ -166,10 +173,10 @@ export class AuthCommandModule {
             this.context.authCancellation.release(controller);
         }
 
-        // Past this point the credential is committed and the user is signed in. A failure while wiring
-        // up the UI is worth logging, but reporting it as a login error would contradict that.
-        // Sent first: everything below can fail, and the view clears its pending state only on a success
-        // or an error. Announcing afterwards would leave it spinning on a login that actually worked.
+        // Past this point the credential is committed and the user is signed in. Still sent before the
+        // wiring below, because a failure there must not leave the view waiting on a login that
+        // actually worked. What it announces is the START of the handover, not the end of the flow.
+        const generation = this.context.handoverFailures.begin();
         this.context.sendMessage({
             type: ExtensionMsg.LoginSuccess,
             username: user.login || username,
@@ -184,40 +191,35 @@ export class AuthCommandModule {
                 serverUrl: resolveServerUrl(),
                 user: user,
             });
+            this.context.handoverFailures.clearFor(generation);
         } catch (error: unknown) {
             logger.error('Login succeeded but the UI could not be updated', LogCategory.AUTH, error);
+            // Deliberately not a login error. The credential is committed and valid; telling the user
+            // the login failed would send them back to authenticate against a session they already
+            // have. `record` returns nothing when a newer handover has superseded this one, which is
+            // what stops an abandoned attempt from writing over a fresher outcome.
+            const message = 'Signed in, but Artemis could not be opened. Reload the window to continue.';
+            if (this.context.handoverFailures.record(generation, message, attemptId)) {
+                this.context.sendMessage({
+                    type: ExtensionMsg.LoginHandoverFailed,
+                    error: message,
+                    attemptId,
+                });
+            }
         }
     };
 
     private handleLogout = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        // Both captured before the first await. A sign-in racing this logout must be stopped now, and
-        // the credential this logout is entitled to remove is the one that exists at this moment.
-        const revision = this.context.authManager.currentCredentialRevision();
-        const cancelled = this.context.authCancellation.cancelAll();
-
-        try {
-            await cancelled;
-            // Best-effort server-side logout before clearing local state. It never throws, so local
-            // cleanup proceeds regardless.
-            await this.context.artemisApi.logoutFromServer();
-            const cleared = await this.context.authManager.clearIfUnchanged(revision);
-            if (!cleared) {
-                // The user signed in again while the server was being told about the logout. The new
-                // session survives in storage, so tearing down its UI here would strand them: signed in,
-                // looking at a login form.
-                logger.info('Logout superseded by a newer sign-in', LogCategory.AUTH);
-                return;
-            }
-            await this.context.updateAuthContext(false);
-
-            vscode.window.showInformationMessage('Successfully logged out of Artemis');
-
-            this.context.appStateManager.showLogin();
-            this.context.actionHandler.render();
-        } catch (error: unknown) {
-            logger.error('Logout error:', LogCategory.AUTH, error);
-            vscode.window.showErrorMessage('Error during logout');
-        }
+        await performLogout({
+            authManager: this.context.authManager,
+            artemisApi: this.context.artemisApi,
+            authCancellation: this.context.authCancellation,
+            updateAuthContext: (isAuthenticated) => this.context.updateAuthContext(isAuthenticated),
+            showLogin: () => {
+                this.context.appStateManager.showLogin();
+                this.context.actionHandler.render();
+            },
+        });
     };
 
     private formatLoginError(error: unknown): string {

@@ -273,41 +273,52 @@ export class NavigationCommandModule {
         }
     };
 
+    /**
+     * The course an exercise belongs to, from the cached course list.
+     *
+     * `courseId` is the fast path. The scan behind it serves callers that only
+     * know the exercise, and also covers a `courseId` whose entry carries no
+     * usable course data: an entry that fails to map counts as not found, so
+     * the search keeps going rather than reporting a missing course.
+     */
+    private findParentCourse(exerciseId: number, courseId?: number | null): CourseDetailData | null {
+        const courses = this.context.appStateManager.coursesData?.courses;
+        if (!courses) {
+            return null;
+        }
+
+        if (courseId) {
+            const course = courses.find(c => c.course?.id === courseId)?.course;
+            const mapped = course ? toCourseDetailData(course) : null;
+            if (mapped) {
+                logger.view(`[Navigation] Found parent course for exercise ${exerciseId} via courseId: ${course?.title}`);
+                return mapped;
+            }
+        }
+
+        for (const entry of courses) {
+            const course = entry?.course;
+            // `exercises` arrives as raw server JSON with no runtime conversion,
+            // so it is not necessarily an array. Anything else means this entry
+            // cannot answer the question, not that the lookup failed.
+            if (!Array.isArray(course?.exercises) || !course.exercises.some(ex => ex?.id === exerciseId)) {
+                continue;
+            }
+            const mapped = toCourseDetailData(course);
+            if (mapped) {
+                logger.view(`[Navigation] Found parent course for exercise ${exerciseId}: ${course.title}`);
+                return mapped;
+            }
+        }
+
+        return null;
+    }
+
     private handleOpenExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
         const { exerciseId, courseId } = getPayload<WebCmd<'openExercise'>>(message);
 
         try {
-            const coursesData = this.context.appStateManager.coursesData;
-            let parentCourseDetailData: CourseDetailData | null = null;
-
-            if (coursesData?.courses) {
-                if (courseId) {
-                    const courseEntry = coursesData.courses.find(c => c.course?.id === courseId);
-                    if (courseEntry?.course) {
-                        const mapped = toCourseDetailData(courseEntry.course);
-                        if (mapped) {
-                            parentCourseDetailData = mapped;
-                            logger.view(`[Navigation] Found parent course for exercise ${exerciseId} via courseId: ${courseEntry.course.title}`);
-                        }
-                    }
-                }
-
-                if (!parentCourseDetailData) {
-                    for (const courseEntry of coursesData.courses) {
-                        const exercises = courseEntry?.course?.exercises || [];
-                        const foundExercise = exercises.find((ex) => ex?.id === exerciseId);
-
-                        if (foundExercise && courseEntry.course) {
-                            const mapped = toCourseDetailData(courseEntry.course);
-                            if (mapped) {
-                                parentCourseDetailData = mapped;
-                                logger.view(`[Navigation] Found parent course for exercise ${exerciseId}: ${courseEntry.course.title}`);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
+            const parentCourseDetailData = this.findParentCourse(exerciseId, courseId);
 
             if (!parentCourseDetailData) {
                 logger.viewError(`Could not find parent course for exercise ${exerciseId}`);

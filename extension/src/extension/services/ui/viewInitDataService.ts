@@ -5,6 +5,7 @@ import { ExtensionMsg, toCourseDetailData } from '@shared/messageContracts';
 
 import { AppStateManager } from '@extension/controller/appStateManager';
 import type { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
+import type { HandoverFailureStore } from '@extension/services/auth/handoverFailureStore';
 import { COURSE_ACCESS_DISPLAY_LIMIT, type CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { GitService } from '@extension/services/workspace/gitService';
@@ -32,6 +33,7 @@ export class ViewInitDataService {
         private readonly _struggleCoordinator: IStruggleCoordinator | undefined,
         private readonly _messageHandler: WebViewMessageHandler,
         private readonly _postMessage: (msg: ExtensionToWebviewMessage) => void,
+        private readonly _handoverFailures: HandoverFailureStore,
         private readonly _courseAccessStorage?: CourseAccessStorageService,
     ) {}
 
@@ -187,11 +189,18 @@ export class ViewInitDataService {
 
     /**
      * Build the exercise-detail init payload used by BOTH the sidebar and the
-     * fullscreen panel. Pure and total: it never rejects (a workspace-detection
-     * failure resolves to `repoStatus: undefined`) and has no side effects, so
-     * the caller owns posting and any repo-context wiring. `exerciseData` is
-     * passed explicitly — the sidebar hands its app-state exercise, a panel
-     * hands its own immutable snapshot.
+     * fullscreen panel. Total: it never rejects (a workspace-detection failure
+     * resolves to `repoStatus: undefined`) and it never posts, so the caller
+     * owns posting and any repo-context wiring. `exerciseData` is passed
+     * explicitly — the sidebar hands its app-state exercise, a panel hands its
+     * own immutable snapshot.
+     *
+     * `ticket` is a workspace-mode probe claimed by the caller BEFORE the
+     * detection starts. Supplying it makes this the one place that records what
+     * the detection found, from in front of the caller's generation check, and
+     * the returned `accepted` says whether a newer probe has since spoken. Read-
+     * only callers (the fullscreen panel) omit it: they must not record a mode,
+     * and their payload is never arbitrated away.
      *
      * The cached server-rendered problem statement lives in global app state, so
      * it is included ONLY when that cache belongs to THIS exercise; otherwise it
@@ -199,21 +208,48 @@ export class ViewInitDataService {
      */
     public async buildExerciseDetailInit(
         exerciseData: ExerciseDetailsResponse,
-    ): Promise<{ msg: ExtensionToWebviewMessage; repoStatus?: ExerciseRepoStatus }> {
+        ticket?: number,
+    ): Promise<{
+        msg: ExtensionToWebviewMessage;
+        repoStatus?: ExerciseRepoStatus;
+        accepted: boolean;
+        detectionFailed: boolean;
+    }> {
         const isManagedEnvironment = getTheiaEnvironment().isManagedEnvironment;
         const hideDeveloperTools = !this._isDeveloperMode();
+        const exerciseId = exerciseData.exercise?.id;
 
         const repoUris = (exerciseData.exercise?.studentParticipations ?? [])
             .map(p => p.repositoryUri)
             .filter((uri): uri is string => !!uri);
 
         let repoStatus: ExerciseRepoStatus | undefined;
+        let detectionFailed = false;
         if (repoUris.length > 0) {
             try {
                 repoStatus = await detectWorkspaceForRepoUris(repoUris);
             } catch (error) {
                 logger.error('Failed to detect workspace status for exercise detail', LogCategory.VIEW, error);
-                repoStatus = undefined;
+                detectionFailed = true;
+            }
+        }
+
+        // Recorded here, ahead of the caller's generation check, which answers "may I post the
+        // payload I captured", not "is this the freshest thing known about the workspace".
+        // A detection that threw records nothing: it must not erase what a newer one established.
+        let accepted = true;
+        if (ticket !== undefined) {
+            if (detectionFailed) {
+                accepted = false;
+            } else if (repoStatus) {
+                accepted = exerciseId === undefined
+                    ? false
+                    : this._appStateManager.recordWorkspaceMode(ticket, exerciseId, repoStatus.isPracticeRepo).accepted;
+            } else {
+                // An answer, not a failure: no repository to be in means not the practice one.
+                accepted = exerciseId === undefined
+                    ? true
+                    : this._appStateManager.recordWorkspaceMode(ticket, exerciseId, false).accepted;
             }
         }
 
@@ -233,10 +269,18 @@ export class ViewInitDataService {
                 exerciseData,
                 hideDeveloperTools,
                 isManagedEnvironment,
-                repoStatus,
+                // Omitted when a newer probe has spoken, or when the detection threw: the webview
+                // then keeps what it has. The "no repositories" case is stated rather than omitted,
+                // or the webview keeps a practice status from an earlier exercise while the host
+                // has moved to graded.
+                repoStatus: !accepted || detectionFailed
+                    ? undefined
+                    : (repoStatus ?? { isConnected: false, hasChanges: false, isPracticeRepo: false }),
                 serverRenderedProblemStatement,
             },
             repoStatus,
+            accepted,
+            detectionFailed,
         };
     }
 
@@ -250,16 +294,33 @@ export class ViewInitDataService {
 
         const gen = this._initGeneration;
         const exerciseId = exerciseData.exercise?.id;
-        void this.buildExerciseDetailInit(exerciseData).then(({ msg, repoStatus }) => {
-            // Drop a stale build: the active view moved on while detection was in flight.
-            if (gen !== this._initGeneration) { return; }
-            // Repo context lets workspace listeners auto-detect changes on file save. A matched
-            // repo sets it; a missing repoStatus (no repos, or detection failed) clears it; a
-            // detected-but-unmatched repo leaves it untouched (preserves prior behavior).
-            if (repoStatus?.matchedUri && exerciseId !== undefined) {
-                this._messageHandler.setRepositoryContext(repoStatus.matchedUri, exerciseId);
-            } else if (!repoStatus) {
-                this._messageHandler.clearRepositoryContext();
+        // Claimed before the detection starts, so the "no repositories" answer cannot be
+        // outranked by a probe that started earlier and is still running.
+        const ticket = this._appStateManager.beginWorkspaceModeProbe();
+        void this.buildExerciseDetailInit(exerciseData, ticket).then(({ msg, repoStatus, accepted, detectionFailed }) => {
+            // Repo context lets workspace listeners auto-detect changes on file save, so it is
+            // wired up ahead of the generation check as well: the save and rename listeners
+            // re-check against this context. A matched repo sets it; "no repositories" clears it;
+            // a detection that threw, or one a newer probe has outranked, applies nothing.
+            if (accepted) {
+                if (repoStatus?.matchedUri && exerciseId !== undefined) {
+                    this._messageHandler.setRepositoryContext(repoStatus.matchedUri, exerciseId);
+                } else if (!repoStatus && !detectionFailed) {
+                    this._messageHandler.clearRepositoryContext();
+                }
+            }
+            if (gen !== this._initGeneration) {
+                // The payload is stale, the detection is not. A mode the host accepted has to
+                // reach the webview on some channel or the two select differently from here on.
+                if (accepted && repoStatus) {
+                    this._postMessage({
+                        type: ExtensionMsg.UpdateRepoStatus,
+                        isConnected: repoStatus.isConnected,
+                        hasChanges: repoStatus.hasChanges,
+                        isPracticeRepo: repoStatus.isPracticeRepo,
+                    });
+                }
+                return;
             }
             this._postMessage(msg);
         });
@@ -326,6 +387,19 @@ export class ViewInitDataService {
 
     public sendLoginInit(): void {
         this._postMessage({ type: ExtensionMsg.SetServerUrl, serverUrl: resolveServerUrl() });
+
+        // Replayed rather than only announced live. A live message can be queued while the view is not
+        // ready and then thrown away by the next `render()`, which a plain configuration change is
+        // enough to trigger, and the credential it refers to is still committed. Every new document
+        // asks for init, so this is the one channel that cannot be lost that way.
+        const failure = this._handoverFailures.current;
+        if (failure) {
+            this._postMessage({
+                type: ExtensionMsg.LoginHandoverFailedInit,
+                error: failure.error,
+                generation: failure.generation,
+            });
+        }
     }
 
     private _isDeveloperMode(): boolean {

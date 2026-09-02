@@ -8,6 +8,7 @@
  */
 
 import * as vscode from 'vscode';
+import * as assert from 'assert';
 import * as sinon from 'sinon';
 
 import { ExtensionMsg } from '@shared/messageContracts';
@@ -26,8 +27,10 @@ suite('WebviewSSRCoordinator', () => {
         appStateManager: {
             currentState: string;
             currentExerciseData: ExerciseDetailsResponse | undefined;
-            serverRenderedProblemStatement: { html: string } | null;
+            serverRenderedProblemStatement: { html: string; participationId?: number } | null;
             showExerciseDetail: sinon.SinonStub;
+            /** Optional so the cases that predate the practice/graded split need not restate it. */
+            workspaceIsPractice?: boolean;
         };
         renderService: {
             render: sinon.SinonStub;
@@ -47,6 +50,7 @@ suite('WebviewSSRCoordinator', () => {
                 currentExerciseData: undefined,
                 serverRenderedProblemStatement: null,
                 showExerciseDetail: sandbox.stub(),
+                workspaceIsPractice: false,
             },
             renderService: overrides.renderService ?? {
                 render: sandbox.stub().resolves(undefined),
@@ -134,6 +138,7 @@ suite('WebviewSSRCoordinator', () => {
                 currentExerciseData: undefined,
                 serverRenderedProblemStatement: null,
                 showExerciseDetail: sandbox.stub(),
+                workspaceIsPractice: false,
             },
         });
         const coordinator = new WebviewSSRCoordinator(deps);
@@ -151,6 +156,7 @@ suite('WebviewSSRCoordinator', () => {
                 currentExerciseData: undefined,
                 serverRenderedProblemStatement: null,
                 showExerciseDetail: sandbox.stub(),
+                workspaceIsPractice: false,
             },
         });
         const coordinator = new WebviewSSRCoordinator(deps);
@@ -174,8 +180,9 @@ suite('WebviewSSRCoordinator', () => {
         const appStateManager = {
             currentState: 'exercise-detail',
             currentExerciseData: exerciseData,
-            serverRenderedProblemStatement: null as { html: string } | null,
+            serverRenderedProblemStatement: null as { html: string; participationId?: number } | null,
             showExerciseDetail: sandbox.stub(),
+            workspaceIsPractice: false,
         };
         const { deps, stubs } = buildDeps({
             appStateManager,
@@ -189,12 +196,16 @@ suite('WebviewSSRCoordinator', () => {
         await coordinator.scheduleRender();
 
         sinon.assert.calledOnce(renderStub);
-        sinon.assert.calledWith(renderStub, exercise, { participation: exercise.studentParticipations[0] });
-        sinon.assert.match(stubs.appStateManager.serverRenderedProblemStatement, { html: '<p>Hello</p>' });
+        sinon.assert.calledWith(renderStub, exercise, {
+            participation: exercise.studentParticipations[0],
+            buildPending: false,
+        });
+        sinon.assert.match(stubs.appStateManager.serverRenderedProblemStatement, { html: '<p>Hello</p>', participationId: 7 });
         sinon.assert.calledWith(stubs.postMessage, sinon.match({
             type: ExtensionMsg.ProblemStatementRendered,
             html: '<p>Hello</p>',
             exerciseId: 42,
+            participationId: 7,
         }));
     });
 
@@ -206,8 +217,9 @@ suite('WebviewSSRCoordinator', () => {
             appStateManager: {
                 currentState: 'exercise-detail',
                 currentExerciseData: exerciseData,
-                serverRenderedProblemStatement: null as { html: string } | null,
+                serverRenderedProblemStatement: null as { html: string; participationId?: number } | null,
                 showExerciseDetail: sandbox.stub(),
+                workspaceIsPractice: false,
             },
             renderService: { render: renderStub, invalidateAll: sandbox.stub() },
         });
@@ -216,6 +228,98 @@ suite('WebviewSSRCoordinator', () => {
 
         sinon.assert.notCalled(renderStub);
         sinon.assert.notCalled(stubs.postMessage);
+    });
+
+    /** An exercise with both participations, which is the only case any of this is visible in. */
+    function bothParticipations(pending?: number): {
+        exerciseData: ExerciseDetailsResponse;
+        exercise: { id: number; problemStatement: string; studentParticipations: { id: number; testRun: boolean }[] };
+    } {
+        const exercise = {
+            id: 42,
+            problemStatement: '# Hello',
+            studentParticipations: [{ id: 7, testRun: false }, { id: 8, testRun: true }],
+        };
+        const exerciseData = {
+            exercise,
+            pendingSubmissionsByParticipationId: pending === undefined ? {} : { [pending]: { participationId: pending } },
+        } as unknown as ExerciseDetailsResponse;
+        return { exerciseData, exercise };
+    }
+
+    test('renders for the practice participation when that is the repository the student has open', async () => {
+        // The whole point of the change: the graded one used to be picked by array position, which
+        // Artemis does not even guarantee.
+        const { exerciseData, exercise } = bothParticipations();
+        const renderStub = sandbox.stub().resolves({ html: '<p>P</p>', contentHash: 'aaaaaaaaaaaaaaaa' });
+        const { deps, stubs } = buildDeps({
+            appStateManager: {
+                currentState: 'exercise-detail',
+                currentExerciseData: exerciseData,
+                serverRenderedProblemStatement: null,
+                showExerciseDetail: sandbox.stub(),
+                workspaceIsPractice: true,
+            },
+            renderService: { render: renderStub, invalidateAll: sandbox.stub() },
+        });
+
+        await new WebviewSSRCoordinator(deps).scheduleRender();
+
+        sinon.assert.calledWith(renderStub, exercise, {
+            participation: exercise.studentParticipations[1],
+            buildPending: false,
+        });
+        sinon.assert.calledWith(stubs.postMessage, sinon.match({ participationId: 8 }));
+    });
+
+    test('reports a build pending on the participation it selected, not on the other one', async () => {
+        // The map can carry concurrent builds for both participations; taking the wrong entry would
+        // either blank the markers or keep a stale result while nothing is actually building.
+        const { exerciseData, exercise } = bothParticipations(8);
+        const renderStub = sandbox.stub().resolves({ html: '<p>P</p>', contentHash: 'aaaaaaaaaaaaaaaa' });
+        const { deps } = buildDeps({
+            appStateManager: {
+                currentState: 'exercise-detail',
+                currentExerciseData: exerciseData,
+                serverRenderedProblemStatement: null,
+                showExerciseDetail: sandbox.stub(),
+                workspaceIsPractice: true,
+            },
+            renderService: { render: renderStub, invalidateAll: sandbox.stub() },
+        });
+
+        await new WebviewSSRCoordinator(deps).scheduleRender();
+
+        sinon.assert.calledWith(renderStub, exercise, {
+            participation: exercise.studentParticipations[1],
+            buildPending: true,
+        });
+    });
+
+    test('drops a render whose participation stopped being the selected one mid-flight', async () => {
+        // The exercise id guard does not cover this: both participations belong to the same exercise,
+        // so only comparing the selection catches a workspace mode that resolved during the await.
+        const { exerciseData } = bothParticipations();
+        const appStateManager = {
+            currentState: 'exercise-detail',
+            currentExerciseData: exerciseData,
+            serverRenderedProblemStatement: null as { html: string; participationId?: number } | null,
+            showExerciseDetail: sandbox.stub(),
+            workspaceIsPractice: false,
+        };
+        const renderStub = sandbox.stub().callsFake(async () => {
+            appStateManager.workspaceIsPractice = true;
+            return { html: '<p>stale</p>', contentHash: 'aaaaaaaaaaaaaaaa' };
+        });
+        const { deps, stubs } = buildDeps({
+            appStateManager,
+            renderService: { render: renderStub, invalidateAll: sandbox.stub() },
+        });
+
+        await new WebviewSSRCoordinator(deps).scheduleRender();
+
+        sinon.assert.notCalled(stubs.postMessage);
+        assert.strictEqual(stubs.appStateManager.serverRenderedProblemStatement, null);
     });
 
     test('dispose disposes the theme listener', () => {
@@ -255,6 +359,7 @@ suite('WebviewSSRCoordinator', () => {
                 currentExerciseData: makeExerciseData(42),
                 serverRenderedProblemStatement: null,
                 showExerciseDetail: sandbox.stub(),
+                workspaceIsPractice: false,
             },
         });
         const coordinator = new WebviewSSRCoordinator(deps);
@@ -323,6 +428,7 @@ suite('WebviewSSRCoordinator', () => {
             currentExerciseData: exerciseData,
             serverRenderedProblemStatement: null,
             showExerciseDetail: sandbox.stub(),
+            workspaceIsPractice: false,
         };
         const { deps } = buildDeps({
             appStateManager: appState,
@@ -363,6 +469,7 @@ suite('WebviewSSRCoordinator', () => {
                 currentExerciseData: exerciseData,
                 serverRenderedProblemStatement: null,
                 showExerciseDetail: sandbox.stub(),
+                workspaceIsPractice: false,
             },
             fetchExerciseDetails: fetchStub,
         });
@@ -395,6 +502,7 @@ suite('WebviewSSRCoordinator', () => {
             currentExerciseData: exerciseData,
             serverRenderedProblemStatement: null,
             showExerciseDetail: sandbox.stub(),
+            workspaceIsPractice: false,
         };
         const { deps } = buildDeps({
             appStateManager: appState,
@@ -428,6 +536,7 @@ suite('WebviewSSRCoordinator', () => {
             currentExerciseData: exerciseData,
             serverRenderedProblemStatement: null,
             showExerciseDetail: sandbox.stub(),
+            workspaceIsPractice: false,
         };
         const { deps } = buildDeps({
             appStateManager: appState,
@@ -460,6 +569,7 @@ suite('WebviewSSRCoordinator', () => {
             currentExerciseData: exerciseData,
             serverRenderedProblemStatement: null,
             showExerciseDetail: sandbox.stub(),
+            workspaceIsPractice: false,
         };
         const { deps } = buildDeps({
             appStateManager: appState,
@@ -493,8 +603,9 @@ suite('WebviewSSRCoordinator', () => {
         const appStateManager = {
             currentState: 'exercise-detail',
             currentExerciseData: exerciseData,
-            serverRenderedProblemStatement: null as { html: string } | null,
+            serverRenderedProblemStatement: null as { html: string; participationId?: number } | null,
             showExerciseDetail: sandbox.stub(),
+            workspaceIsPractice: false,
         };
         const { deps, stubs } = buildDeps({
             appStateManager,
@@ -527,6 +638,7 @@ suite('WebviewSSRCoordinator', () => {
                 currentExerciseData: makeExerciseData(42),
                 serverRenderedProblemStatement: null,
                 showExerciseDetail: sandbox.stub(),
+                workspaceIsPractice: false,
             },
         });
         const coordinator = new WebviewSSRCoordinator(deps);
@@ -549,6 +661,7 @@ suite('WebviewSSRCoordinator', () => {
             currentExerciseData: exerciseData,
             serverRenderedProblemStatement: null,
             showExerciseDetail: sandbox.stub(),
+            workspaceIsPractice: false,
         };
         const { deps } = buildDeps({
             appStateManager: appState,

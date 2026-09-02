@@ -5,6 +5,7 @@ import { getCommand } from '@shared/messageContracts';
 
 import { ArtemisApiService } from '@extension/api';
 import { AuthCancellationService, AuthManager, OidcLoginService } from '@extension/services/auth';
+import type { HandoverFailureStore } from '@extension/services/auth/handoverFailureStore';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { LogCategory, logger } from '@extension/services/loggingService';
@@ -48,6 +49,7 @@ export class WebViewMessageHandler {
         private readonly artemisApi: ArtemisApiService,
         private readonly oidcLoginService: OidcLoginService,
         private readonly authCancellation: AuthCancellationService,
+        private readonly handoverFailures: HandoverFailureStore,
         private readonly appStateManager: AppStateManager,
         private readonly actionHandler: WebViewActionHandler,
         extensionContext: vscode.ExtensionContext,
@@ -66,6 +68,7 @@ export class WebViewMessageHandler {
             artemisApi: this.artemisApi,
             oidcLoginService: this.oidcLoginService,
             authCancellation: this.authCancellation,
+            handoverFailures: this.handoverFailures,
             appStateManager: this.appStateManager,
             actionHandler: this.actionHandler,
             sendMessage: (message: ExtensionToWebviewMessage) => this._sendMessage(message),

@@ -1,11 +1,4 @@
-/**
- * Pick the entry with the highest numeric `id` from a list.
- * Stable for ties (preserves array order via stable sort).
- */
-export function pickHighestId<T extends { id?: number }>(items: readonly T[] | undefined): T | undefined {
-    if (!items || items.length === 0) { return undefined; }
-    return [...items].sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
-}
+import { displayedResult } from '@shared/utils/latestById';
 
 interface ParticipationWithFeedbacks {
     readonly submissions?: ReadonlyArray<{
@@ -18,11 +11,15 @@ interface ParticipationWithFeedbacks {
 }
 
 /**
- * Return raw feedbacks from the latest result on the latest submission of a participation,
- * selected by highest numeric `id` at each step. Callers map to their own DTO shape.
+ * Return raw feedbacks from the result a surface should be displaying for a participation.
+ * Callers map to their own DTO shape.
+ *
+ * `buildPending` is not optional: a pending submission is resultless, so the strict rule loses the
+ * task markers for the length of every build, where the webview and Artemis both keep them.
  */
-export function extractLatestFeedbacks(participation: ParticipationWithFeedbacks | undefined): unknown[] | undefined {
-    const latestSubmission = pickHighestId(participation?.submissions);
-    const latestResult = pickHighestId(latestSubmission?.results);
-    return latestResult?.feedbacks;
+export function extractLatestFeedbacks(
+    participation: ParticipationWithFeedbacks | undefined,
+    buildPending: boolean,
+): unknown[] | undefined {
+    return displayedResult(participation?.submissions, buildPending)?.feedbacks;
 }

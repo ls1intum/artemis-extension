@@ -26,22 +26,6 @@
   border-color: var(--vscode-input-border, #3c3c3c);
 }
 
-/* Size variants */
-.inputSmall {
-  padding: 4px 6px;
-  font-size: 12px;
-}
-
-.inputMedium {
-  padding: 6px 8px;
-  font-size: var(--vscode-font-size, 13px);
-}
-
-.inputLarge {
-  padding: 8px 10px;
-  font-size: 14px;
-}
-
 /* Full width */
 .inputFullWidth {
   width: 100%;

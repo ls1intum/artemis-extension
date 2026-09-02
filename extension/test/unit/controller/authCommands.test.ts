@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 
-import type { ExtensionToWebviewMessage, ExtMsg } from '@shared/messageContracts';
+import type { AttemptId, ExtensionToWebviewMessage, ExtMsg } from '@shared/messageContracts';
 import { WebviewCmd } from '@shared/messageContracts';
 
 import { ArtemisApiService } from '@extension/api/artemisApi';
@@ -12,6 +12,7 @@ import type { ArtemisUser, AuthenticationResult } from '@extension/domain';
 import type { LoginOptionsResponse } from '@extension/domain/auth';
 import { AuthCancellationService } from '@extension/services/auth/authCancellationService';
 import { AuthManager } from '@extension/services/auth/authManager';
+import { HandoverFailureStore } from '@extension/services/auth/handoverFailureStore';
 import { OidcLoginService } from '@extension/services/auth/oidcLoginService';
 import { initializeTheiaContext } from '@extension/theia/theiaEnvironment';
 import { CONFIG } from '@extension/utils/constants';
@@ -22,6 +23,7 @@ suite('AuthCommandModule Test Suite', () => {
     let context: MockExtensionContext;
     let authManager: AuthManager;
     let api: sinon.SinonStubbedInstance<ArtemisApiService>;
+    let handoverFailures: HandoverFailureStore;
     let module: AuthCommandModule;
     let sent: ExtensionToWebviewMessage[];
     let showErrorMessage: sinon.SinonStub;
@@ -53,11 +55,13 @@ suite('AuthCommandModule Test Suite', () => {
         } as unknown as vscode.WorkspaceConfiguration);
 
         const oidcLoginService = new OidcLoginService(context, authManager, api as unknown as ArtemisApiService);
+        handoverFailures = new HandoverFailureStore();
         module = new AuthCommandModule({
             authManager,
             artemisApi: api,
             oidcLoginService,
             authCancellation: new AuthCancellationService(oidcLoginService),
+            handoverFailures,
             sendMessage: (message: ExtensionToWebviewMessage) => { sent.push(message); },
             updateAuthContext: async () => {},
             actionHandler: { navigateToStartPage, render: () => {} },
@@ -71,22 +75,22 @@ suite('AuthCommandModule Test Suite', () => {
         return module.getHandlers()[command]({ type: 'command', command, payload } as never);
     }
 
-    function dispatchLogin(overrides: { attemptId?: number } = {}): Promise<void> {
+    function dispatchLogin(overrides: { attemptId?: AttemptId } = {}): Promise<void> {
         return dispatch(WebviewCmd.Login, {
             username: 'ab12cde',
             password: 'secret',
             rememberMe: true,
-            attemptId: overrides.attemptId ?? 1,
+            attemptId: overrides.attemptId ?? 'a-1',
         });
     }
 
     const dispatchCancel = (): Promise<void> => dispatch(WebviewCmd.CancelLogin);
     const dispatchLogout = (): Promise<void> => dispatch(WebviewCmd.Logout);
 
-    function dispatchCheckLoginOptions(overrides: { attemptId?: number } = {}): Promise<void> {
+    function dispatchCheckLoginOptions(overrides: { attemptId?: AttemptId } = {}): Promise<void> {
         return dispatch(WebviewCmd.CheckLoginOptions, {
             username: 'ab12cde',
-            attemptId: overrides.attemptId ?? 1,
+            attemptId: overrides.attemptId ?? 'a-1',
         });
     }
 
@@ -94,7 +98,7 @@ suite('AuthCommandModule Test Suite', () => {
         api.authenticate.resolves({ success: true, token: 'jwt=fresh' } as AuthenticationResult);
         api.getCurrentUserWithToken.resolves({ id: 1, login: 'student' } as ArtemisUser);
 
-        await dispatchLogin({ attemptId: 7 });
+        await dispatchLogin({ attemptId: 'a-7' });
 
         const kinds = sent.map(m => m.type);
         assert.deepStrictEqual(kinds, ['updateLoading', 'loginSuccess']);
@@ -102,8 +106,8 @@ suite('AuthCommandModule Test Suite', () => {
         const loginSuccess = sent[1] as ExtMsg<'loginSuccess'>;
         assert.strictEqual(updateLoading.message, 'Loading your profile');
         assert.strictEqual(updateLoading.subtext, 'Fetching your account details');
-        assert.strictEqual(updateLoading.attemptId, 7);
-        assert.strictEqual(loginSuccess.attemptId, 7);
+        assert.strictEqual(updateLoading.attemptId, 'a-7');
+        assert.strictEqual(loginSuccess.attemptId, 'a-7');
     });
 
     test('cancelling while authenticate is in flight commits nothing and stays quiet', async () => {
@@ -269,10 +273,10 @@ suite('AuthCommandModule Test Suite', () => {
     test('the login-options result carries the attempt it answers', async () => {
         api.getLoginOptions.resolves({ loginMethod: 'PASSWORD', idpName: null });
 
-        await dispatchCheckLoginOptions({ attemptId: 3 });
+        await dispatchCheckLoginOptions({ attemptId: 'a-3' });
 
         assert.strictEqual(sent[0].type, 'loginOptionsResult');
-        assert.strictEqual(sent[0].attemptId, 3);
+        assert.strictEqual(sent[0].attemptId, 'a-3');
     });
 
     test('cancelling the login-options lookup reports nothing', async () => {
@@ -287,5 +291,16 @@ suite('AuthCommandModule Test Suite', () => {
 
         assert.deepStrictEqual(sent.map(m => m.type), [],
             'the user retracted the question; answering it would move them to a stage they left');
+    });
+
+    test('a browser sign-in drops the record the sign-in before it left behind', async () => {
+        // The record is replayed into every login view that asks for init data. Starting another
+        // sign-in is the user saying they are past it, and the browser flow is one of those starts.
+        sandbox.stub(OidcLoginService.prototype, 'start').resolves();
+        handoverFailures.record(handoverFailures.begin(), 'could not open');
+
+        await dispatch(WebviewCmd.StartOidcLogin, { rememberMe: true });
+
+        assert.strictEqual(handoverFailures.current, undefined);
     });
 });

@@ -126,6 +126,109 @@ export function parseGitStatusZ(stdout: string): string[] {
     return paths;
 }
 
+/**
+ * The slice of the built-in `vscode.git` repository API this module uses. The
+ * extension exports it untyped, so nothing here is assumed without a check.
+ */
+interface GitRepository {
+    rootUri: vscode.Uri;
+    status(uri: vscode.Uri): Promise<unknown>;
+}
+
+function isRepositoryAt(value: unknown, root: string): value is GitRepository {
+    if (typeof value !== 'object' || value === null) {
+        return false;
+    }
+    const repo = value as Partial<GitRepository>;
+    return repo.rootUri?.fsPath === root && typeof repo.status === 'function';
+}
+
+/**
+ * The `vscode.git` repository rooted at `folder`, if the API hands us one.
+ * Only a root-matching repository counts: falling back to an arbitrary other
+ * one would test the wrong .gitignore.
+ */
+async function findGitRepository(folder: vscode.WorkspaceFolder): Promise<GitRepository | undefined> {
+    const gitExtension = vscode.extensions.getExtension('vscode.git');
+    if (!gitExtension) {
+        return undefined;
+    }
+    if (!gitExtension.isActive) {
+        await gitExtension.activate();
+    }
+
+    const exports = gitExtension.exports as { getAPI?: unknown } | undefined;
+    if (typeof exports?.getAPI !== 'function') {
+        return undefined;
+    }
+
+    const api = (exports.getAPI as (version: number) => { repositories?: unknown })(1);
+    const repositories = api?.repositories;
+    if (!Array.isArray(repositories)) {
+        return undefined;
+    }
+
+    return (repositories as unknown[]).find(
+        (repo): repo is GitRepository => isRepositoryAt(repo, folder.uri.fsPath));
+}
+
+async function isIgnoredByGit(repo: GitRepository, fileUri: vscode.Uri): Promise<boolean> {
+    try {
+        // `status` resolves for a tracked file and rejects for one git does not
+        // track, the nearest thing the extension API offers to an "is this
+        // ignored" query. A SYNCHRONOUS throw is different: it says nothing
+        // about the file, so it must not exclude it.
+        return await repo.status(fileUri).then(() => false, () => true);
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Dirty (unsaved) editor buffers belonging to `folder`, minus the ones git
+ * ignores.
+ *
+ * Every way the untyped Git extension API can let us down ends in the same
+ * place: return the unfiltered list. A gitignored file that slips into a
+ * submission is noise; a source file that silently vanishes from one is a lost
+ * answer.
+ */
+async function collectDirtyFiles(
+    folder: vscode.WorkspaceFolder,
+    dirtyFilesOverride?: string[],
+): Promise<string[]> {
+    if (dirtyFilesOverride) {
+        return dirtyFilesOverride;
+    }
+
+    const dirtyFiles = vscode.workspace.textDocuments
+        .filter(doc => doc.isDirty && !doc.isUntitled && doc.uri.scheme === 'file')
+        .map(doc => vscode.workspace.asRelativePath(doc.uri, false));
+    if (dirtyFiles.length === 0) {
+        return dirtyFiles;
+    }
+
+    try {
+        const repo = await findGitRepository(folder);
+        if (!repo) {
+            return dirtyFiles;
+        }
+
+        const kept: string[] = [];
+        for (const file of dirtyFiles) {
+            if (await isIgnoredByGit(repo, vscode.Uri.joinPath(folder.uri, file))) {
+                logger.info(`Skipping gitignored dirty file: ${file}`, LogCategory.FILE_MONITOR);
+            } else {
+                kept.push(file);
+            }
+        }
+        return kept;
+    } catch (error) {
+        logger.error('Error checking gitignore status', LogCategory.FILE_MONITOR, error);
+        return dirtyFiles;
+    }
+}
+
 export async function checkWorkspaceFiles(
     workspaceFolder?: vscode.WorkspaceFolder,
     options: FileCheckOptions = {}
@@ -155,81 +258,8 @@ export async function checkWorkspaceFiles(
     const allFiles = new Set<string>();
 
     if (includeDirty) {
-        const dirtyFiles = dirtyFilesOverride ?? vscode.workspace.textDocuments
-            .filter(doc => doc.isDirty && !doc.isUntitled && doc.uri.scheme === 'file')
-            .map(doc => vscode.workspace.asRelativePath(doc.uri, false));
-
-        // Skip git checks when an explicit override is provided
-        if (dirtyFilesOverride) {
-            dirtyFiles.forEach(file => allFiles.add(file));
-        } else {
-            // Check if files are gitignored using VS Code's Git extension
-            const gitExtension = vscode.extensions.getExtension('vscode.git');
-            if (gitExtension && dirtyFiles.length > 0) {
-                try {
-                    if (!gitExtension.isActive) {
-                        await gitExtension.activate();
-                    }
-                    // Git extension API is untyped external API - use unknown with type guards
-                    const gitExports: unknown = gitExtension.exports;
-                    let gitApi: unknown;
-
-                    if (gitExports && typeof gitExports === 'object' && 'getAPI' in gitExports) {
-                        const getAPI = (gitExports as { getAPI: unknown }).getAPI;
-                        if (typeof getAPI === 'function') {
-                            gitApi = (getAPI as (version: number) => unknown)(1);
-                        }
-                    }
-
-                    if (gitApi && typeof gitApi === 'object' && 'repositories' in gitApi) {
-                        const repositories = (gitApi as { repositories: unknown }).repositories;
-
-                        if (Array.isArray(repositories) && repositories.length > 0) {
-                            const repo: unknown = folder ?
-                                repositories.find((r: unknown) =>
-                                    r && typeof r === 'object' && 'rootUri' in r &&
-                                    (r as { rootUri: { fsPath: string } }).rootUri.fsPath === folder.uri.fsPath
-                                ) :
-                                repositories[0];
-
-                            if (repo && typeof repo === 'object' && 'status' in repo) {
-                                const repoWithStatus = repo as { status: (uri: vscode.Uri) => Promise<unknown> };
-
-                                for (const file of dirtyFiles) {
-                                    const fileUri = vscode.Uri.joinPath(folder.uri, file);
-                                    try {
-                                        const isIgnored: boolean = await repoWithStatus.status(fileUri).then(
-                                            () => false, // File is tracked, not ignored
-                                            () => true   // File is not tracked (likely ignored)
-                                        );
-
-                                        if (!isIgnored) {
-                                            allFiles.add(file);
-                                        } else {
-                                            logger.info(`Skipping gitignored dirty file: ${file}`, LogCategory.FILE_MONITOR);
-                                        }
-                                    } catch {
-                                        // If we can't determine, include it to be safe
-                                        allFiles.add(file);
-                                    }
-                                }
-                            } else {
-                                dirtyFiles.forEach(file => allFiles.add(file));
-                            }
-                        } else {
-                            dirtyFiles.forEach(file => allFiles.add(file));
-                        }
-                    } else {
-                        dirtyFiles.forEach(file => allFiles.add(file));
-                    }
-                } catch (error) {
-                    logger.error('Error checking gitignore status', LogCategory.FILE_MONITOR, error);
-                    // On error, include all dirty files to be safe
-                    dirtyFiles.forEach(file => allFiles.add(file));
-                }
-            } else {
-                dirtyFiles.forEach(file => allFiles.add(file));
-            }
+        for (const file of await collectDirtyFiles(folder, dirtyFilesOverride)) {
+            allFiles.add(file);
         }
     }
 
@@ -274,37 +304,14 @@ export async function checkWorkspaceFiles(
     const fileInfos: FileInfo[] = [];
 
     for (const relativePath of allFiles) {
-        const fileInfo: FileInfo = { path: relativePath };
-
-        if (applyFilters) {
-            const exclusionReason = await shouldExcludeFile(folder, relativePath);
-            if (exclusionReason) {
-                fileInfo.status = 'excluded';
-                fileInfo.reason = exclusionReason;
-                if (includeStatus) {
-                    fileInfos.push(fileInfo);
-                }
-                continue;
-            }
+        const fileInfo = await describeFile(folder, relativePath, {
+            applyFilters,
+            includeStatus,
+            includeContent,
+        });
+        if (fileInfo) {
+            fileInfos.push(fileInfo);
         }
-
-        fileInfo.status = 'included';
-        if (includeStatus) {
-            fileInfo.reason = 'Will be sent';
-        }
-
-        if (includeContent) {
-            try {
-                const absolutePath = vscode.Uri.joinPath(folder.uri, relativePath).fsPath;
-                const content = await readFileAsync(absolutePath, 'utf-8');
-                fileInfo.content = content;
-            } catch (error) {
-                logger.error(`Failed to read ${relativePath}`, LogCategory.FILE_MONITOR, error);
-                fileInfo.content = '';
-            }
-        }
-
-        fileInfos.push(fileInfo);
     }
 
     const includedFiles = fileInfos.filter(f => f.status === 'included');
@@ -317,6 +324,44 @@ export async function checkWorkspaceFiles(
         includedCount: includedFiles.length,
         excludedCount: excludedFiles.length
     };
+}
+
+/**
+ * Classify one changed file. Returns `null` for a file that is filtered out and
+ * that the caller did not ask to see reported.
+ */
+async function describeFile(
+    folder: vscode.WorkspaceFolder,
+    relativePath: string,
+    options: { applyFilters: boolean; includeStatus: boolean; includeContent: boolean },
+): Promise<FileInfo | null> {
+    const fileInfo: FileInfo = { path: relativePath };
+
+    if (options.applyFilters) {
+        const exclusionReason = await shouldExcludeFile(folder, relativePath);
+        if (exclusionReason) {
+            fileInfo.status = 'excluded';
+            fileInfo.reason = exclusionReason;
+            return options.includeStatus ? fileInfo : null;
+        }
+    }
+
+    fileInfo.status = 'included';
+    if (options.includeStatus) {
+        fileInfo.reason = 'Will be sent';
+    }
+
+    if (options.includeContent) {
+        try {
+            const absolutePath = vscode.Uri.joinPath(folder.uri, relativePath).fsPath;
+            fileInfo.content = await readFileAsync(absolutePath, 'utf-8');
+        } catch (error) {
+            logger.error(`Failed to read ${relativePath}`, LogCategory.FILE_MONITOR, error);
+            fileInfo.content = '';
+        }
+    }
+
+    return fileInfo;
 }
 
 /** Returns the exclusion reason, or null when the file should be included. */

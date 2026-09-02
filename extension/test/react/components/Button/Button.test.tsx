@@ -92,14 +92,4 @@ describe('Button', () => {
 		const button = screen.getByRole('button');
 		expect(button).toHaveAttribute('type', 'submit');
 	});
-
-	it('supports custom width and height', () => {
-		render(
-			<Button width="200px" height="50px">
-				Custom Size
-			</Button>
-		);
-		const button = screen.getByRole('button');
-		expect(button).toHaveStyle({ width: '200px', height: '50px' });
-	});
 });

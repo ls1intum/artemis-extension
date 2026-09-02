@@ -97,7 +97,6 @@ export class RepositorySubmitCommands {
         return {
             [WebviewCmd.SubmitExercise]: this.handleSubmitExercise,
             [WebviewCmd.SaveGitIdentity]: this.handleSaveGitIdentity,
-            [WebviewCmd.RequestGitIdentity]: this.handleRequestGitIdentity,
         };
     }
 
@@ -269,14 +268,6 @@ export class RepositorySubmitCommands {
         throw new Error(GIT_IDENTITY_NOT_CONFIGURED);
     }
 
-    private async getGitConfigValue(key: string, cwd: string): Promise<string | undefined> {
-        const local = await this.gitService.getConfigValue(key, { cwd }, false);
-        if (local) {
-            return local;
-        }
-        return await this.gitService.getConfigValue(key, { cwd }, true);
-    }
-
     private handleSaveGitIdentity = async (message: WebviewToExtensionMessage): Promise<void> => {
         const sendResult = (status: 'success' | 'error' | 'warning' | 'info', text: string) => {
             this.context.sendMessage({
@@ -310,19 +301,5 @@ export class RepositorySubmitCommands {
             sendResult('error', `Failed to save Git identity: ${messageText}`);
             vscode.window.showErrorMessage(`Failed to save Git identity: ${messageText}`);
         }
-    };
-
-    private handleRequestGitIdentity = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        const cwd = workspaceFolder?.uri.fsPath ?? process.cwd();
-
-        const name = await this.getGitConfigValue('user.name', cwd);
-        const email = await this.getGitConfigValue('user.email', cwd);
-
-        this.context.sendMessage({
-            type: ExtensionMsg.GitIdentityInfo,
-            name: name ?? '',
-            email: email ?? ''
-        });
     };
 }

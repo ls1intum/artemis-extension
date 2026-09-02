@@ -48,11 +48,24 @@ suite('shouldRefreshPSForResult', () => {
         );
     });
 
-    test('returns false when result belongs to a different participation than the rendered one', () => {
-        // Coordinator currently renders studentParticipations[0]; a result for
-        // a non-[0] participation must not trigger a refresh.
+    test('refreshes for either participation, whichever order the server listed them in', () => {
+        // Artemis builds studentParticipations from an unordered set, so comparing against [0] drops
+        // results for the other one at random: with [graded, practice] the practice build is lost,
+        // with [practice, graded] the graded build is. Both orders must accept both ids.
+        for (const order of [[7, 99], [99, 7]]) {
+            for (const pid of [7, 99]) {
+                assert.strictEqual(
+                    shouldRefreshPSForResult('exercise-detail', makeExercise(order), makeResult(pid)),
+                    true,
+                    `participation ${pid} in order [${order}]`,
+                );
+            }
+        }
+    });
+
+    test('ignores a result for a participation this exercise does not have', () => {
         assert.strictEqual(
-            shouldRefreshPSForResult('exercise-detail', makeExercise([7, 99]), makeResult(99)),
+            shouldRefreshPSForResult('exercise-detail', makeExercise([7, 99]), makeResult(1234)),
             false,
         );
     });

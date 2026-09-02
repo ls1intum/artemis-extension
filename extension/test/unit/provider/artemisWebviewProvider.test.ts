@@ -9,6 +9,7 @@ import { ArtemisWebviewProvider } from '@extension/provider/artemisWebviewProvid
 import type { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
 import { AuthManager } from '@extension/services/auth';
 import { AuthCancellationService } from '@extension/services/auth/authCancellationService';
+import { HandoverFailureStore } from '@extension/services/auth/handoverFailureStore';
 import { OidcLoginService } from '@extension/services/auth/oidcLoginService';
 import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { VsCodeSensorHub } from '@extension/services/sensing';
@@ -146,6 +147,7 @@ suite('ArtemisWebviewProvider Test Suite', () => {
             extensionUri: vscode.Uri.file('/'),
             extensionContext: mockContext,
             authManager: mockAuthManager,
+            handoverFailures: new HandoverFailureStore(),
             artemisApi: mockApiService,
             oidcLoginService,
             authCancellation: new AuthCancellationService(oidcLoginService),
@@ -220,6 +222,7 @@ suite('Panel hide/show state persistence', () => {
             extensionUri: vscode.Uri.file('/'),
             extensionContext: mockContext,
             authManager: mockAuthManager,
+            handoverFailures: new HandoverFailureStore(),
             artemisApi: mockApiService,
             oidcLoginService,
             authCancellation: new AuthCancellationService(oidcLoginService),
@@ -405,6 +408,7 @@ suite('Nudge banner replay and cache-clear', () => {
             authManager: mockAuthManager,
             oidcLoginService: oidc,
             authCancellation: new AuthCancellationService(oidc),
+            handoverFailures: new HandoverFailureStore(),
             courseAccessStorage: new CourseAccessStorageService(mockContext.globalState, () => null, () => 0),
             artemisApi: mockApiService,
             providerRegistry: createProviderRegistry(),

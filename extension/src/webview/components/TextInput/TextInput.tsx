@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import Eye from 'lucide-react/dist/esm/icons/eye';
 import EyeOff from 'lucide-react/dist/esm/icons/eye-off';
-import { KeyboardEvent, useState } from 'react';
+import { KeyboardEvent, useId, useState } from 'react';
 
 import styles from './TextInput.module.css';
 
@@ -17,18 +17,12 @@ interface TextInputProps {
   error?: string;
   hint?: string;
   required?: boolean;
-  autoFocus?: boolean;
   onBlur?: () => void;
   onFocus?: () => void;
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void;
-  size?: 'small' | 'medium' | 'large';
   fullWidth?: boolean;
   maxLength?: number;
-  minLength?: number;
-  pattern?: string;
-  readonly?: boolean;
   autocomplete?: string;
-  showPasswordToggle?: boolean;
   testId?: string;
 }
 
@@ -44,37 +38,25 @@ export function TextInput({
   error,
   hint,
   required = false,
-  autoFocus = false,
   onBlur,
   onFocus,
   onKeyDown,
-  size = 'medium',
   fullWidth = false,
   maxLength,
-  minLength,
-  pattern,
-  readonly = false,
   autocomplete = 'off',
-  showPasswordToggle = true,
   testId,
 }: TextInputProps) {
   const [showPassword, setShowPassword] = useState(false);
 
-  const inputId = id || `text-input-${Math.random().toString(36).slice(2, 8)}`;
+  const generatedId = useId();
+  // `||`, not `??`: an empty id is no id, and letting it through would point
+  // the label and the aria-describedby refs at nothing.
+  const inputId = id || generatedId;
   const errorId = error ? `${inputId}-error` : undefined;
   const hintId = hint ? `${inputId}-hint` : undefined;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange(e.target.value);
-  };
-
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
-
   const inputClasses = clsx(
     styles.input,
-    styles[`input${size.charAt(0).toUpperCase()}${size.slice(1)}`],
     {
       [styles.inputFullWidth]: fullWidth,
       [styles.inputError]: Boolean(error),
@@ -83,29 +65,23 @@ export function TextInput({
     className
   );
 
-  const isPasswordWithToggle = type === 'password' && showPasswordToggle;
-  const actualInputType = isPasswordWithToggle && showPassword ? 'text' : type;
-
+  const isPassword = type === 'password';
   const ariaDescribedBy = [errorId, hintId].filter(Boolean).join(' ') || undefined;
 
   const inputElement = (
     <input
       id={inputId}
-      type={actualInputType}
+      type={isPassword && showPassword ? 'text' : type}
       className={inputClasses}
       value={value}
-      onChange={handleChange}
+      onChange={e => onChange(e.target.value)}
       onBlur={() => onBlur?.()}
       onFocus={() => onFocus?.()}
       onKeyDown={onKeyDown}
       placeholder={placeholder}
       disabled={disabled}
       required={required}
-      autoFocus={autoFocus}
       maxLength={maxLength}
-      minLength={minLength}
-      pattern={pattern}
-      readOnly={readonly}
       autoComplete={autocomplete}
       aria-describedby={ariaDescribedBy}
       aria-invalid={Boolean(error)}
@@ -113,52 +89,13 @@ export function TextInput({
     />
   );
 
-  if (!label && !error && !hint) {
-    if (isPasswordWithToggle) {
-      return (
-        <div className={styles.inputPasswordWrapper}>
-          {inputElement}
-          <button
-            type="button"
-            className={styles.inputPasswordToggle}
-            onClick={togglePasswordVisibility}
-            aria-label="Toggle password visibility"
-            tabIndex={-1}
-          >
-            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
-        </div>
-      );
-    }
-    return inputElement;
-  }
-
-  const labelElement = label ? (
-    <label className={styles.inputLabel} htmlFor={inputId}>
-      {label}
-      {required && <span className={styles.inputRequired}>*</span>}
-    </label>
-  ) : null;
-
-  const errorElement = error ? (
-    <span id={errorId} className={styles.inputErrorMessage}>
-      {error}
-    </span>
-  ) : null;
-
-  const hintElement = !error && hint ? (
-    <span id={hintId} className={styles.inputHelperText}>
-      {hint}
-    </span>
-  ) : null;
-
-  const inputWithToggle = isPasswordWithToggle ? (
+  const field = isPassword ? (
     <div className={styles.inputPasswordWrapper}>
       {inputElement}
       <button
         type="button"
         className={styles.inputPasswordToggle}
-        onClick={togglePasswordVisibility}
+        onClick={() => setShowPassword(!showPassword)}
         aria-label="Toggle password visibility"
         tabIndex={-1}
       >
@@ -169,12 +106,32 @@ export function TextInput({
     inputElement
   );
 
+  // With nothing to label or annotate, the field stands on its own. The
+  // wrapper below is a layout container for those extras, so adding it here
+  // would change the spacing of every bare input.
+  if (!label && !error && !hint) {
+    return field;
+  }
+
   return (
     <div className={clsx(styles.inputGroup, fullWidth && styles.inputGroupFullWidth)}>
-      {labelElement}
-      {inputWithToggle}
-      {errorElement}
-      {hintElement}
+      {label && (
+        <label className={styles.inputLabel} htmlFor={inputId}>
+          {label}
+          {required && <span className={styles.inputRequired}>*</span>}
+        </label>
+      )}
+      {field}
+      {error && (
+        <span id={errorId} className={styles.inputErrorMessage}>
+          {error}
+        </span>
+      )}
+      {!error && hint && (
+        <span id={hintId} className={styles.inputHelperText}>
+          {hint}
+        </span>
+      )}
     </div>
   );
 }

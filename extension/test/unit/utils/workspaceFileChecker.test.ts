@@ -4,6 +4,7 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import * as sinon from 'sinon';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { checkWorkspaceFiles, parseGitStatusZ } from '@extension/services/workspace/workspaceFileChecker';
@@ -319,5 +320,188 @@ suite('Workspace File Checker Test Suite', () => {
         } finally {
             fs.rmSync(remoteDir, { recursive: true, force: true });
         }
+    });
+});
+
+/**
+ * Characterization tests for the `includeDirty` path.
+ *
+ * `checkWorkspaceFiles` asks the built-in `vscode.git` extension whether each
+ * dirty (unsaved) buffer is gitignored. That API is untyped and every way it
+ * can let us down has to end in the same place: include the file anyway, so a
+ * source file never vanishes silently from a submission. These tests pin that
+ * "include on doubt" contract at each failure point, plus the one asymmetric
+ * case (a rejected `status` means ignored, a synchronous throw does not).
+ */
+suite('Workspace File Checker: dirty-file gitignore filtering', () => {
+    let tempDir: string;
+    let sandbox: sinon.SinonSandbox;
+    let mockFolder: vscode.WorkspaceFolder;
+
+    /** A document that survives the dirty/untitled/scheme filter. */
+    function dirtyDoc(fsPath: string): vscode.TextDocument {
+        return {
+            isDirty: true,
+            isUntitled: false,
+            uri: vscode.Uri.file(fsPath),
+        } as unknown as vscode.TextDocument;
+    }
+
+    /** Stub `vscode.extensions.getExtension('vscode.git')` with these exports. */
+    function stubGitExtension(exports: unknown, isActive = true): sinon.SinonStub {
+        const activate = sandbox.stub().resolves(exports);
+        sandbox.stub(vscode.extensions, 'getExtension')
+            .withArgs('vscode.git')
+            .returns({ isActive, exports, activate } as unknown as vscode.Extension<unknown>);
+        return activate;
+    }
+
+    /** A `vscode.git` API exposing exactly these repositories. */
+    function gitApi(repositories: unknown): unknown {
+        return { getAPI: (_version: number) => ({ repositories }) };
+    }
+
+    /** A repository rooted at the temp dir whose `status` behaves as given. */
+    function repoAt(root: string, status: (uri: vscode.Uri) => Promise<unknown>): unknown {
+        return { rootUri: vscode.Uri.file(root), status };
+    }
+
+    async function collectDirty(): Promise<string[]> {
+        const result = await checkWorkspaceFiles(mockFolder, {
+            includeDirty: true,
+            applyFilters: false,
+        });
+        return result.files.map(f => f.path).sort();
+    }
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'artemis-dirty-'));
+        execSync('git init', { cwd: tempDir });
+        mockFolder = { uri: vscode.Uri.file(tempDir), name: 'test', index: 0 };
+
+        // The repo is empty, so `git status` contributes nothing and every path
+        // in the result came from the dirty-buffer branch under test.
+        sandbox.stub(vscode.workspace, 'textDocuments').get(() => [
+            dirtyDoc(path.join(tempDir, 'Kept.java')),
+            dirtyDoc(path.join(tempDir, 'Ignored.java')),
+        ]);
+        sandbox.stub(vscode.workspace, 'asRelativePath')
+            .callsFake((uri: vscode.Uri | string) =>
+                path.basename(typeof uri === 'string' ? uri : uri.fsPath));
+    });
+
+    teardown(() => {
+        sandbox.restore();
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    test('keeps every dirty file when the Git extension is absent', async () => {
+        sandbox.stub(vscode.extensions, 'getExtension').returns(undefined);
+
+        assert.deepStrictEqual(await collectDirty(), ['Ignored.java', 'Kept.java']);
+    });
+
+    test('keeps every dirty file when the extension exports no getAPI', async () => {
+        stubGitExtension({ somethingElse: true });
+
+        assert.deepStrictEqual(await collectDirty(), ['Ignored.java', 'Kept.java']);
+    });
+
+    test('keeps every dirty file when getAPI is not callable', async () => {
+        stubGitExtension({ getAPI: 'not a function' });
+
+        assert.deepStrictEqual(await collectDirty(), ['Ignored.java', 'Kept.java']);
+    });
+
+    test('keeps every dirty file when the API exposes no repositories', async () => {
+        stubGitExtension({ getAPI: () => ({}) });
+
+        assert.deepStrictEqual(await collectDirty(), ['Ignored.java', 'Kept.java']);
+    });
+
+    test('keeps every dirty file when the repository list is empty', async () => {
+        stubGitExtension(gitApi([]));
+
+        assert.deepStrictEqual(await collectDirty(), ['Ignored.java', 'Kept.java']);
+    });
+
+    test('keeps every dirty file when no repository matches the workspace root', async () => {
+        stubGitExtension(gitApi([repoAt(path.join(tempDir, 'elsewhere'), () => Promise.resolve({}))]));
+
+        assert.deepStrictEqual(await collectDirty(), ['Ignored.java', 'Kept.java']);
+    });
+
+    test('keeps every dirty file when getAPI throws', async () => {
+        stubGitExtension({ getAPI: () => { throw new Error('git extension exploded'); } });
+
+        assert.deepStrictEqual(await collectDirty(), ['Ignored.java', 'Kept.java']);
+    });
+
+    test('keeps every dirty file when activating the extension rejects', async () => {
+        const activate = sandbox.stub().rejects(new Error('activation failed'));
+        sandbox.stub(vscode.extensions, 'getExtension')
+            .withArgs('vscode.git')
+            .returns({ isActive: false, exports: undefined, activate } as unknown as vscode.Extension<unknown>);
+
+        assert.deepStrictEqual(await collectDirty(), ['Ignored.java', 'Kept.java']);
+    });
+
+    test('activates a dormant Git extension before querying it', async () => {
+        const activate = stubGitExtension(gitApi([]), false);
+
+        await collectDirty();
+
+        assert.strictEqual(activate.callCount, 1);
+    });
+
+    test('drops only the files whose status call rejects', async () => {
+        stubGitExtension(gitApi([repoAt(tempDir, (uri: vscode.Uri) =>
+            uri.fsPath.endsWith('Ignored.java')
+                ? Promise.reject(new Error('not tracked'))
+                : Promise.resolve({}))]));
+
+        assert.deepStrictEqual(await collectDirty(), ['Kept.java']);
+    });
+
+    test('keeps a file whose status call throws synchronously', async () => {
+        // A rejected promise is evidence the file is untracked; a synchronous
+        // throw is evidence of nothing, so it must not exclude the file.
+        stubGitExtension(gitApi([repoAt(tempDir, (uri: vscode.Uri) => {
+            if (uri.fsPath.endsWith('Ignored.java')) { throw new Error('boom'); }
+            return Promise.resolve({});
+        })]));
+
+        assert.deepStrictEqual(await collectDirty(), ['Ignored.java', 'Kept.java']);
+    });
+
+    test('ignores buffers that are clean, untitled, or not file-backed', async () => {
+        sandbox.restore();
+        sandbox = sinon.createSandbox();
+        sandbox.stub(vscode.workspace, 'asRelativePath')
+            .callsFake((uri: vscode.Uri | string) =>
+                path.basename(typeof uri === 'string' ? uri : uri.fsPath));
+        sandbox.stub(vscode.workspace, 'textDocuments').get(() => [
+            dirtyDoc(path.join(tempDir, 'Kept.java')),
+            { isDirty: false, isUntitled: false, uri: vscode.Uri.file(path.join(tempDir, 'Clean.java')) },
+            { isDirty: true, isUntitled: true, uri: vscode.Uri.file(path.join(tempDir, 'Untitled.java')) },
+            { isDirty: true, isUntitled: false, uri: vscode.Uri.parse('untitled:/Scheme.java') },
+        ]);
+        sandbox.stub(vscode.extensions, 'getExtension').returns(undefined);
+
+        assert.deepStrictEqual(await collectDirty(), ['Kept.java']);
+    });
+
+    test('dirtyFilesOverride bypasses the Git extension entirely', async () => {
+        const getExtension = sandbox.stub(vscode.extensions, 'getExtension').returns(undefined);
+
+        const result = await checkWorkspaceFiles(mockFolder, {
+            includeDirty: true,
+            applyFilters: false,
+            dirtyFilesOverride: ['Override.java'],
+        });
+
+        assert.deepStrictEqual(result.files.map(f => f.path), ['Override.java']);
+        assert.ok(getExtension.neverCalledWith('vscode.git'));
     });
 });

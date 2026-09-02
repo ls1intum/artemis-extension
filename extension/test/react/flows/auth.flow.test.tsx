@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import type { AttemptId } from '@shared/messageContracts';
+
 import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 import { LoginView } from '@webview/views/Login/LoginView';
 
@@ -18,10 +20,10 @@ describe('Auth Flow', () => {
     });
 
     /** The attemptId the view sent with its most recent postMessage call for the given command. */
-    function lastAttemptId(mockApi: ReturnType<typeof createMockVsCodeApi>, command: string): number | undefined {
+    function lastAttemptId(mockApi: ReturnType<typeof createMockVsCodeApi>, command: string): AttemptId | undefined {
         const calls = (mockApi.postMessage as ReturnType<typeof import('vitest').vi.fn>).mock.calls;
         const match = calls.find((call) => (call[0] as Record<string, unknown>).command === command);
-        return (match?.[0] as { payload?: { attemptId?: number } } | undefined)?.payload?.attemptId;
+        return (match?.[0] as { payload?: { attemptId?: AttemptId } } | undefined)?.payload?.attemptId;
     }
 
     it('shows error message when login fails with invalid credentials', async () => {

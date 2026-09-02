@@ -18,6 +18,7 @@ import { getViewHtml } from '@extension/controller/viewRouter';
 import { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import type { ArtemisUser, ResultDTO } from '@extension/domain';
 import { AuthCancellationService, AuthFlowHandler, AuthManager, OidcLoginService } from '@extension/services/auth';
+import type { HandoverFailureStore } from '@extension/services/auth/handoverFailureStore';
 import type { CourseAccessScope, CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { LogCategory, logger } from '@extension/services/loggingService';
@@ -72,6 +73,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _artemisApi: ArtemisApiService;
     private readonly _oidcLoginService: OidcLoginService;
     private readonly _authCancellation: AuthCancellationService;
+    private readonly _handoverFailures: HandoverFailureStore;
     private readonly _providerRegistry: IProviderRegistry;
     private readonly _courseCatalog?: CourseCatalog;
     private _appStateManager: AppStateManager;
@@ -154,6 +156,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._artemisApi = deps.artemisApi;
         this._oidcLoginService = deps.oidcLoginService;
         this._authCancellation = deps.authCancellation;
+        this._handoverFailures = deps.handoverFailures;
         this._providerRegistry = deps.providerRegistry;
         this._websocketService = deps.websocketService;
         this._noAiDetectionService = deps.noAiDetectionService;
@@ -272,6 +275,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._artemisApi,
             this._oidcLoginService,
             this._authCancellation,
+            this._handoverFailures,
             this._appStateManager,
             this._navigationFacade,
             this._extensionContext,
@@ -292,6 +296,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             this._struggleCoordinator,
             this._messageHandler,
             (msg) => this._postMessageSafe(msg),
+            this._handoverFailures,
             this._courseAccessStorage,
         );
 
@@ -346,6 +351,14 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
 
         this._appStateManager.onStateChange = (from, to) => {
             this._onDidChangeViewNavigation.fire({ from, to });
+        };
+
+        // The workspace decides which participation is rendered and is usually learned after the
+        // first render has gone out; repository status updates never reached SSR before. Only a
+        // render is scheduled: the render service keys on its inputs, and the app-state copy now
+        // names the participation it belongs to.
+        this._appStateManager.onWorkspaceModeChange = () => {
+            void this._ssrCoordinator.scheduleRender();
         };
 
         this._disposables.push(this._onDidChangeViewNavigation);

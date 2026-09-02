@@ -1,12 +1,12 @@
 import type { CourseDetailData } from '@shared/messageContracts';
 import { toCourseDetailData } from '@shared/messageContracts';
 import type { PendingSubmissionStatus } from '@shared/types/apiResponses';
+import { displayedResult } from '@shared/utils/latestById';
 
 import type { ArtemisApiService } from '@extension/api';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ExerciseDetailsResponse } from '@extension/types';
 import { ApiError, MalformedResponseError } from '@extension/types';
-import { pickHighestId } from '@extension/utils/participationHelpers';
 
 /**
  * Enrichment-error policy:
@@ -98,10 +98,32 @@ export async function fetchAndEnrichExerciseDetails(
                 // Same endpoint as the Artemis webapp: one call returns the
                 // latest Result with feedbacks embedded, so there is no
                 // resultId lookup and no separate feedbacks call.
-                const latestSubmission = pickHighestId(participation.submissions);
-                const latestResult = pickHighestId(latestSubmission?.results);
-                if (latestResult) {
-                    latestResult.feedbacks = resultWithFeedbacks.feedbacks;
+                //
+                // Which result they belong to depends on whether a build is in
+                // flight. A pending submission is BY DEFINITION resultless (see
+                // `getLatestPendingSubmission`), so during a build the newest
+                // submission has no result to attach to and reading it alone
+                // would discard feedbacks the server just handed us. Fall back
+                // to the newest submission that does have one, matching what
+                // the webview displays in that state.
+                //
+                // The gate is deliberately narrow: only a FULFILLED, non-null
+                // pending response counts. A rejected pending request is not
+                // evidence of a build, and treating it as one would turn this
+                // into "always fall back", which would resurface a stale result
+                // for an ordinary resultless submission (e.g. a finished
+                // build-failed one).
+                const buildPending = pendingResult.status === 'fulfilled' && !!pendingResult.value;
+                const target = displayedResult(participation.submissions, buildPending);
+                if (target) {
+                    target.feedbacks = resultWithFeedbacks.feedbacks;
+                } else {
+                    // Previously a silent drop: the server returned feedbacks
+                    // and nothing consumed them.
+                    logger.warn(
+                        `Latest-result feedbacks for participation ${participationId} had no result to attach to; dropping`,
+                        LogCategory.API,
+                    );
                 }
             }
         } else {

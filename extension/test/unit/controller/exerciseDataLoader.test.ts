@@ -14,11 +14,21 @@ import { fetchAndEnrichExerciseDetails } from '@extension/controller/exerciseDat
 import type { ExerciseDetailsResponse, ProgrammingSubmission, ResultSummary } from '@extension/types';
 import { ApiError, MalformedResponseError } from '@extension/types';
 
+/**
+ * A participation as the stubbed `getExerciseDetails` returns it. Submissions
+ * are optional because most tests here only care about the pending-submission
+ * map, but the feedback-attachment suite needs real ones.
+ */
+interface StubParticipation {
+    id: number;
+    submissions?: Array<{ id: number; results?: Array<{ id: number; feedbacks?: unknown[] }> }>;
+}
+
 interface ApiStubOptions {
     pendingSubmissionResult?: ProgrammingSubmission | null | (() => Promise<never>);
     resultWithFeedbacks?: ResultSummary | null | (() => Promise<never>);
     /** Override the participations the stubbed exercise carries. Defaults to a single participation id 5001. */
-    participations?: Array<{ id: number }>;
+    participations?: StubParticipation[];
     /**
      * Per-participation overrides for the two enrichment calls. When set,
      * these take precedence over the global `pendingSubmissionResult` /
@@ -274,5 +284,106 @@ suite('fetchAndEnrichExerciseDetails — per-participation pending submission ma
 
         const data = await fetchAndEnrichExerciseDetails(stub.api, 1);
         assert.deepStrictEqual(data.pendingSubmissionsByParticipationId, {});
+    });
+});
+
+suite('fetchAndEnrichExerciseDetails — latest-result feedback attachment', () => {
+    const FRESH = [{ id: 1, text: 'fresh feedback' }];
+
+    /** Newest submission (id 2) holds the result; nothing is building. */
+    const settled: StubParticipation[] = [{
+        id: 5001,
+        submissions: [
+            { id: 1, results: [{ id: 10 }] },
+            { id: 2, results: [{ id: 20 }] },
+        ],
+    }];
+
+    /**
+     * Newest submission (id 2) is resultless. That is what a build in flight
+     * looks like: `getLatestPendingSubmission` defines a pending submission as
+     * one without a result.
+     */
+    const buildInFlight: StubParticipation[] = [{
+        id: 5001,
+        submissions: [
+            { id: 1, results: [{ id: 10 }] },
+            { id: 2, results: [] },
+        ],
+    }];
+
+    function resultsOf(data: ExerciseDetailsResponse): Array<{ id: number; feedbacks?: unknown[] }> {
+        const participations = (data.exercise as unknown as { studentParticipations: StubParticipation[] })
+            .studentParticipations;
+        return participations[0].submissions?.flatMap(sub => sub.results ?? []) ?? [];
+    }
+
+    test('attaches feedbacks to the newest result when nothing is building', async () => {
+        const stub = makeApiStub({
+            participations: settled,
+            pendingSubmissionResult: null,
+            resultWithFeedbacks: { id: 20, feedbacks: FRESH } as unknown as ResultSummary,
+        });
+
+        const data = await fetchAndEnrichExerciseDetails(stub.api, 1);
+        const results = resultsOf(data);
+
+        assert.deepStrictEqual(results.find(r => r.id === 20)?.feedbacks, FRESH);
+        assert.strictEqual(results.find(r => r.id === 10)?.feedbacks, undefined,
+            'the older result must not be touched');
+    });
+
+    test('keeps the feedbacks when a build is pending and the newest submission has no result yet', async () => {
+        // The regression: the server returned feedbacks, the newest submission
+        // is resultless, and the old code silently discarded them.
+        const stub = makeApiStub({
+            participations: buildInFlight,
+            pendingSubmissionResult: { id: 77 } as unknown as ProgrammingSubmission,
+            resultWithFeedbacks: { id: 10, feedbacks: FRESH } as unknown as ResultSummary,
+        });
+
+        const data = await fetchAndEnrichExerciseDetails(stub.api, 1);
+
+        assert.deepStrictEqual(
+            resultsOf(data).find(r => r.id === 10)?.feedbacks,
+            FRESH,
+            'feedbacks must land on the previous result while the build runs',
+        );
+    });
+
+    test('does not resurface an older result when the newest submission is resultless but nothing is pending', async () => {
+        // A finished build-failed submission is also resultless. Falling back
+        // here would show test results the student no longer has.
+        const stub = makeApiStub({
+            participations: buildInFlight,
+            pendingSubmissionResult: null,
+            resultWithFeedbacks: { id: 10, feedbacks: FRESH } as unknown as ResultSummary,
+        });
+
+        const data = await fetchAndEnrichExerciseDetails(stub.api, 1);
+
+        assert.strictEqual(
+            resultsOf(data).find(r => r.id === 10)?.feedbacks,
+            undefined,
+            'no pending build means no fallback',
+        );
+    });
+
+    test('does not resurface an older result when the pending request failed', async () => {
+        // A rejected pending call is not evidence of a build. Treating it as one
+        // would make the fallback unconditional.
+        const stub = makeApiStub({
+            participations: buildInFlight,
+            pendingSubmissionResult: () => Promise.reject(new ApiError('server', 500)),
+            resultWithFeedbacks: { id: 10, feedbacks: FRESH } as unknown as ResultSummary,
+        });
+
+        const data = await fetchAndEnrichExerciseDetails(stub.api, 1);
+
+        assert.strictEqual(
+            resultsOf(data).find(r => r.id === 10)?.feedbacks,
+            undefined,
+            'a failed pending lookup must not enable the fallback',
+        );
     });
 });
