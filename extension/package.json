@@ -400,7 +400,7 @@
     "esbuild-visualizer": "0.7.0",
     "eslint": "10.8.1",
     "eslint-plugin-simple-import-sort": "13.0.0",
-    "happy-dom": "20.8.9",
+    "happy-dom": "20.14.0",
     "husky": "9.1.7",
     "knip": "5.88.1",
     "lint-staged": "16.4.0",
