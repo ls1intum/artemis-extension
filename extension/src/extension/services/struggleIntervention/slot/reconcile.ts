@@ -58,7 +58,7 @@ function reconcileParked(decision: Decision): ReconcileAction {
         case 'ambient':
             return { kind: 'replace-parked', text: decision.text! };
         case 'active':
-            // Fresh first delivery: new episode shown immediately (§6).
+            // Fresh first delivery: new episode shown immediately.
             // NOT another hidden pointer; NOT escalate.
             return { kind: 'replace-delivered', text: decision.text! };
     }

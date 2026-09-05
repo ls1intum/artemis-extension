@@ -22,7 +22,7 @@ export interface StruggleSignal {
     sessionSeconds: number;
 }
 
-/** Body of POST /api/iris/chat/exercises/{exerciseId}/struggle-intervention (Plan 2 IrisStruggleInterventionRequestDTO). exerciseId is the path key. */
+/** Body of POST /api/iris/chat/exercises/{exerciseId}/struggle-intervention (IrisStruggleInterventionRequestDTO). exerciseId is the path key. */
 export interface StruggleInterventionRequest {
     struggleSignal: StruggleSignal;
     uncommittedFiles: Record<string, string>;
@@ -40,31 +40,31 @@ export interface StruggleInterventionRequest {
     /** Per-POST scoped-cancel uuid; forwarded to Artemis so the exact job can be cancelled by token. */
     requestToken: string;
     /**
-     * Client's current proactive-help level for this exercise (Off/Less/More, spec §12.2), mapped to the
+     * Client's current proactive-help level for this exercise (Off/Less/More), mapped to the
      * server's Pull/Push vocabulary: `less` -> `pull`, `more` -> `push`. Optional so old servers ignore it;
      * `off` never reaches a POST (gated upstream), so only `pull`/`push` are ever sent.
      */
     proactivityMode?: 'pull' | 'push';
 }
 
-/** 202 response body of the trigger (Plan 2 StruggleInterventionAcceptedDTO). */
+/** 202 response body of the trigger (StruggleInterventionAcceptedDTO). */
 export interface StruggleInterventionAccepted {
     accepted: boolean;
-    /** True only when proactive is off for this course (§13) — distinct from an in-flight `accepted:false`. */
+    /** True only when proactive is off for this course — distinct from an in-flight `accepted:false`. */
     courseDisabled?: boolean;
     exerciseId: number;
     jobId?: string | null;
 }
 
 /**
- * Outcome of the trigger POST (spec §9/§11/§13). `accepted` → enqueued, await the websocket decision; `course-off`
- * → proactive is disabled for this course (§13), so the client pauses proactive for the session with NO no-AI lamp;
- * `unavailable` → the endpoint is missing (404 — old/feature-less Artemis), so the client degrades to the no-AI lamp
- * (spec §11); `failed` → a transient 4xx/5xx/network error → treat as silent.
+ * Outcome of the trigger POST. `accepted` → enqueued, await the websocket decision; `course-off`
+ * → proactive is disabled for this course, so the client pauses proactive for the session with NO no-AI lamp;
+ * `unavailable` → the endpoint is missing (404 — an Artemis without this feature), so the client degrades to the
+ * no-AI lamp; `failed` → a transient 4xx/5xx/network error → treat as silent.
  */
 export type StruggleEgressResult = 'accepted' | 'course-off' | 'unavailable' | 'failed';
 
-/** Per-user struggle event on /user/topic/iris/struggle-intervention (Plan 2 StruggleInterventionEventDTO). */
+/** Per-user struggle event on /user/topic/iris/struggle-intervention (StruggleInterventionEventDTO). */
 export interface StruggleInterventionEvent {
     exerciseId: number;
     /** Frame kind discriminator (C4). Absent on old servers -> backwards-compat ambient/active path. */
@@ -75,16 +75,16 @@ export interface StruggleInterventionEvent {
     action?: 'silent' | 'ambient' | 'active';
     message?: string;
     sessionId?: number;
-    /** Saved IrisMessage id for the persisted proactive message (spec §7.2/§8). Set for ambient and active;
+    /** Saved IrisMessage id for the persisted proactive message. Set for ambient and active;
      *  lets a later slice target the exact message (open/reveal/dismiss).
      *  Also present on confirm_close (close/offer row). */
     messageId?: number;
-    /** Server-computed Pyris confidence, forwarded by Plan 2 (Task 4b 5-component DTO) for the client eval log (§12). */
+    /** Server-computed Pyris confidence, forwarded by the server for the client eval log. */
     confidence?: number;
     /** The gate's one-sentence reason for the decision. Never shown to the student; it rides beside
-     *  `confidence` so the eval log records WHY a run decided as it did (§12). */
+     *  `confidence` so the eval log records WHY a run decided as it did. */
     rationale?: string;
-    /** Inline anchor + cue (spec §4/§8). All optional; present only when the gate localized the nudge to one line. */
+    /** Inline anchor + cue. All optional; present only when the gate localized the nudge to one line. */
     anchorFile?: string;
     anchorLine?: number;
     inlineHint?: string;

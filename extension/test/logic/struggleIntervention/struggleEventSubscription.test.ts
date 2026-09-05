@@ -108,7 +108,7 @@ describe('classifyStruggleEvent', () => {
         const e = classifyStruggleEvent({ exerciseId: 42, action: 'active', sessionId: 7 });
         expect(e).toMatchObject({ exerciseId: 42, action: 'active', sessionId: 7 });
     });
-    it('reads an optional confidence if the frame forwards it (Plan 2 cross-plan)', async () => {
+    it('reads an optional confidence if the frame forwards it', async () => {
         const e = classifyStruggleEvent({ exerciseId: 42, action: 'ambient', message: 'x', confidence: 0.7 });
         expect(e?.confidence).toBe(0.7);
     });

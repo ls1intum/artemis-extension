@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
  * Ambient status-bar lamp for proactive struggle hints (spec R4): a single indicator with two
  * mutually exclusive modes.
  *
- *  - 'parked'   -> a hidden server hint is waiting; clicking pulls it into the Iris chat (spec §5).
+ *  - 'parked'   -> a hidden server hint is waiting; clicking pulls it into the Iris chat.
  *  - 'jump'     -> an active hint carries a code anchor; clicking opens that file at the line so the
  *                  student can find the (otherwise silent / off-screen) inline cue.
  *
@@ -84,7 +84,7 @@ export class InterventionService implements vscode.Disposable {
     get mode(): LampMode { return this._mode; }
 
     /**
-     * Show the ambient-hint lamp for a PARKED server hint (spec §5 pull model). Clicking reveals the
+     * Show the ambient-hint lamp for a PARKED server hint. Clicking reveals the
      * hidden hint into the chat (no per-hint tooltip, since the hint is hidden until pulled).
      */
     showLamp(): void {
@@ -96,7 +96,7 @@ export class InterventionService implements vscode.Disposable {
     }
 
     /**
-     * Show the jump lamp for an active hint that carries a code anchor (spec §4.1). Clicking opens
+     * Show the jump lamp for an active hint that carries a code anchor. Clicking opens
      * the anchored file at the line so the student can find the inline cue. `uri`/`line` are
      * snapshotted here at arm time, so a later exercise switch cannot retarget the click.
      */

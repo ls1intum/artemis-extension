@@ -39,7 +39,7 @@ const decision = (action: Decision['action'], hardEvent = false, text: string | 
     text,
 });
 
-// Covers the §6 reconcile matrix.
+// Covers the reconcile matrix.
 describe('reconcile', () => {
     it('FREE + silent -> suppress', () => {
         expect(reconcile(FREE, decision('silent'))).toEqual({ kind: 'suppress' });

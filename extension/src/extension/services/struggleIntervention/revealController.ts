@@ -24,7 +24,7 @@ export interface RevealPort {
  *
  * These two belong together because of one contract: an outcome written before the
  * canonical chat row exists cannot be applied, so it is parked here and flushed by
- * the reveal-persist retry that eventually creates the row (spec §12 back-fill).
+ * the reveal-persist retry that eventually creates the row.
  * Splitting them would put the two halves of that handshake in different files.
  *
  * It owns the consent-epoch generation for the same reason. A revoke bumps it, and
@@ -79,7 +79,7 @@ export class RevealController {
     }
 
     /**
-     * Record the student's terminal outcome for the active episode (spec §7.5, A10 episode-keyed endpoint).
+     * Record the student's terminal outcome for the active episode.
      * Used in test harnesses to directly drive outcome writes with back-fill semantics.
      */
     async applyEpisodeOutcome(
@@ -98,7 +98,7 @@ export class RevealController {
     /**
      * Write a terminal episode outcome and record a pending back-fill entry when the canonical
      * row does not yet exist (setEpisodeOutcome returns applied=false). The flush fires in
-     * _persistReveal once the reveal-persist retry creates the row (spec §12 back-fill contract).
+     * _persistReveal once the reveal-persist retry creates the row.
      * Best-effort: errors are swallowed so callers never throw into a terminal teardown path.
      */
     writeOutcomeWithBackfill(

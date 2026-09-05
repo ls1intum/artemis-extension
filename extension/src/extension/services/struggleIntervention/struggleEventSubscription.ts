@@ -1,6 +1,6 @@
 import type { StruggleInterventionEvent } from './struggleContract';
 
-/** The per-user struggle topic suffix (Plan 2 sends via IrisWebsocketService.send(login, "struggle-intervention", ...)). */
+/** The per-user struggle topic suffix (Artemis sends via IrisWebsocketService.send(login, "struggle-intervention", ...)). */
 const STRUGGLE_EVENT_TOPIC = '/user/topic/iris/struggle-intervention';
 
 /** Pure: parse an inbound per-user struggle frame. Returns the typed event for known frame shapes;
@@ -95,7 +95,7 @@ export interface StruggleEventHandlers {
      *  in-flight marker to drop a late reply for a superseded request (#349 Finding 1).
      *  `messageId` is forwarded for slot correlation (C3/C4); null when absent. */
     onServerAmbient(exerciseId: number, episodeId: string | undefined, hint: string, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence: number | undefined, messageId: number | null, rationale: string | undefined): void;
-    /** Active also carries the optional anchor (spec §6.1) and the hint `message` text for the
+    /** Active also carries the optional anchor and the hint `message` text for the
      *  optimistic bubble. `episodeId` correlates against the in-flight marker (#349 Finding 1).
      *  `messageId` enables webview-side dedup; null when server persist failed (A9). */
     onServerActive(exerciseId: number, episodeId: string | undefined, sessionId: number, anchorFile: string | undefined, anchorLine: number | undefined, inlineHint: string | undefined, confidence: number | undefined, message: string | undefined, messageId: number | null, rationale: string | undefined): void;

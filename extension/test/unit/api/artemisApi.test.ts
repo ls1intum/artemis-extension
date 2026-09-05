@@ -1368,8 +1368,8 @@ suite('Artemis API Service Test Suite', () => {
         );
     });
 
-    // The 202 body is what distinguishes a deliberate course-off (§13, pause with no lamp) from an in-flight
-    // single-flight skip (§11, treat as accepted) from a missing endpoint (404, degrade to the lamp). These guard
+    // The 202 body is what distinguishes a deliberate course-off from an in-flight
+    // single-flight skip from a missing endpoint (404, degrade to the lamp). These guard
     // the actual JSON parsing in postStruggleIntervention, which the orchestrator test cannot see (it stubs the result).
     const struggleBody = { struggleSignal: {}, uncommittedFiles: {} } as any;
 

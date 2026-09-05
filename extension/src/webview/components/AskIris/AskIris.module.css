@@ -1,4 +1,4 @@
-/* §14 chat-off notice, neutral (no warning colour, no accent line). Spaced from .main by Container's flex gap. */
+/* Chat-off notice, neutral (no warning colour, no accent line). Spaced from .main by Container's flex gap. */
 .notice {
   display: flex;
   align-items: center;
@@ -81,7 +81,7 @@
   margin: 4px 0;
 }
 
-/* Proactive struggle level control (spec §12.2) */
+/* Proactive struggle level control */
 .proactive {
   display: flex;
   flex-direction: column;

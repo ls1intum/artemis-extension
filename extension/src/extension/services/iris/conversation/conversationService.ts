@@ -189,7 +189,7 @@ export class IrisConversationService {
 
     /**
      * Called when a subscription actually becomes active, via the client's
-     * `onDidResubscribe`. This is the production wiring for spec §7.7's rule
+     * `onDidResubscribe`. This is the production wiring for the rule
      * that a CTXSWAP can land between adopting a snapshot and the subscription
      * going live, and it covers BOTH cases with one path:
      *

@@ -173,7 +173,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         // Built by activation, where the session coordinator that keys its
         // scope lives.
         this._courseAccessStorage = deps.courseAccessStorage;
-        // Per-exercise proactive on/off preference (spec §12.2). Still built here: unlike
+        // Per-exercise proactive on/off preference. Still built here: unlike
         // course access it is not keyed by the session coordinator, and its scope callback
         // resolves on the provider.
         this._proactivePreference = new ProactivePreferenceService(
@@ -375,7 +375,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         );
     }
 
-    /** The single remembered proactive on/off preference (spec §12.2, issue #341); read by the engine's `isStudentProactiveOn` dep. */
+    /** The single remembered proactive on/off preference; read by the engine's `isStudentProactiveOn` dep. */
     public get proactivePreference(): ProactivePreferenceService {
         return this._proactivePreference;
     }

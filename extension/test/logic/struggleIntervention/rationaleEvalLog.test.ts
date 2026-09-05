@@ -1,7 +1,7 @@
 /**
  * `rationale` is the gate's own reason for a decision. It is never shown to the student; its only
  * destination is the local eval log, beside `confidence`, so an analysis can read WHY a run decided
- * as it did and not just what it decided (spec §12).
+ * as it did and not just what it decided.
  *
  * Pinned end to end from the inbound frame, because the value crosses four hops (Pyris -> Artemis
  * event -> subscription -> orchestrator -> log) and a silently dropped optional argument at any of

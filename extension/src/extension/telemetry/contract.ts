@@ -123,10 +123,10 @@ export interface StruggleEngineDeps {
      *  topic. The seam calls `subscribeStruggleEvents` with this internally, so
      *  `extension.ts` never imports anything from `struggleIntervention/`. */
     subscribeStruggleTopic(topic: string, onFrame: (data: unknown) => void): { dispose(): void };
-    /** Durable single student opt-out (spec §12.2, issue #341): false → the orchestrator suppresses proactive. */
+    /** Durable single student opt-out: false → the orchestrator suppresses proactive. */
     isStudentProactiveOn(): boolean;
     /**
-     * The single proactive-help level (Off/Less/More, spec §12.2, issue #341) — the level-aware form of
+     * The single proactive-help level (Off/Less/More, issue #341) — the level-aware form of
      * `isStudentProactiveOn` above. Resolves the {@link StruggleEngineHandle.getActiveProactiveLevel} accessor.
      */
     getProactiveLevel(): ProactiveLevel;
@@ -230,13 +230,13 @@ export interface StruggleEngineHandle {
      *  trigger-gated code reading, #349); no-op once decided. */
     promptConsentIfAsk(): Promise<void>;
     /**
-     * The single remembered proactive-help level (Off/Less/More, spec §12.2, issue #341).
+     * The single remembered proactive-help level (Off/Less/More, issue #341).
      * The full build reads `getProactiveLevel()` live; the clean/no-op build returns the
      * default `more`. Used by consumers such as the delivery throttle and Pull re-route.
      */
     getActiveProactiveLevel(): ProactiveLevel;
     /**
-     * Apply the transient effects of a level change (AskIris Off/Less/More, spec §12.2):
+     * Apply the transient effects of a level change (AskIris Off/Less/More):
      * On marks the student present only when `exerciseId` is active; global Off clears the
      * active exercise's live surfaces regardless of which exercise triggered it.
      * ABSENT in the clean (no-engine) build:
@@ -246,7 +246,7 @@ export interface StruggleEngineHandle {
      */
     setStudentProactive?(exerciseId: number, on: boolean): void;
     /**
-     * The two §14 gate causes, independently (spec §14 cases 4-5): `consentMissing` = no proactive-egress
+     * The two gate causes, independently: `consentMissing` = no proactive-egress
      * consent (student-fixable → consent-missing card + forced-Off level, #342), `serverUnavailable` =
      * 404-latched server (→ limited card). Session-global, no exercise id. ABSENT in the clean build
      * (like the members above), so extension.ts assembles no `proactiveControl` capability there.
@@ -274,12 +274,12 @@ export interface StruggleEngineHandle {
      */
     resolveEpisode?(episodeId?: string): void;
     /**
-     * Slot debug: return the current slot state snapshot (Task 3 orchestrator). ABSENT in the
+     * Slot debug: return the current slot state snapshot from the orchestrator. ABSENT in the
      * clean (no-engine) build; callers guard with optional chaining or presence checks.
      */
     getSlotDebugSnapshot?(): SlotDebugSnapshot;
     /**
-     * Slot debug: return the ordered episode history (Task 3 orchestrator). ABSENT in the
+     * Slot debug: return the ordered episode history from the orchestrator. ABSENT in the
      * clean (no-engine) build; callers guard with optional chaining or presence checks.
      */
     getEpisodeHistory?(): readonly EpisodeHistoryEntry[];

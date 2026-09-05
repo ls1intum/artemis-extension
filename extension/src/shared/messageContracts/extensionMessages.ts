@@ -22,16 +22,16 @@ export const BOUNDARY_TYPES = ['FM', 'E4', 'N1', 'STATE'] as const;
 export type BoundaryType = typeof BOUNDARY_TYPES[number];
 
 // ---------------------------------------------------------------------------
-// AskIris proactive-availability card state (spec §12.2 / §14)
+// AskIris proactive-availability card state 
 // ---------------------------------------------------------------------------
 
 /**
- * Which proactive-availability state the AskIris card renders (spec §12.2, one term per §14 row).
+ * Which proactive-availability state the AskIris card renders.
  * The clean (no-engine) build sends a chat-availability card too (`proactiveControlAvailable: false`,
  * no level control) — it is never the "no card sent" case (see `proactiveControlCommands._push`).
  */
 export type ProactiveCardState = 'available' | 'off-course' | 'unavailable' | 'degraded';
-/** Why a non-"available" card is in that state (drives the §14 notice / note copy). */
+/** Why a non-"available" card is in that state (drives the notice / note copy). */
 export type ProactiveCardReason = 'noai' | 'iris-off' | 'course-off' | 'limited' | 'consent-missing';
 
 // ---------------------------------------------------------------------------
@@ -668,9 +668,9 @@ interface ExtensionMsgPayloads {
     updateProactiveControl: {
         exerciseId: number;
         level: ProactiveLevel;
-        /** Which availability card the AskIris control renders (spec §12.2 / §14). */
+        /** Which availability card the AskIris control renders. */
         cardState: ProactiveCardState;
-        /** Why a non-"available" card is in that state (drives the §14 notice / note copy). */
+ /** Why a non-"available" card is in that state (drives the notice / note copy). */
         cardReason?: ProactiveCardReason;
         /** False in the clean/no-engine build: the card is a chat-availability reflection with no level control. */
         proactiveControlAvailable: boolean;

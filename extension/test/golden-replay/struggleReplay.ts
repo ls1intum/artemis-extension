@@ -8,7 +8,7 @@
  *               and alerting run on exactly the reference's paste input.
  *   - 'causal': the engine derives paste online from the recorded events.
  *
- * Determinism (one intake path, struggleEngine.ts §5): per grid tick we (1)
+ * Determinism (one intake path, struggleEngine.ts): per grid tick we (1)
  * pump every hub signal with time <= tS so the engine ENQUEUES it, THEN (2)
  * advanceTo(tS) which drains ts <= tS and computes the tick. Pump-then-advance
  * is the contract: a signal at exactly a grid time must be enqueued before its

@@ -33,7 +33,7 @@ export interface SlotRuntime {
     /** Most recent StruggleSignal from deliver(); reused for confirmClose POSTs. */
     lastSignal: StruggleSignal | undefined;
     /**
-     * The proactive session id from the last inbound ambient event (spec §5, A9).
+     * The proactive session id from the last inbound ambient event.
      * Lives here because the SlotManager does not hold session ids. Cleared on resetSession.
      */
     frozenSessionId: number | undefined;

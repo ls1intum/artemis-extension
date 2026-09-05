@@ -50,12 +50,12 @@ export interface CommandContext {
      * per-panel identity rather than a transient closure.
      */
     getCurrentSender(): (m: ExtensionToWebviewMessage) => void;
-    /** Durable single remembered proactive-help level (client-side, spec §12.2, issue #341). Absent in tests that don't need it. */
+    /** Durable single remembered proactive-help level (client-side, issue #341). Absent in tests that don't need it. */
     proactivePreference?: ProactivePreferenceService;
     /** Behind-the-`@telemetry`-seam proactive control surface; absent in the clean (no-engine) build. */
     proactiveControl?: {
         setStudentProactive(exerciseId: number, on: boolean): void;
-        /** The two §14 gate causes, independently (consent vs 404 latch). Session-global → no exercise id. */
+ /** The two gate causes, independently (consent vs 404 latch). Session-global → no exercise id. */
         getProactiveGateState(): { consentMissing: boolean; serverUnavailable: boolean };
     };
     /**

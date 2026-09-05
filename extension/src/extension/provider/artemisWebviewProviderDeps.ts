@@ -27,7 +27,7 @@ export interface ArtemisWebviewProviderDeps {
     buildErrorCodeLensProvider: BuildErrorCodeLensProvider;
     struggleCoordinator: IStruggleCoordinator;
     updateAuthContext: (isAuthenticated: boolean) => Promise<void>;
-    /** Behind-the-`@telemetry`-seam proactive control (pause/resume/apply); absent in the clean build (spec §12.2). */
+    /** Behind-the-`@telemetry`-seam proactive control (pause/resume/apply); absent in the clean build. */
     proactiveControl?: CommandContext['proactiveControl'];
     /**
      * Owned by activation, because its scope comes from the session

@@ -42,7 +42,7 @@ export function applyEgressCaps(candidates: readonly CandidateFile[], caps: Egre
 }
 
 /**
- * Collect uncommitted files scoped to the active exercise (spec §7). Reuses the existing workspace
+ * Collect uncommitted files scoped to the active exercise. Reuses the existing workspace
  * collector, then keeps only files under {@code exerciseRoot} (the engine's membership primitive) and
  * applies the egress caps. Returns a path→content map (the wire {@code uncommittedFiles}).
  */

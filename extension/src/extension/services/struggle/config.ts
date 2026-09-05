@@ -70,13 +70,13 @@ export const SPEC = {
      * derivation is not on the golden-pinned path). */
 } as const;
 
-/** Boundary types in audit priority order (spec §3: FM > E4 > N1 > STATE). ENG */
+/** Boundary types in audit priority order. ENG */
 export const BOUNDARY_PRIORITY = ['FM', 'E4', 'N1', 'STATE'] as const;
 export type BoundaryType = typeof BOUNDARY_PRIORITY[number];
 
 /**
  * Tier-2 delivery throttle (ThrottledAlertSink), delivery-only, keyed by the
- * student's proactive-help level (Off/Less/More, spec §12.2). `Off` never reaches
+ * student's proactive-help level (Off/Less/More). `Off` never reaches
  * the throttle (proactivity is gated upstream), so only `less`/`more` matter here.
  * `minDeliveryGapS` is a hard floor BETWEEN DELIVERIES and MUST NOT be conflated
  * with the SPEC detector cooldown (a Schicht-3 decision guard, 120 s). The layers
@@ -106,7 +106,7 @@ export const TUNING = {
     testStagnationN: 3,
     enableTestStagnation: true,
     /**
-     * Slot continuity knobs (spec §5 / §9 "idle watchdog + re-arm"). All ENG (provisional
+     * Slot continuity knobs. All ENG (provisional
      * engineering defaults; no study sweep exists yet).
      *
      * idleAbandonMs  [ENG] continuous-idle silent-free backstop. A delivered hint's slot stays

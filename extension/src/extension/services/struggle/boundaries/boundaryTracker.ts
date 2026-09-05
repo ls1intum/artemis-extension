@@ -1,5 +1,5 @@
 /**
- * Boundary bookkeeping (spec §3): FM/E4/N1 events are assigned to the
+ * Boundary bookkeeping: FM/E4/N1 events are assigned to the
  * FIRST tick >= event time and evaluated exactly once there; the STATE
  * boundary has interval semantics (pending at every tick with an active TS
  * state after warmup; this realizes the "synthetic warmup entry" without an
@@ -23,7 +23,7 @@ export function ticksFor(durationS: number): number[] {
 
 /**
  * State entry times after warmup including the synthetic warmup-end entry
- * (spec §3 Warmup-Uebergang; DECISIONS_v2 #12). Pure helper for audit and the
+ *. Pure helper for audit and the
  * T8 test ports; the alerting path uses only the interval-semantics flag.
  */
 export function stateEntryTimes(

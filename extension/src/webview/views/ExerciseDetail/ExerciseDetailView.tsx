@@ -134,7 +134,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 setServerRenderedPS({ html: msg.html, participationId: msg.participationId });
             }
         }
-        // Proactive control state (spec §12.2). Stored UNCONDITIONALLY here, tagged with its exerciseId; the render
+        // Proactive control state. Stored UNCONDITIONALLY here, tagged with its exerciseId; the render
         // below only paints it when the tag matches the live exercise, so a late update for a previous exercise can
         // never show a stale badge (and we avoid closing over a stale exerciseData in this handler).
         if (msg.type === ExtensionMsg.UpdateProactiveControl) {
@@ -146,7 +146,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 proactiveControlAvailable: msg.proactiveControlAvailable,
             });
         }
-        // .noai can be created/deleted mid-session and the proactive card derives from it (§14), so re-request the
+        // .noai can be created/deleted mid-session and the proactive card derives from it, so re-request the
         // card when the marker flips. Read the live exercise from the store at message time — NOT a closed-over render
         // value — to avoid the useExtensionMessage stale-closure hazard (the handler is frozen until its deps change).
         if (msg.type === ExtensionMsg.UpdateNoAiStatus) {
@@ -250,7 +250,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const exerciseType: ExerciseType = isExerciseType(exercise.type) ? exercise.type : 'programming';
     const isProgramming = exerciseType === 'programming';
 
-    // View-model for the standalone Proactive-help card (spec §12.2), built only when the host has
+    // View-model for the standalone Proactive-help card, built only when the host has
     // supplied the control for THIS exercise.
     const proactiveVM = proactiveControl && proactiveControl.exerciseId === exercise.id ? {
         level: proactiveControl.level,
@@ -664,7 +664,7 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 />
             )}
 
-            {/* Ask Iris Section, with the proactive-help control divided off inside the same card (spec §12.2). */}
+ {/* Ask Iris Section, with the proactive-help control divided off inside the same card. */}
             <AskIris
                 description="Open the Iris chat to discuss this exercise or get guidance."
                 onClick={handleAskIris}

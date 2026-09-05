@@ -32,7 +32,7 @@ export type { StruggleInterventionDeps } from './interventionDeps';
 
 
 /**
- * Orchestrates the proactive struggle intervention on the client (spec §4). Implements {@link AlertSink}; alerts
+ * Orchestrates the proactive struggle intervention on the client. Implements {@link AlertSink}; alerts
  * arrive via the coordinator's sink chain (BackoffGate -> ThrottledAlertSink -> this, see telemetry/index.ts)
  * with no settings gate (#352: consent gates the engine, level/gates/throttle gate the surfaces) and the
  * `reset()`/`resetSession()` teardown calls stay authoritative. Ticks are fed via {@link onTick} (wired in
@@ -276,7 +276,7 @@ export class StruggleInterventionService implements AlertSink {
         // Sustained sBase drop (student recovering): defer the stale watchdog.
         // Fires on every tick whose sBase is below the re-arm threshold, regardless of edit
         // locality; NOT on new green tests (those go through onNewBuildResult which uses Date.now()).
-        // Note: spec §13 force-free bound is conditional on sBase >= 0.6; an engaged student
+ // Note: force-free bound is conditional on sBase >= 0.6; an engaged student
         // with moderate-low severity (returning resolved=false) can hold the DELIVERED slot.
         if (tick.sBase < (this._deps.progressCloseCfg ?? DEFAULT_PROGRESS_CFG).reArmSBase) {
             // Only a live watchdog has a stale deadline that this can move; on a FREE slot
@@ -537,7 +537,7 @@ export class StruggleInterventionService implements AlertSink {
     }
 
     /**
-     * The two §14 gate causes, independently (spec §14 cases 4-5): `consentMissing` = no proactive-egress
+     * The two gate causes, independently: `consentMissing` = no proactive-egress
      * consent (student-fixable, drives the consent-missing card + the forced-Off level, #342);
      * `serverUnavailable` = 404-latched server (drives the limited card). Session-global, no exercise id.
      */
@@ -667,7 +667,7 @@ export class StruggleInterventionService implements AlertSink {
     }
 
     /**
-     * Reveal the parked ambient hint (spec §5.2 pull reveal). Transitions the slot PARKED -> DELIVERED,
+     * Reveal the parked ambient hint. Transitions the slot PARKED -> DELIVERED,
      * opens the proactive session, posts an optimistic bubble, and persists the canonical row.
      * On reveal: scoped-cancel any in-flight parked_progress confirmClose or decide, and re-owe the
      * work under DELIVERED (C3 reveal re-evaluation).
@@ -810,7 +810,7 @@ export class StruggleInterventionService implements AlertSink {
 
     // ---- Inbound server frames, forwarded to ServerFrameHandler ----
 
-    /** Inbound ambient event (PARKED pointer only: spec §5 pull model). */
+ /** Inbound ambient event (PARKED pointer only: pull model). */
     onServerAmbient(
         episodeId: string | undefined, hint: string, anchorFile: string | undefined, anchorLine: number | undefined,
         inlineHint: string | undefined, confidence?: number, messageId?: number | null, sessionId?: number, rationale?: string,

@@ -102,7 +102,7 @@ export const WebviewCmd = {
     ReloadChatSession: 'reloadChatSession',
     MessageFeedback: 'messageFeedback',
     MessageProactiveOutcome: 'messageProactiveOutcome',
-    // Proactive control (AskIris Off/Less/More level, spec §12.2)
+    // Proactive control (AskIris Off/Less/More level)
     RequestProactiveControl: 'requestProactiveControl',
     SetProactiveLevel: 'setProactiveLevel',
     OpenFile: 'openFile',
@@ -233,7 +233,7 @@ interface WebviewCmdPayloads {
     reloadChatSession: undefined;
     messageFeedback: { sessionId: number; messageId: number; feedback: 'positive' | 'negative' };
     messageProactiveOutcome: { sessionId: number; messageId: number; outcome: 'DISMISSED' | 'RECOVERED'; proactiveEpisodeId?: string };
-    // courseId lets every _push (init AND toggle) re-derive §14 availability with the course id (slice 5c).
+ // courseId lets every _push (init AND toggle) re-derive availability with the course id (slice 5c).
     requestProactiveControl: { exerciseId: number; courseId?: number };
     setProactiveLevel: { exerciseId: number; level: ProactiveLevel; courseId?: number };
     openFile: { filePath: string };

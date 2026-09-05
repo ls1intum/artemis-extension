@@ -4,13 +4,13 @@ import { buildCueText, buildHoverMarkdown, isAnchorDocument, resolveAnchorEditor
 
 /**
  * One in-editor inline cue at a time: gutter Iris logo + after-line hint + whole-line hover
- * (spec §4.1, relaxed). The cue stays armed once shown: it renders whenever the anchored file
+ *. The cue stays armed once shown: it renders whenever the anchored file
  * is a visible editor, and VS Code reveals the decoration naturally when the line scrolls into
  * view. A cue armed while the student looks elsewhere thus appears as soon as they open the file.
  */
 export class InlineHintDecoration implements vscode.Disposable {
     private readonly type: vscode.TextEditorDecorationType;
-    /** Ambient (PARKED) decoration: gutter Iris logo only, no after-line text (spec §5 pull model). */
+    /** Ambient (PARKED) decoration: gutter Iris logo only, no after-line text. */
     private readonly _gutterOnlyType: vscode.TextEditorDecorationType;
     private readonly disposables: vscode.Disposable[] = [];
     private current?: { file: string; line: number; hint: string; message: string };
@@ -57,7 +57,7 @@ export class InlineHintDecoration implements vscode.Disposable {
     }
 
     /**
-     * Ambient (PARKED) surface: gutter Iris logo only, no after-line text (spec §5 pull model).
+     * Ambient (PARKED) surface: gutter Iris logo only, no after-line text.
      * Exclusive with the active {@link show} path: calling this clears any inline cue.
      */
     showGutterOnly(anchorFile: string, anchorLine: number): void {

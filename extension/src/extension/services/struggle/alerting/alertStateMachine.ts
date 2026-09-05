@@ -1,7 +1,6 @@
 // extension/src/extension/services/struggle/alerting/alertStateMachine.ts
 /**
- * Edit-path alerting state machine (spec §5) with the gate sequence of spec §4
- * — an exact port of run_state_machine (engine_v2.py). v3 feeds it the threshold
+ * Edit-path alerting state machine, an exact port of run_state_machine (engine_v2.py). v3 feeds it the threshold
  * signal `urgency = S_base = (f_typing + f_gap)/2` in place of the V peak-hold
  * curve (the `alerts_full_u` configuration, script 35); the machine STRUCTURE is
  * unchanged. The ORDER of the checks is load-bearing and verified by the ported

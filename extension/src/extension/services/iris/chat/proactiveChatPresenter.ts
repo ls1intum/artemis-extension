@@ -56,7 +56,7 @@ export class ProactiveChatPresenter {
     constructor(private readonly _deps: ProactiveChatDeps) { }
 
 
-    /** Show/clear a badge on the Iris view to flag a proactive suggestion (spec §8 active/ambient surface). */
+    /** Show/clear a badge on the Iris view to flag a proactive suggestion. */
     setProactiveBadge(on: boolean): void {
         const view = this._deps.getView();
         if (view) {
@@ -154,7 +154,7 @@ export class ProactiveChatPresenter {
 
     /**
      * Collapse every proactive episode in the transcript to a fold line. Sent when the student
-     * switches proactive help to Off (spec §12.2): the hints stay in history but get out of the way.
+     * switches proactive help to Off: the hints stay in history but get out of the way.
      */
     collapseProactiveEpisodes(): void {
         this._deps.postMessage({ type: ExtensionMsg.CollapseProactiveEpisodes });
@@ -219,9 +219,9 @@ export class ProactiveChatPresenter {
     }
 
     /**
-     * Open/attach the Iris session carrying a proactive bubble (spec §5.5 `active`). The session is freshly
+     * Open/attach the Iris session carrying a proactive bubble. The session is freshly
      * created server-side with a single LLM bubble and no USER reply. The sessions/overview now lists such
-     * proactive-only sessions (spec §7.3), but a plain reload is async and may not have run yet, so for an
+     * proactive-only sessions, but a plain reload is async and may not have run yet, so for an
      * immediate active open we still inject a local entry directly. Delegated to the session service, which adds
      * a local entry keyed `session-<artemisSessionId>` (unless present), switches to it, and lets the existing
      * message-load surface the bubble.

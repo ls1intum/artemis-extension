@@ -128,9 +128,9 @@ export interface StartupPhaseCompleteEvent {
 /**
  * Provenance event emitted once during the startup-contributor phase before
  * `startupPhaseComplete`. `struggleDetectionEnabled` / `showInterventions` are
- * legacy compatibility fields: the settings they used to read were removed
- * (#352), so both are pinned `true` and no longer carry a control/treatment
- * measurement. Kept only so old and new recordings share one schema.
+ * legacy compatibility fields: there are no settings behind them (#352), so both
+ * are pinned `true` and carry no control/treatment measurement. They exist so
+ * that recordings from every version share one schema.
  */
 export interface ConfigurationSnapshotEvent {
     type: 'configurationSnapshot';

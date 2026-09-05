@@ -1,5 +1,5 @@
 /**
- * Build-result delta classification (spec §2/§3): failed-test SET diff against
+ * Build-result delta classification: failed-test SET diff against
  * the last build WITH test information (compile-error builds have no test info
  * and never advance the baseline). The failed set uses the recorder-equivalent
  * derivation (detailText of feedbacks with positive === false) because the

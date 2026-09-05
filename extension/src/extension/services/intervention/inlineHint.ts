@@ -3,7 +3,7 @@ import * as path from 'path';
 
 import { stripMarkdown } from '@shared/stripMarkdown';
 
-/** The after-line cue text: bulb + the Socratic hint (spec §4.1). No leading space, so the pill's
+/** The after-line cue text: bulb + the Socratic hint. No leading space, so the pill's
  *  left/right padding stays symmetric; the gap from the code comes from the decoration's margin. */
 export function buildCueText(inlineHint: string): string {
     return `💡 ${inlineHint}`;
@@ -79,7 +79,7 @@ export function firstSentence(text: string, maxLen = 160): string {
 }
 
 /**
- * Whole-line hover (spec §4.1, §5.2): a first-sentence teaser of the hint + Open chat / Dismiss actions.
+ * Whole-line hover: a first-sentence teaser of the hint + Open chat / Dismiss actions.
  * The teaser is stripped of supported inline markdown before truncation, so a single-backtick code
  * span or a simple emphasis marker that would otherwise cross the cut cannot leave a dangling
  * delimiter behind (rare unsupported constructs like double-backtick spans are best-effort).

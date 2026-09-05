@@ -564,7 +564,7 @@ describe('StruggleInterventionService', () => {
         expect(deps.openSession).toHaveBeenCalledWith(expect.any(Number), 8);
     });
 
-    // Pull re-route (spec §12.2 Off/Less/More): the client-side defence-in-depth that keeps Less
+    // Pull re-route: the client-side defence-in-depth that keeps Less
     // from ever surfacing a bubble/notification, even when the server decided `active`.
     it('Pull re-route: level=less turns an inbound active event into ambient/PARKED, never a bubble/banner/session-open', async () => {
         const deps = fakeDeps({ getProactiveLevel: () => 'less' });
@@ -606,7 +606,7 @@ describe('StruggleInterventionService', () => {
     });
 
     it('an UNSAFE anchor path (traversal) is treated as no anchor on every surface', async () => {
-        // One contract for inline, gutter, and jump: a malformed server anchor like ../x must not
+        // One contract for inline, gutter, and jump: a malformed server anchor like../x must not
         // arm any anchor surface (it could point outside the exercise root). It falls through to the
         // no-anchor branch exactly like a missing anchor.
         const deps = fakeDeps();
@@ -1772,7 +1772,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(svc._slot.snapshot().state.kind).toBe('parked');
         expect(deps.foldEpisode).not.toHaveBeenCalled();
         // Latch re-opened (back to 'open', _armed=false): a second green test fires but sBase
-        // path requires a rise then re-drop before it can re-arm (spec §7.3).
+        // path requires a rise then re-drop before it can re-arm.
         postSpy.mockClear();
         svc.onNewBuildResult(true);
         await new Promise(r => setTimeout(r, 0));
@@ -1947,7 +1947,7 @@ describe('StruggleInterventionService C3 slot routing', () => {
         expect(deps.foldEpisode).not.toHaveBeenCalled();
     });
 
-    // Spec §13 force-free bound: the idle window is counted independent of wire activity.
+ // The force-free bound: the idle window is counted independent of wire activity.
     it('watchdog force-frees a DELIVERED slot after continuous idle (ABANDONED + fold)', async () => {
         const deps = fakeDeps();
         const svc = new StruggleInterventionService(deps);

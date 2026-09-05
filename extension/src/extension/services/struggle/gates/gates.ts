@@ -1,5 +1,5 @@
 /**
- * Surviving gates (spec §4); B1/N3/N9 deliberately NOT included. These are the
+ * Surviving gates; B1/N3/N9 deliberately NOT included. These are the
  * three predicates the alert state machine applies IN ITS FIXED ORDER. The
  * order lives in alerting/alertStateMachine.ts, not here.
  */
@@ -12,7 +12,7 @@ export function isFluentTyping(typingRate: number | null): boolean {
 }
 
 /** B4 grace filter: inside the grace window only FM survives (the feedback
- *  moment itself is the canonical intervention point; spec §4). */
+ *  moment itself is the canonical intervention point). */
 export function applyGraceFilter(present: readonly BoundaryType[]): BoundaryType[] {
     return present.filter(k => k === 'FM');
 }

@@ -54,8 +54,8 @@ function renderList(o: Overrides = {}) {
 
 /**
  * The proactive "preparing your hint" bit is independent of the normal run's `streaming` flag, and
- * the two must not be able to hide each other. A dead run's error in particular used to swallow the
- * spinner, because ThinkingIndicator renders `FAILED` before it looks at `isVisible`.
+ * the two must not be able to hide each other. A dead run's error is the dangerous one:
+ * ThinkingIndicator renders `FAILED` before it looks at `isVisible`, so it can swallow the spinner.
  */
 describe('proactive thinking indicator', () => {
 	it('shows from the proactive bit alone, with no run in sight', () => {

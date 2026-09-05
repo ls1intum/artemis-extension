@@ -16,7 +16,7 @@ interface RepoStatus {
     isPracticeRepo: boolean;
 }
 
-/** AskIris proactive control + its §14 availability card, tagged with the exercise it belongs to (spec §12.2). */
+/** AskIris proactive control + its availability card, tagged with the exercise it belongs to. */
 type ProactiveControlState = {
     exerciseId: number;
     level: ProactiveLevel;
@@ -51,7 +51,7 @@ interface ExerciseDetailState {
     repoStatus: RepoStatus | null;
     clonedNotice: { exerciseTitle: string; participationId: number } | null;
     dirtyPagesStatus: DirtyPagesStatus | null;
-    /** AskIris proactive Off/Less/More control + availability card (spec §12.2 / §14), tagged with its exercise so a late update can't paint the wrong card. */
+    /** AskIris proactive Off/Less/More control + availability card, tagged with its exercise so a late update can't paint the wrong card. */
     proactiveControl: ProactiveControlState | null;
 
     setExerciseData: (data: ExerciseDetailsResponse, hideDeveloperTools: boolean, repoStatus?: RepoStatus) => void;
@@ -120,7 +120,7 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     isLoading: false,
                     error: null,
                     // Reset the proactive control on every exercise load so the next exercise never shows the
-                    // previous one's badge while its fresh state is re-requested (spec §12.2).
+                    // previous one's badge while its fresh state is re-requested.
                     proactiveControl: null,
                     // Always reset to the freshly-loaded map (or `{}` if the
                     // server didn't supply one). Keeping stale entries across

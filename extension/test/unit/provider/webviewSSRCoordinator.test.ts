@@ -248,8 +248,8 @@ suite('WebviewSSRCoordinator', () => {
     }
 
     test('renders for the practice participation when that is the repository the student has open', async () => {
-        // The whole point of the change: the graded one used to be picked by array position, which
-        // Artemis does not even guarantee.
+        // Picked by which repository is open, never by array position: Artemis does not guarantee
+        // the order of that list.
         const { exerciseData, exercise } = bothParticipations();
         const renderStub = sandbox.stub().resolves({ html: '<p>P</p>', contentHash: 'aaaaaaaaaaaaaaaa' });
         const { deps, stubs } = buildDeps({

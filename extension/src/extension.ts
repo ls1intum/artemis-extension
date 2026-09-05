@@ -104,10 +104,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	// setProactiveBadge) can reach the chat provider; it is constructed below, well
 	// before any alert or server event fires.
 	let chatWebviewProvider: ChatWebviewProvider | undefined;
-	// Forward-ref to the AskIris provider's single remembered preference (spec §12.2): the engine reads it lazily at
+	// Forward-ref to the AskIris provider's single remembered preference: the engine reads it lazily at
 	// alert-time (long after the provider below is built), so default-on until it is wired.
 	let proactivePreferenceRef: ArtemisWebviewProvider['proactivePreference'] | undefined;
-	// Level-aware read of the single remembered preference (spec §12.2, issue #341, Off/Less/More);
+	// Level-aware read of the single remembered preference (issue #341, Off/Less/More);
 	// `isStudentProactiveOn` derives from this rather than duplicating the lookup. Default-on until wired.
 	const getProactiveLevel = (): ProactiveLevel => proactivePreferenceRef?.getLevel() ?? 'more';
 	// Forward-ref: the Iris-enabled cache is constructed later (after the catalog exists), but the
@@ -224,7 +224,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	activeStruggleCoordinator = struggleCoordinator;
 	struggleCoordinator.setWebsocketService(artemisWebsocketService);
 	context.subscriptions.push(registerDebugCommands(struggleCoordinator));
-	// The behind-the-seam proactive control surface the AskIris command module drives (spec §12.2). Built ONLY when
+	// The behind-the-seam proactive control surface the AskIris command module drives. Built ONLY when
 	// the engine provides the methods (the clean/no-engine build omits them), so that build never shows the switch.
 	const proactiveControl = setStudentProactive && getProactiveGateState
 		? { setStudentProactive, getProactiveGateState }
@@ -327,7 +327,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	});
 	// Wire the engine's lazy preference read to the provider's preference service (built in its constructor above).
 	proactivePreferenceRef = artemisWebviewProvider.proactivePreference;
-	// Slot debug wiring (Task 4): connect the orchestrator's slot snapshot to the live feed.
+	// Slot debug wiring: connect the orchestrator's slot snapshot to the live feed.
 	// The provider forwards both calls into its private _liveEngineFeed.
 	artemisWebviewProvider.wireSlotDebug(
 		() => getSlotDebugSnapshot && getEpisodeHistory

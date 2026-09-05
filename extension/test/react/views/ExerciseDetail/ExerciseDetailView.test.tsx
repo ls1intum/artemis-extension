@@ -1077,8 +1077,8 @@ describe('ExerciseDetailView', () => {
 			expect(screen.getByText('practice statement')).toBeInTheDocument();
 		});
 
-		// Characterisation: unlabelled renders were shown before this change too. Here so the new
-		// guard cannot quietly swallow them.
+		// An unlabelled render is shown, not suppressed. Pinned here so the guard above cannot quietly
+		// start swallowing them.
 		it('shows an unlabelled render, which predates the field', () => {
 			useExerciseDetailStore.setState({
 				exerciseData: bothParticipations(),

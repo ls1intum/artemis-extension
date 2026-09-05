@@ -34,7 +34,7 @@ interface MessageBubbleProps {
      * (incomplete-markdown tolerant) and feedback controls are suppressed.
      */
     isDraft?: boolean;
-    /** Invoked when the student dismisses a proactive bubble (collapses it; never deletes, spec §6.3). */
+    /** Invoked when the student dismisses a proactive bubble (collapses it; never deletes). */
     onDismiss?: (messageId: number, proactiveEpisodeId?: string) => void;
     /**
      * Invoked when the student answers a consented offer bubble (Moment-1 "stuck" / Moment-3

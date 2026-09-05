@@ -50,7 +50,7 @@ export interface StruggleInterventionDeps {
      *  Fail-closed: false when Iris is off OR availability is not yet known. */
     isIrisEnabled(): boolean;
     isEgressEnabled(): boolean;
-    /** True when a `.noai` marker file is present in the workspace (spec §9). */
+    /** True when a `.noai` marker file is present in the workspace. */
     hasNoaiMarker(): boolean;
     getExerciseId(): number | undefined;
     getExerciseRoot(): Uri | undefined;
@@ -65,15 +65,15 @@ export interface StruggleInterventionDeps {
     postIntervention(exerciseId: number, body: StruggleInterventionRequest): Promise<StruggleEgressResult>;
     /**
      * Opens (or attaches to) a proactive conversation and reloads its history, so the bubble shows
-     * (spec §5.5 active). Carries the course as well as the session because the server API scopes
+     *. Carries the course as well as the session because the server API scopes
      * session lookup by course, and nothing here establishes that a proactive session id is
      * globally unique or belongs to the course currently on screen.
      */
     openSession(courseId: number, sessionId: number): Promise<void>;
-    /** Show the ambient-hint lamp for a PARKED server hint (spec §5 pull model). No per-hint tooltip. */
+    /** Show the ambient-hint lamp for a PARKED server hint. No per-hint tooltip. */
     showLamp(): void;
     /**
-     * Arm the jump lamp for an active hint carrying a code anchor (spec §4.1): a status-bar item that,
+     * Arm the jump lamp for an active hint carrying a code anchor: a status-bar item that,
      * on click, opens the anchored file at the line so the student can find the (silent, possibly
      * off-screen) inline cue. The wiring snapshots the absolute Uri at arm time.
      */
@@ -86,19 +86,19 @@ export interface StruggleInterventionDeps {
      */
     clearEpisodeLamp(): void;
     /**
-     * Arm the inline in-editor cue (gutter logo + after-line hint + hover) at the anchor (spec §4.1,
-     * relaxed): the decoration renders whenever the anchored file is a visible editor, so a cue armed
+     * Arm the inline in-editor cue (gutter logo + after-line hint + hover) at the anchor. Visibility is
+     * relaxed: the decoration renders whenever the anchored file is a visible editor, so a cue armed
      * while the student looks elsewhere appears as soon as they open the file.
      */
     showInline(anchorFile: string, anchorLine: number, inlineHint: string, message: string): void;
-    /** Arm the ambient gutter-only decoration (gutter icon, NO after-line text) at the anchor (spec §5). */
+    /** Arm the ambient gutter-only decoration (gutter icon, NO after-line text) at the anchor. */
     showGutterOnly(anchorFile: string, anchorLine: number): void;
     /** Remove any inline cue (session/context reset). */
     clearInline(): void;
-    /** Durable single student opt-out (spec §12.2, issue #341): false -> the orchestrator suppresses proactive. */
+    /** Durable single student opt-out: false -> the orchestrator suppresses proactive. */
     isStudentProactiveOn(): boolean;
     /**
-     * The single proactive-help level (Off/Less/More, spec §12.2, issue #341). Used by the client-side Pull
+     * The single proactive-help level (Off/Less/More, issue #341). Used by the client-side Pull
      * re-route: an inbound `active` event while the level is `less` is downgraded to the ambient/PARKED path.
      */
     getProactiveLevel(): ProactiveLevel;

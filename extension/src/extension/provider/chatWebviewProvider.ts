@@ -506,9 +506,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     /**
      * Resolves once the initial `.noai` workspace scan has run, so the first `isNoAiEnabled()` read is
-     * authoritative (spec §14 case 3). Used by the AskIris proactive card so the first render can't fail-open.
+     * authoritative. Used by the AskIris proactive card so the first render can't fail-open.
      */
-    /** Collapse every proactive episode to a fold line (spec §12.2). On IChatWebviewProvider. */
+    /** Collapse every proactive episode to a fold line. On IChatWebviewProvider. */
     public collapseProactiveEpisodes(): void {
         this.proactive.collapseProactiveEpisodes();
     }

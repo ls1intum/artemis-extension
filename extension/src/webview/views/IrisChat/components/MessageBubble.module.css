@@ -114,7 +114,7 @@
 
 .messageWrapper.assistant .bubbleColumn {
     align-items: flex-start;
-    /* Assistant answers flow full-width (spec §4.4): no column cap, no
+    /* Assistant answers flow full-width: no column cap, no
        heavy bubble background, just the sidebar's own padding. */
     max-width: 100%;
     width: 100%;
@@ -223,7 +223,7 @@
     align-self: stretch;
 }
 
-/* On a card with an action bar the bar hangs 14px below the bubble (see .actionRow), which is
+/* On a card with an action bar the bar hangs 14px below the bubble (see.actionRow), which is
    exactly the band this row would otherwise occupy. Push the row clear of it. */
 .messageWrapper.proactiveWrapper .footRow {
     margin-top: 14px;
@@ -280,7 +280,7 @@
     color: inherit;
 }
 
-/* A dismissed proactive card stays visible but recedes (spec §6.3: collapse, never delete). */
+/* A dismissed proactive card stays visible but recedes. */
 .proactiveDismissed {
     opacity: 0.6;
 }

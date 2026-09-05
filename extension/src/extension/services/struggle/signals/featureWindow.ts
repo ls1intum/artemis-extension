@@ -1,5 +1,5 @@
 /**
- * Rolling-window core features (spec §0/§1, v3 2-feature substrate): 1-char-insert
+ * Rolling-window core features: 1-char-insert
  * rate and longest edit gap — computed at tick t over (t - eff, t] with
  * eff = max(10, min(60, t)). Port of compute_features (engine_v2.py minus the
  * dropped N4 scroll/insert-ratio feature).

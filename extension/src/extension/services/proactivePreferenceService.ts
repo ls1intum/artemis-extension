@@ -10,7 +10,7 @@ const STORAGE_KEY_PREFIX = 'proactive.level';
 const LEVELS: readonly ProactiveLevel[] = ['off', 'less', 'more'];
 
 /**
- * Durable single proactive-help level (spec §12.2, Off/Less/More), stored in VS Code globalState
+ * Durable single proactive-help level, stored in VS Code globalState
  * keyed by server + principal. The level is remembered ONCE per user, not per exercise: every
  * exercise reads the same value. Default is `more`, so proactive help exists without any setup.
  * Plain client service: imports NOTHING from services/struggle|intervention, so it stays in the

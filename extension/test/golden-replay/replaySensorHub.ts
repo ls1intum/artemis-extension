@@ -1,7 +1,7 @@
 /**
  * A `SensorHub` that replays a recorded session into the struggle engine.
  *
- * The engine has ONE intake path for live and replay (struggleEngine.ts §5): it
+ * The engine has ONE intake path for live and replay (struggleEngine.ts): it
  * subscribes to the hub channels and reads the hub's state methods. This class
  * turns a `RecordedEvent[]` into exactly those channel signals, reconstructing
  * file text (recorded textDocumentOpen/textChange carry no text) and diagnostics

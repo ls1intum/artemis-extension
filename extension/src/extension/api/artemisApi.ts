@@ -465,10 +465,10 @@ export class ArtemisApiService {
     }
 
     /**
-     * Trigger a proactive struggle intervention (spec §5.2), exercise-keyed. Fire-and-forget: the server
+     * Trigger a proactive struggle intervention, exercise-keyed. Fire-and-forget: the server
      * returns 202 {accepted, courseDisabled, exerciseId, jobId} and the gated result arrives over the per-user
      * struggle topic. Auth + 401 handling via makeRequest. Returns a {@link StruggleEgressResult} so the orchestrator
-     * can pause proactive on a course-off (§13), or degrade to the no-AI lamp on a 404 (feature missing — spec §9, §11).
+     * can pause proactive on a course-off, or degrade to the no-AI lamp on a 404 (feature missing).
      */
     async postStruggleIntervention(exerciseId: number, body: StruggleInterventionRequest): Promise<StruggleEgressResult> {
         try {
@@ -476,7 +476,7 @@ export class ArtemisApiService {
                 method: 'POST',
                 body: JSON.stringify(body),
             });
-            // Course-off (§13) is a deliberate instructor choice: pause proactive with no lamp. An in-flight
+            // Course-off is a deliberate instructor choice: pause proactive with no lamp. An in-flight
             // `accepted:false` (courseDisabled false/absent) is NOT course-off — treat it as accepted (a job is
             // already running; await its websocket decision).
             const accepted = (await response.json().catch(() => null)) as StruggleInterventionAccepted | null;
@@ -487,7 +487,7 @@ export class ArtemisApiService {
         }
         catch (error) {
             // A 404 means this Artemis lacks the endpoint (old / feature-less) → degrade to the no-AI lamp for the
-            // session (spec §11: "no-AI lamp remains"). Any other failure (transient 5xx / network / 401) → silent.
+            // session (the no-AI lamp remains). Any other failure (transient 5xx / network / 401) → silent.
             if (error instanceof ApiError && error.status === 404) {
                 return 'unavailable';
             }
@@ -506,7 +506,7 @@ export class ArtemisApiService {
         );
     }
 
-    // Record how the student reacted to a proactive Iris message (spec §7.5).
+    // Record how the student reacted to a proactive Iris message.
     async setProactiveOutcome(sessionId: number, messageId: number, outcome: 'DISMISSED' | 'RECOVERED'): Promise<void> {
         await this.makeRequest(
             `/api/iris/sessions/${sessionId}/messages/${messageId}/proactive-outcome`,
@@ -518,7 +518,7 @@ export class ArtemisApiService {
     }
 
     /**
-     * Reveal a hidden ambient hint by persisting it as a chat message in the proactive session (A10, spec §5.2).
+     * Reveal a hidden ambient hint by persisting it as a chat message in the proactive session.
      * POST api/iris/chat/exercises/{exerciseId}/episodes/{episodeId}/reveal
      * Body: { hintText, level, clientMessageId }
      * Returns the persisted IrisChatMessage (id + proactiveEpisodeId + server sentAt) so the client

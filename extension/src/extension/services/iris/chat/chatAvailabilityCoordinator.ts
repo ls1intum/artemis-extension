@@ -15,8 +15,8 @@ import { IrisAvailabilityService } from './irisAvailabilityService';
  * knows nothing about conversations. This coordinator supplies the missing
  * half: it derives the context from the open conversation, and it guards every
  * answer against the navigation that may have happened while the check was in
- * flight. Both were previously spread across the chat provider, which is why a
- * stale banner was only ever one forgotten comparison away.
+ * flight. Both live here rather than in the chat provider, where a stale banner
+ * is one forgotten comparison away.
  */
 export class ChatAvailabilityCoordinator {
     private readonly _service: IrisAvailabilityService;

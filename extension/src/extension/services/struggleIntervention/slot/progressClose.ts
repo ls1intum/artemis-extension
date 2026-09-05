@@ -9,7 +9,7 @@ export interface ProgressCloseCfg {
 }
 
 /**
- * Progress-edge detector and confirmClose edge-trigger latch (§7.1).
+ * Progress-edge detector and confirmClose edge-trigger latch.
  *
  * A "progress edge" fires when EITHER:
  *   1. newGreenTest === true (a build result carries a strict new high in passed tests), OR

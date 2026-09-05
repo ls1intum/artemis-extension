@@ -19,8 +19,7 @@ import type { ChatMessage } from './types';
  * as `{ ...prev, ...inc }`. A spread copies own properties INCLUDING ones set to
  * `undefined`, so mapping them unconditionally would blank a live proactive
  * bubble's episode identity on every reconnect merge. Omitting the key instead
- * lets the previous value stand, which is exactly what the merge arm not mapping
- * them used to do.
+ * lets the previous value stand.
  */
 export type WireRow = ExtMsg<'loadMessages'>['messages'][number] & { offer?: ChatMessage['offer'] };
 

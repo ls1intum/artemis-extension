@@ -72,7 +72,7 @@ export class SlotManager {
     }
 
     /**
-     * PARKED -> DELIVERED with a new episode (first active delivery, spec §6).
+     * PARKED -> DELIVERED with a new episode (first active delivery).
      * The old parked hint is dropped; the new episode carries only the active hint.
      */
     replaceWithDelivered(_now: number, episode: Episode, hint: EpisodeHint): SlotSnapshot {

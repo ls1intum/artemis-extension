@@ -6,7 +6,7 @@ import type { TopicChangeOutcome } from '@extension/services/iris/conversation/c
  * Minimal interface for ChatWebviewProvider, consumed by ProviderRegistry for dependency inversion.
  */
 export interface IChatWebviewProvider {
-    /** True iff a `.noai` marker disables AI for the workspace (spec §14 case 3). */
+    /** True iff a `.noai` marker disables AI for the workspace. */
     isNoAiEnabled(): boolean;
     /** Resolves once the initial `.noai` workspace scan has completed, so `isNoAiEnabled()` is authoritative. */
     whenNoAiReady(): Promise<void>;

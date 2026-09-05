@@ -1,8 +1,8 @@
 // extension/src/extension/services/struggle/struggleEngine.ts
 /**
- * Engine-v3 orchestrator (spec §0-§5): consumes ONLY the sensorHub, computes
+ * Engine-v3 orchestrator: consumes ONLY the sensorHub, computes
  * severity/boundaries/gates/alerting on a strict 10-s grid (first tick at
- * +10 s, never at 0). One code path for live and replay (spec §5):
+ * +10 s, never at 0). One code path for live and replay:
  *
  *   - every subscription pushes a timestamped thunk into one queue;
  *   - advanceTo(now) processes each due grid tick: apply all thunks with

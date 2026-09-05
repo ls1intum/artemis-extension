@@ -82,7 +82,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     let slotChangeSink: () => void = () => {};
     // Nudge-banner text rotation: tracks the last shown title so pickNudgeText never repeats it.
     let lastNudgeTitle: string | undefined;
-    // Inline in-editor cue surface (spec §4.1). The getExerciseRoot thunk reads the coordinator lazily (it is
+    // Inline in-editor cue surface. The getExerciseRoot thunk reads the coordinator lazily (it is
     // assigned below; the thunk only fires on later editor events), so constructing this before it is safe.
     const inline = new InlineHintDecoration(deps.context.extensionUri, () => coordinator.activeExerciseRoot);
     deps.context.subscriptions.push(inline);
@@ -173,13 +173,13 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         onSlotChange: () => slotChangeSink(),
     });
 
-    // Inline-hover action links (spec §4.1, §5.2): Open chat reveals the parked hint and KEEPS the cue as a
+    // Inline-hover action links: Open chat reveals the parked hint and KEEPS the cue as a
     // standing reference; Dismiss removes the cue (pure visual, no episode outcome) -- the hint stays in the
     // chat. The cue also retires on its other lifecycle events (new episode, terminal episode exit); typing
     // does NOT retire it. Registered behind the seam so extension.ts never imports the intervention surface.
     deps.context.subscriptions.push(
         vscode.commands.registerCommand('iris.intervention.inlineOpen', () => {
-            // C2 spec §5.2 pull reveal: reveal the parked ambient hint if the slot is PARKED.
+ // Pull reveal: reveal the parked ambient hint if the slot is PARKED.
             // Safe unconditional call -- revealParkedHint is a no-op when the slot is not PARKED.
             // Do not fire focus here: the reveal-navigation
             // (ChatWebviewProvider.revealProactiveSessionForExercise) is the single owner of focus.
@@ -193,7 +193,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         }),
     );
 
-    // Single source of truth for the proactive-help level (spec §12.2). The level is one remembered
+    // Single source of truth for the proactive-help level. The level is one remembered
     // setting, so there is no active-exercise keying; getProactiveLevel() already defaults to 'more'
     // when unset. Read live so a mid-session Off/Less/More flip takes effect at once.
     const getActiveProactiveLevel = (): ProactiveLevel => deps.getProactiveLevel();
@@ -224,7 +224,7 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
         // throttle/grace timers (same data source the dev dashboard renders from).
         if (isDevMode()) { devLog(formatTick(t, coordinator.getDebugSnapshot())); }
     }));
-    // A lamp click on a surfaced hint reveals the parked ambient hint (C2 spec §5.2 pull reveal).
+ // A lamp click on a surfaced hint reveals the parked ambient hint (pull reveal).
     // Safe unconditional call -- revealParkedHint is a no-op when the slot is not PARKED.
     deps.context.subscriptions.push(lamp.onDidClick(() => {
         void orchestrator.revealParkedHint();

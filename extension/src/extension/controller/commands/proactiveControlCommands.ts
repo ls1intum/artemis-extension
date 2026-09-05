@@ -6,7 +6,7 @@ import { deriveProactiveCardState } from '@extension/services/proactiveCardState
 
 import type { CommandContext, CommandMap } from './types';
 
-/** AskIris Off/Less/More level + 4-state availability card (spec §12.2 / §14). Level is client-side; degraded comes from the engine seam. */
+/** AskIris Off/Less/More level + 4-state availability card. Level is client-side; degraded comes from the engine seam. */
 export class ProactiveControlCommandModule {
     constructor(private readonly context: CommandContext) {}
 
@@ -52,7 +52,7 @@ export class ProactiveControlCommandModule {
         const gate = control?.getProactiveGateState() ?? { consentMissing: false, serverUnavailable: false };
         const stored = this.context.proactivePreference?.getLevel() ?? 'more';
 
-        // §14 availability — shared classifier (profile + course settings). courseId absent → optimistic enabled
+        // Availability: shared classifier (profile + course settings). courseId absent → optimistic enabled
         // (self-heals on the next push that carries it; the webview always has exercise.course?.id at every call site).
         let irisAvailability: 'enabled' | 'disabled' | 'unavailable' = 'enabled';
         let courseProactiveEnabled: boolean | undefined;

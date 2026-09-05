@@ -13,7 +13,7 @@ const PROACTIVE_SEGMENTS: readonly { level: ProactiveLevel; label: string }[] = 
   { level: 'more', label: 'More' },
 ];
 
-/** View-model for the per-exercise proactive struggle control (spec §12.2 / §14): rendered only when the host supplies it. */
+/** View-model for the per-exercise proactive struggle control : rendered only when the host supplies it. */
 interface ProactiveControlVM {
   level: ProactiveLevel;
   /** Which availability state to render (Available / Off-course / Unavailable / Degraded). */
@@ -81,14 +81,14 @@ export function AskIris({ description, onClick, proactiveControl }: AskIrisProps
         </div>
       </div>
 
-      {/* Proactive-help control, divided off from the chat access above (spec §12.2). Hidden when the card is
+ {/* Proactive-help control, divided off from the chat access above. Hidden when the card is
           `unavailable` (its notice above already explains) OR the engine seam is absent (clean/no-engine build). */}
       {showProactive && proactiveControl && (
         <>
           <hr className={styles.divider} />
           <div className={styles.proactive}>
             <div className={styles.proactiveRow}>
-              {/* Heading + explanation so the control is self-explanatory (spec §12.2 awareness indicator: "is Iris watching?"). */}
+ {/* Heading + explanation so the control is self-explanatory (awareness indicator: "is Iris watching?"). */}
               <div className={styles.proactiveText}>
                 <h4 className={styles.proactiveTitle}>Proactive help</h4>
                 <p className={styles.proactiveDescription}>

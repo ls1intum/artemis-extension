@@ -18,9 +18,10 @@ interface ExerciseLike {
  *   - The result must carry a finite, defined participation id.
  *   - That participation must be one of the exercise's own.
  *
- * The last rule used to name `studentParticipations[0]`, which Artemis builds from an unordered
- * set, so a result for whichever participation came second was dropped and the task markers went
- * stale. Matching any of them is deliberately wider than "the one on screen": telling them apart
+ * The last rule matches ANY of them rather than `studentParticipations[0]`: Artemis builds that
+ * list from an unordered set, so pinning the first entry drops a result for whichever participation
+ * came second and leaves the task markers stale. Matching any is wider than "the one on screen":
+ * telling them apart
  * here would mean carrying the graded/practice mode into a synchronous WebSocket handler, and the
  * cost is a refresh whose re-render produces the same HTML.
  */

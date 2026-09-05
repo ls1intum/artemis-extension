@@ -65,7 +65,7 @@ export class ServerFrameHandler {
     constructor(private readonly _rt: SlotRuntime, private readonly _p: ServerFramePort) { }
 
     /**
-     * Inbound ambient event from the server (PARKED pointer only: spec §5 pull model).
+     * Inbound ambient event from the server (PARKED pointer only: pull model).
      * Routes through reconcile; may take-parked (FREE), replace-parked (PARKED), or suppress (DELIVERED).
      * sessionId is stored for the reveal flow (C2).
      */
@@ -131,7 +131,7 @@ export class ServerFrameHandler {
      * Inbound active event from the server (delivered, bubble+notification). Routes through reconcile;
      * may take-delivered (FREE), replace-delivered (PARKED), escalate (revealed-ambient DELIVERED +
      * hardEvent), or suppress (already-active DELIVERED, no hardEvent, etc.).
-     * Pull re-route (spec §12.2): when the active exercise's level is `less`, this delegates to
+     * Pull re-route: when the active exercise's level is `less`, this delegates to
      * {@link onServerAmbient} instead, so Less never creates a DELIVERED episode/bubble/notification.
      */
     onServerActive(episodeId: string | undefined, sessionId: number, anchorFile?: string, anchorLine?: number, inlineHint?: string, confidence?: number, message?: string, messageId?: number | null, rationale?: string): void {
@@ -189,7 +189,7 @@ export class ServerFrameHandler {
             return;
         }
 
-        // Pull re-route (spec §12.2 Off/Less/More): Less may only surface quietly (lamp/gutter),
+        // Pull re-route: Less may only surface quietly (lamp/gutter),
         // never a bubble/notification, even when the server decided `active`. Check the level BEFORE
         // _acceptDecide runs and hand the whole event to onServerAmbient, which does its own
         // _acceptDecide/baseline/_frozenSessionId bookkeeping -- falling through into the active
@@ -276,7 +276,7 @@ export class ServerFrameHandler {
     }
 
     /**
-     * The eval row for a gate that declined to say anything (spec §12).
+     * The eval row for a gate that declined to say anything.
      *
      * The outbound row written when the request goes out already reads `finalAction: 'silent'`, but it is
      * written before any reply exists, so it carries neither the confidence nor the reason. An ambient or

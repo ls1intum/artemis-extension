@@ -5,11 +5,11 @@ export interface InterventionLogEvent {
     finalAction: StruggleAction;             // surfaced level after gating
     surface: 'none' | 'lamp' | 'bubble' | 'inline';
     source: 'server' | 'local';
-    /** The originating signal (alert + trajectory) - the analytic payload (spec §12). */
+    /** The originating signal (alert + trajectory) - the analytic payload. */
     signal?: StruggleSignal;
     confidence?: number;                     // server confidence (active/ambient AI path), when known
     /** The gate's own one-sentence reason for the decision. Never shown to the student; it is here so the
-     *  eval can read WHY a run decided as it did, not just what it decided (spec §12). */
+     *  eval can read WHY a run decided as it did, not just what it decided. */
     rationale?: string;
     studentOutcome?: 'shown' | 'clicked' | 'dismissed';
 }
@@ -17,7 +17,7 @@ export interface InterventionLogEvent {
 export type AppendLine = (line: string) => Promise<void>;
 export type NowMs = () => number;
 
-/** Always-on, local-only JSONL intervention log for offline evaluation (spec §12). No egress. */
+/** Always-on, local-only JSONL intervention log for offline evaluation. No egress. */
 export class InterventionEventLog {
     constructor(private readonly _append: AppendLine, private readonly _now: NowMs) {}
 
