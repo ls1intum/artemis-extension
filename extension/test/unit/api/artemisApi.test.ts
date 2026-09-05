@@ -204,7 +204,7 @@ suite('Artemis API Service Test Suite', () => {
     test('should get archived courses', async () => {
         const mockCourses = [{ id: 2, title: 'Archived Course' }];
         global.fetch = async (url: any) => {
-            assert.ok(url.includes('/api/core/courses/for-archive'));
+            assert.ok(url.includes('/api/course/courses/for-archive'));
             return {
                 ok: true,
                 status: 200,
@@ -219,7 +219,7 @@ suite('Artemis API Service Test Suite', () => {
     test('should get courses for dashboard', async () => {
         const mockDashboard = { courses: [] };
         global.fetch = async (url: any) => {
-            assert.ok(url.includes('/api/core/courses/for-dashboard'));
+            assert.ok(url.includes('/api/course/courses/for-dashboard'));
             return {
                 ok: true,
                 status: 200,
@@ -309,7 +309,7 @@ suite('Artemis API Service Test Suite', () => {
         const courseId = 1;
         const mockCourseData = { course: { id: 1, title: 'Course 1', exercises: [] } };
         global.fetch = async (url: any) => {
-            assert.ok(url.includes(`/api/core/courses/${courseId}/for-dashboard`));
+            assert.ok(url.includes(`/api/course/courses/${courseId}/for-dashboard`));
             return {
                 ok: true,
                 status: 200,
@@ -359,7 +359,7 @@ suite('Artemis API Service Test Suite', () => {
         const participationId = 1;
         const mockToken = 'vcs-token';
         global.fetch = async (url: any, options: any) => {
-            assert.ok(url.includes('/api/core/account/participation-vcs-access-token'));
+            assert.ok(url.includes('/api/account/participation-vcs-access-token'));
             assert.strictEqual(options.method, 'GET');
             return {
                 ok: true,
@@ -376,7 +376,7 @@ suite('Artemis API Service Test Suite', () => {
         const participationId = 1;
         const mockToken = 'new-vcs-token';
         global.fetch = async (url: any, options: any) => {
-            assert.ok(url.includes('/api/core/account/participation-vcs-access-token'));
+            assert.ok(url.includes('/api/account/participation-vcs-access-token'));
             assert.strictEqual(options.method, 'PUT');
             return {
                 ok: true,

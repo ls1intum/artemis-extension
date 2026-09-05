@@ -83,7 +83,7 @@ class ArtemisTestClient extends ArtemisTestClientBase {
 
     async getVcsAccessToken(participationId: number): Promise<string> {
         let response = await fetch(
-            `${this.baseUrl}/api/core/account/participation-vcs-access-token?participationId=${participationId}`,
+            `${this.baseUrl}/api/account/participation-vcs-access-token?participationId=${participationId}`,
             { method: 'GET', headers: this.getHeaders() },
         );
         if (response.ok) {
@@ -91,7 +91,7 @@ class ArtemisTestClient extends ArtemisTestClientBase {
         }
 
         response = await fetch(
-            `${this.baseUrl}/api/core/account/participation-vcs-access-token?participationId=${participationId}`,
+            `${this.baseUrl}/api/account/participation-vcs-access-token?participationId=${participationId}`,
             { method: 'PUT', headers: this.getHeaders() },
         );
         assert.ok(response.ok, `getVcsAccessToken (PUT fallback) failed: ${response.status}`);

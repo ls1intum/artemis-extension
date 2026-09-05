@@ -268,7 +268,7 @@ export class ArtemisApiService {
 
     // Get archived courses (inactive courses from previous semesters)
     async getArchivedCourses(): Promise<CourseDashboardCourse[]> {
-        const response = await this.makeRequest('/api/core/courses/for-archive');
+        const response = await this.makeRequest('/api/course/courses/for-archive');
         return expectArray<CourseDashboardCourse>(
             'archived courses',
             await response.json(),
@@ -278,12 +278,12 @@ export class ArtemisApiService {
 
     // Dashboard data carries exercises, participations and scores.
     async getCoursesForDashboard(): Promise<CourseDashboardResponse> {
-        const response = await this.makeRequest('/api/core/courses/for-dashboard');
+        const response = await this.makeRequest('/api/course/courses/for-dashboard');
         return parseApiObject<CourseDashboardResponse>('CourseDashboardResponse', await response.json());
     }
 
     async getCourseForDashboard(courseId: number): Promise<CourseDashboardEntry> {
-        const response = await this.makeRequest(`/api/core/courses/${courseId}/for-dashboard`);
+        const response = await this.makeRequest(`/api/course/courses/${courseId}/for-dashboard`);
         return parseApiObject<CourseDashboardEntry>('CourseDashboardEntry', await response.json());
     }
 
@@ -371,7 +371,7 @@ export class ArtemisApiService {
 
     async getVcsAccessToken(participationId: number): Promise<string> {
         const response = await this.makeRequest(
-            `/api/core/account/participation-vcs-access-token?participationId=${participationId}`,
+            `/api/account/participation-vcs-access-token?participationId=${participationId}`,
             { method: 'GET' }
         );
         return response.text();
@@ -379,7 +379,7 @@ export class ArtemisApiService {
 
     async createVcsAccessToken(participationId: number): Promise<string> {
         const response = await this.makeRequest(
-            `/api/core/account/participation-vcs-access-token?participationId=${participationId}`,
+            `/api/account/participation-vcs-access-token?participationId=${participationId}`,
             { method: 'PUT' }
         );
         return response.text();
