@@ -15,7 +15,7 @@ import styles from './ChatMessageList.module.css';
 import { ContextSwapRow } from './ContextSwapRow';
 import { groupEarlierHints } from './earlierHints';
 import { EarlierHintsGroup } from './EarlierHintsGroup';
-import { type EpisodeOutcome, episodeTopic, outcomeMeta, rowOutcome } from './episodeSummary';
+import { type EpisodeOutcome, episodeTopic, episodeTopicFull, outcomeMeta, rowOutcome } from './episodeSummary';
 import { EpisodeTimeline } from './EpisodeTimeline';
 import { type ChatRenderItem, groupByEpisode } from './groupProactiveMessages';
 import { MessageBubble } from './MessageBubble';
@@ -51,6 +51,7 @@ function EpisodeFoldLine({
             ? styles.toneMuted
             : styles.toneNeutral;
     const topic = episodeTopic(messages, foldState?.episodeLabel);
+    const topicFull = episodeTopicFull(messages, foldState?.episodeLabel);
     const OutcomeIcon = meta.Icon;
     // Collapsed: the icon IS the outcome, so it must name itself for AT. Expanded: the word is visible
     // beside it and carries the meaning, so the icon becomes decorative (avoids a double announce).
@@ -79,8 +80,9 @@ function EpisodeFoldLine({
                         <span className={styles.foldSep}>·</span>
                     </>
                 )}
-                {/* Truncated to one line in CSS, so the full topic has to stay reachable somewhere. */}
-                <span className={styles.foldTopic} title={topic}>{topic}</span>
+                {/* Cut twice: cleanTopic caps the characters, the CSS caps the width. The title is the
+                    only place the whole line survives, so it must not be the already-cut one. */}
+                <span className={styles.foldTopic} title={topicFull}>{topic}</span>
             </button>
             {expanded && (
                 <EpisodeTimeline

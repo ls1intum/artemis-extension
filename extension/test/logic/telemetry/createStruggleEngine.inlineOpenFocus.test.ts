@@ -6,8 +6,13 @@ import { createStruggleEngine } from '@extension/telemetry/index';
 import { TestSensorHub } from '@test/__shared__/testSensorHub';
 
 /**
- * #364 Task 2: focus ownership belongs to `ChatWebviewProvider.revealProactiveSessionForExercise`,
- * so the `iris.intervention.inlineOpen` command triggers the reveal WITHOUT focusing the chat itself.
+ * #364 Task 2 gave focus ownership on the REVEAL path to
+ * `ChatWebviewProvider.revealProactiveSessionForExercise`, so `iris.intervention.inlineOpen` must not
+ * focus the chat out from under a reveal that is still deciding whether to navigate.
+ *
+ * That rule covers the parked slot. It never covered the delivered one, where nothing is parked, the
+ * hint is already a message in the chat, and the same inline cue is armed anyway -- there the command
+ * has to bring the chat forward or the link dead-ends. `revealParkedHint` reports which case it is.
  *
  * The vscode mock mirrors createStruggleEngine.proactiveLevel.test.ts, with one difference:
  * `commands.registerCommand` captures each handler by id (instead of just returning a
@@ -113,7 +118,16 @@ describe('createStruggleEngine: iris.intervention.inlineOpen focus ownership (#3
         mocks.executeCommand.mockClear();
     });
 
-    it('triggers the reveal but no longer focuses the chat view directly', () => {
+    /**
+     * The handler decides asynchronously, so every assertion here has to run AFTER the reveal
+     * promise settled. Awaiting the handler's own return value is not enough: it is registered as
+     * a `() => void`, so vscode discards whatever it returns. Flushing the microtask queue is what
+     * makes the observation honest -- without it this file asserts on a decision that has not been
+     * taken yet and passes whatever the handler ends up doing.
+     */
+    const flush = () => new Promise<void>(resolve => { setTimeout(resolve, 0); });
+
+    it('focuses the chat when nothing is parked, so the cue armed by an active hint leads somewhere', async () => {
         createStruggleEngine(fakeDeps());
 
         const handler = mocks.registeredCommands.get('iris.intervention.inlineOpen');
@@ -121,7 +135,9 @@ describe('createStruggleEngine: iris.intervention.inlineOpen focus ownership (#3
 
         mocks.executeCommand.mockClear(); // isolate: only observe what the click handler itself does
         handler?.();
+        await flush();
 
-        expect(mocks.executeCommand).not.toHaveBeenCalledWith('iris.chatView.focus');
+        // A fresh engine has an empty slot, which is also the state after an ACTIVE delivery.
+        expect(mocks.executeCommand).toHaveBeenCalledWith('iris.chatView.focus');
     });
 });

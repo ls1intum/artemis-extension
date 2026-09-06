@@ -50,17 +50,27 @@ export function outcomeMeta(outcome: EpisodeOutcome | undefined): OutcomeMeta {
 const MAX_TOPIC = 48;
 
 /**
- * A clean one-line topic from a hint body: markdown stripped via {@link stripMarkdown}, whitespace
- * collapsed, cut at a word boundary at most {@link MAX_TOPIC} chars (with an ellipsis). Best-effort:
- * the link regex does not handle a literal `)` inside a URL, but it degrades to leaving the raw text
- * rather than crashing.
+ * The topic as one flat line, with no length cap: markdown stripped via {@link stripMarkdown},
+ * a leading heading / blockquote / list marker dropped, whitespace collapsed. Best-effort: the link
+ * regex does not handle a literal `)` inside a URL, but it degrades to leaving the raw text rather
+ * than crashing. The fold line shows {@link cleanTopic}, which cuts this down; the uncut form is
+ * what the row offers on hover.
  */
-export function cleanTopic(raw: string): string {
+export function flattenTopic(raw: string): string {
     const flat = stripMarkdown(raw)
         .replace(/^\s*[#>\-*]+\s+/, '')             // only a LEADING heading / blockquote / list marker
         .replace(/\s+/g, ' ')
         .trim();
-    if (!flat) { return 'Proactive hint'; }
+    return flat || 'Proactive hint';
+}
+
+/**
+ * {@link flattenTopic} cut at a word boundary to at most {@link MAX_TOPIC} chars, with an ellipsis
+ * when it had to cut. The empty fallback is returned as-is: it is a label, not a topic to shorten.
+ */
+export function cleanTopic(raw: string): string {
+    const flat = flattenTopic(raw);
+    if (flat === 'Proactive hint') { return flat; }
     if (flat.length <= MAX_TOPIC) { return flat; }
     const cut = flat.slice(0, MAX_TOPIC);
     const lastSpace = cut.lastIndexOf(' ');
@@ -76,4 +86,12 @@ export function episodeTopic(messages: ChatMessage[], praiseLabel?: string): str
         return praiseLabel.trim();
     }
     return cleanTopic(messages[0]?.content ?? '');
+}
+
+/** {@link episodeTopic} without the length cut, for the fold line's hover title. */
+export function episodeTopicFull(messages: ChatMessage[], praiseLabel?: string): string {
+    if (praiseLabel && praiseLabel.trim()) {
+        return praiseLabel.trim();
+    }
+    return flattenTopic(messages[0]?.content ?? '');
 }

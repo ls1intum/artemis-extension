@@ -4,7 +4,7 @@ import Lightbulb from 'lucide-react/dist/esm/icons/lightbulb';
 import X from 'lucide-react/dist/esm/icons/x';
 import { describe, expect, it } from 'vitest';
 
-import { cleanTopic, episodeTopic, outcomeMeta, rowOutcome } from '@webview/views/IrisChat/components/episodeSummary';
+import { cleanTopic, episodeTopic, episodeTopicFull, flattenTopic, outcomeMeta, rowOutcome } from '@webview/views/IrisChat/components/episodeSummary';
 import type { ChatMessage } from '@webview/views/IrisChat/types';
 
 /** Minimal proactive ChatMessage builder for the summary helpers. */
@@ -87,5 +87,25 @@ describe('episodeTopic', () => {
     });
     it('ignores a blank praise label', () => {
         expect(episodeTopic([msg('first hint')], '   ')).toBe('first hint');
+    });
+});
+
+describe('flattenTopic / episodeTopicFull', () => {
+    const long = 'Check the loop bound in calculateOptimalPayment, it still returns zero for every input';
+
+    it('normalises like cleanTopic but never cuts', () => {
+        expect(flattenTopic(`# In \`isValidSelection\`,\n  fix   the bound`)).toBe('In isValidSelection, fix the bound');
+        // The fold line is capped, the hover title is not: that is the whole point of the pair.
+        expect(cleanTopic(long)).toContain('…');
+        expect(flattenTopic(long)).toBe(long);
+    });
+
+    it('keeps the empty fallback', () => {
+        expect(flattenTopic('   ')).toBe('Proactive hint');
+    });
+
+    it('gives the fold line an uncut title, praise label still winning', () => {
+        expect(episodeTopicFull([msg(long)])).toBe(long);
+        expect(episodeTopicFull([msg(long)], 'Loop bound fixed')).toBe('Loop bound fixed');
     });
 });
