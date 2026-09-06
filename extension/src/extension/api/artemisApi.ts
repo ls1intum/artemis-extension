@@ -673,7 +673,7 @@ export class ArtemisApiService {
     }
 
     async listChatSessionsForCourse(courseId: number): Promise<SessionSummary[]> {
-        const response = await this.makeRequest(`/api/iris/chat/${courseId}/sessions/overview`);
+        const response = await this.makeRequest(`/api/iris/chat/courses/${courseId}/sessions/overview`);
         return expectArray<SessionSummary>('SessionSummary list', await response.json(), (item, i) => {
             const dto = parseApiObject<IrisChatSessionSummary>(`IrisChatSessionSummary[${i}]`, item, [
                 { key: 'id', type: 'number' },

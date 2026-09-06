@@ -940,7 +940,7 @@ suite('Artemis API Service Test Suite', () => {
             { id: 2, entityId: 123, mode: 'PROGRAMMING_EXERCISE_CHAT', creationDate: '2026-05-13T01:00:00Z' },
         ];
         global.fetch = async (url: any, options: any) => {
-            assert.ok(url.includes(`/api/iris/chat/${courseId}/sessions/overview`));
+            assert.ok(url.includes(`/api/iris/chat/courses/${courseId}/sessions/overview`));
             assert.ok(!options?.method || options.method === 'GET');
             return { ok: true, status: 200, json: async () => rawSummaries } as any;
         };

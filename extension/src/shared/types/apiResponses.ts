@@ -149,7 +149,7 @@ export type IrisChatMode =
     | 'COURSE_CHAT'
     | 'LECTURE_CHAT';
 
-/** Detail DTO returned by /api/iris/chat/sessions/current, /sessions, and /{courseId}/session/{sessionId}. */
+/** Detail DTO returned by /api/iris/chat/sessions/current, /sessions, and /courses/{courseId}/sessions/{sessionId}. */
 export interface IrisChatSession {
     id: number;
     mode?: IrisChatMode;
@@ -162,7 +162,7 @@ export interface IrisChatSession {
     [key: string]: unknown;
 }
 
-/** Listing DTO returned by /api/iris/chat/{courseId}/sessions/overview. No messages. */
+/** Listing DTO returned by /api/iris/chat/courses/{courseId}/sessions/overview. No messages. */
 export interface IrisChatSessionSummary {
     id: number;
     entityId: number;
