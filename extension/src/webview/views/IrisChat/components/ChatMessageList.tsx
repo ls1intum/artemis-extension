@@ -79,7 +79,8 @@ function EpisodeFoldLine({
                         <span className={styles.foldSep}>·</span>
                     </>
                 )}
-                <span className={styles.foldTopic}>{topic}</span>
+                {/* Truncated to one line in CSS, so the full topic has to stay reachable somewhere. */}
+                <span className={styles.foldTopic} title={topic}>{topic}</span>
             </button>
             {expanded && (
                 <EpisodeTimeline

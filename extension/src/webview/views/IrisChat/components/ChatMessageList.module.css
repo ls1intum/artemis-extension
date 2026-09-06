@@ -40,6 +40,19 @@
     background: transparent;
     border: none;
     cursor: pointer;
+    /* One line, always. The row is a log line: it may run out of width, it may not grow taller. The
+       max-width keeps the inset from pushing it past the panel, and buttons centre their text by
+       default, which reads as a stray heading once the topic is short. */
+    max-width: 100%;
+    text-align: left;
+}
+
+/* Chevron and outcome glyph carry the row's meaning, so only the topic gives up space. */
+.episodeFoldLine > svg,
+.episodeFoldLine > .foldOutcome,
+.episodeFoldLine > .foldWord,
+.episodeFoldLine > .foldSep {
+    flex: none;
 }
 
 .episodeFoldLine:hover {
@@ -62,8 +75,15 @@
     opacity: 0.5;
 }
 
+/* The only elastic part of the row: it shrinks and ellipsises instead of wrapping. `min-width: 0`
+   is what lets a flex item shrink below its content width at all; without it the other two rules
+   never take effect. The full text stays reachable through the title attribute. */
 .foldTopic {
     color: var(--vscode-foreground);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .toneSuccess {
