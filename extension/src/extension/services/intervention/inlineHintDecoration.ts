@@ -17,17 +17,26 @@ export class InlineHintDecoration implements vscode.Disposable {
     private _gutterOnlyCurrent?: { file: string; line: number };
 
     constructor(extensionUri: vscode.Uri, private readonly getExerciseRoot: () => vscode.Uri | undefined) {
-        const gutterIconPath = vscode.Uri.joinPath(extensionUri, 'media', 'iris-logo-big-left.png');
-        this.type = vscode.window.createTextEditorDecorationType({
+        // The mascot is a mid-blue silhouette with no outline of its own. Against a dark editor it
+        // separates from the gutter by brightness alone; against a light one it sits on white with
+        // nothing to hold its edge, so the light theme gets a variant carrying a black stroke.
+        // `gutterIconSize` is repeated inside each block rather than hoisted: it only takes effect
+        // alongside the `gutterIconPath` it belongs to, and left at the top level it is dropped,
+        // falling back to `auto` — which renders the ~585px asset at its natural size and leaves a
+        // magnified crop of it in the gutter.
+        const gutterIcon: vscode.DecorationRenderOptions = {
             isWholeLine: true,
-            gutterIconPath,
-            gutterIconSize: 'contain',
-        });
-        this._gutterOnlyType = vscode.window.createTextEditorDecorationType({
-            isWholeLine: true,
-            gutterIconPath,
-            gutterIconSize: 'contain',
-        });
+            dark: {
+                gutterIconPath: vscode.Uri.joinPath(extensionUri, 'media', 'iris-logo-big-left.png'),
+                gutterIconSize: 'contain',
+            },
+            light: {
+                gutterIconPath: vscode.Uri.joinPath(extensionUri, 'media', 'iris-logo-big-left-outlined.png'),
+                gutterIconSize: 'contain',
+            },
+        };
+        this.type = vscode.window.createTextEditorDecorationType(gutterIcon);
+        this._gutterOnlyType = vscode.window.createTextEditorDecorationType(gutterIcon);
         this.disposables.push(
             // Typing never retires the cue (it clears via hover Hide/Dismiss or the episode's terminal
             // exit). The stored anchor line must still follow edits: VS Code shifts the live decoration
