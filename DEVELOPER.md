@@ -40,6 +40,7 @@ artemis-extension/
 ├── DEVELOPER.md                  # This file
 ├── CONTRIBUTING.md               # Contribution workflow
 ├── CHANGELOG.md                  # Single source of truth for release notes
+├── scripts/                      # Repo-level release helpers (shell)
 ├── extension/                    # VS Code extension package (npm root)
 │   ├── src/
 │   │   ├── extension.ts          # Entry point & activation
@@ -47,27 +48,58 @@ artemis-extension/
 │   │   │   ├── activation/       # Command registration, wiring
 │   │   │   ├── api/              # Artemis REST API client
 │   │   │   ├── controller/       # Message handling, state, routing
-│   │   │   ├── dataCollection/   # Consent-gated data collection
+│   │   │   ├── dataCollection/   # Consent-gated data collection (seam: index.ts | noop.ts)
 │   │   │   ├── domain/           # Domain model classes
 │   │   │   ├── provider/         # Webview providers, CodeLens
-│   │   │   ├── services/         # Business logic (auth, iris, telemetry, ui, websocket, workspace)
-│   │   │   ├── telemetry/        # Struggle detection & recording pipeline
+│   │   │   ├── services/         # Business logic (see below)
+│   │   │   ├── telemetry/        # Struggle-detection seam & wiring (seam: index.ts | noop.ts)
 │   │   │   ├── theia/            # EduIDE/Theia environment detection (data bridge)
 │   │   │   ├── types/            # Domain types & ambient shims
 │   │   │   └── utils/            # Shared utilities (incl. serverUrl resolution)
 │   │   ├── shared/               # Cross-runtime types & message contracts
 │   │   └── webview/              # React UI (components, views, stores, hooks, styles)
-│   ├── test/                     # unit/ (extension host) + react/ (component) tests
+│   ├── test/                     # See "Tests" below
 │   ├── scripts/                  # Packaging & build helpers
 │   └── docs/                     # DEVELOPER-GUIDE.md, ADRs, diagrams
 └── recording-viewer/             # Standalone session recording viewer (Vite/React)
 ```
 
+### `src/extension/services/`
+
+| Directory | Responsibility |
+|---|---|
+| `auth/` | Login, token lifecycle, consent |
+| `iris/` | Iris chat: conversations, context, availability |
+| `struggle/` | The struggle-detection engine (severity, boundaries, decision, alerting) |
+| `sensing/` | The SensorHub and its collectors, feeding the engine |
+| `struggleIntervention/` | Requesting an intervention from Artemis and routing the reply |
+| `intervention/` | The in-editor surfaces (inline cue, ambient lamp) |
+| `recording/` | Session recorder (local recording build only) |
+| `session/`, `ui/`, `websocket/`, `workspace/` | Session state, UI helpers, the Artemis socket, workspace/exercise tracking |
+
+No always-bundled code imports the struggle engine or the recorder as a runtime dependency
+(type-only imports are fine; the seam's own implementation naturally imports them). Both sit
+behind the `@telemetry` and `@dataCollection` esbuild aliases, which resolve to a `noop.ts` in
+the builds that exclude them (see
+[Build Variants](#build-variants--deployment) and
+[ADR 003](extension/docs/adr/003-theia-openvsx-telemetry-seam.md)).
+
+### Tests
+
+| Directory | Runner | Contents |
+|---|---|---|
+| `test/unit/` | `vscode-test` | Extension-host tests needing the real `vscode` API |
+| `test/react/` | vitest | Everything rendering-side: components, views, hooks, stores, flows, CSP |
+| `test/logic/` | vitest | Pure-logic tests (services, contracts, build scripts) |
+| `test/golden-replay/` | vitest | Replays recorded sessions against pinned engine output. Local only: it skips unless `IRIS_STUDY_DATA` and `GOLDEN_DIR` point at the study dataset |
+| `test/e2e/` | `vscode-test` | End-to-end flows in a real Extension Development Host |
+| `test/__shared__/` | - | Fixtures and fakes shared across suites |
+
 ## Architecture Overview
 
 The codebase spans three runtimes:
 
-- **`extension/` (host, Node.js)** - services, providers, controllers, the REST client, and the telemetry pipeline.
+- **`extension/` (host, Node.js)** - services, providers, controllers, the REST client, and the struggle-detection engine behind its build seam.
 - **`webview/` (React)** - page-level views and components rendered in VS Code webview panels, with Zustand stores hydrated from extension messages.
 - **`shared/`** - types and the typed message contracts used by both sides.
 
@@ -84,13 +116,18 @@ Run from `extension/`:
 | `npm run compile` | Type-check, lint, and bundle (dev) |
 | `npm run watch` | Watch mode (esbuild + tsc) |
 | `npm run package` | Production bundle (type-check + lint + esbuild `--production`) |
-| `npm run package:vsix` | Build and package the full marketplace `.vsix` |
+| `npm run package:vsix` | Build and package the full Desktop `.vsix` (VS Marketplace) |
+| `npm run package:openvsx` | Build and package the clean `.vsix` (Open VSX / EduIDE) |
+| `npm run package:rec` | Build the local recording variant (local only: the build itself is refused under CI) |
 | `npm run lint` | ESLint over `src` and `test` |
 | `npm run check-types` | Type-check without emitting |
+| `npm run knip` | Dead-code / unused-export check (its own CI job) |
 | `npm run test:vscode` | All extension host tests (vscode-test). What CI runs |
-| `npm run test:struggle` | Struggle detection tests only (a subset of the above) |
-| `npm run test:react` | React component tests (vitest) |
-| `npm run test:all` | Extension host + React tests |
+| `npm run test:react` | vitest: `test/react/` **and** `test/logic/` |
+| `npm run test:all` | `test:vscode` + `test:react` |
+| `npm run test:golden-replay` | Replay recorded sessions against the pinned engine output |
+| `npm run test:e2e` | End-to-end suite in an Extension Development Host |
+| `npm run coverage:all` | Coverage for both main suites |
 
 ## Running Locally
 
@@ -120,8 +157,18 @@ Run from `extension/`:
 The release ships **two** packages from the same source, plus a third **local-only** variant for recorder development:
 
 - **Full build** (VS Marketplace) - built by `scripts/package-desktop.js` from a staging directory using `scripts/generate-clean-manifest.js`. The Desktop VSIX now also **excludes** the session recorder and the data-collection consent flow while keeping the struggle-detection engine; `scripts/verify-clean-bundle.js` fails the build if the recorder reappears in the bundle.
-- **Clean build** (Open VSX, bundled into EduIDE) - built by `scripts/package-openvsx.js` from a staging directory using `scripts/generate-clean-manifest.js`. The clean variant **excludes** the struggle-detection engine, the recording pipeline, and the data-collection consent flow. In its manifest the `artemis.dataCollectionConsent` setting and the `artemis.replaySession` / `artemis.openRecordingsFolder` / `artemis.showStruggleScore` commands are **removed**, while the `artemis.struggleDetection.*` settings are **kept but defaulted to `false`**; `scripts/verify-clean-bundle.js --profile=openvsx` fails the build if any excluded code reappears in the bundle.
+- **Clean build** (Open VSX, bundled into EduIDE) - built by `scripts/package-openvsx.js` from a staging directory using `scripts/generate-clean-manifest.js`. The clean variant **excludes** the struggle-detection engine, the recording pipeline, and the data-collection consent flow. `scripts/verify-clean-bundle.js --profile=openvsx` fails the build if any excluded code reappears in the bundle.
 - **Local recording build** (not shipped) - keeps the session recorder and consent flow for local development, via `npm run package:rec` or the "Run Extension (Recording)" launch config. It is refused under CI (`resolveBuildVariant` throws when `GITHUB_ACTIONS === 'true'` or `CI === 'true'`), so it never reaches a release.
+
+#### What the clean manifest changes
+
+`generate-clean-manifest.js` rewrites `package.json` into the staging directory without touching the source manifest. Three things happen there:
+
+- **Dropped contributions.** Both profiles drop the recorder group: the `artemis.dataCollectionConsent` setting and the `artemis.openRecordingsFolder` command. Open VSX additionally drops the struggle commands, whose handlers live in excluded code: `artemis.showStruggleScore`, `artemis.forceStruggleIntervention`, `artemis.toggleStruggleWarmupSkip`. Contributing one of these without its handler puts a palette entry in EduIDE that fails with "command not found", so **a new command in the struggle or recorder modules must be added to the matching drop list**. `test/logic/scripts/generateCleanManifest.test.ts` guards that: for each profile it classifies every source file with `verify-clean-bundle.js`'s own predicate, then fails if a shipped command's id occurs only in the code that profile drops. That is a necessary condition, not a proof that a handler exists, but it catches the failure that actually occurs here. The legacy `artemis.struggleDetection.enabled` / `artemis.struggleDetection.showInterventions` settings are not part of this: they were removed from the extension entirely (#352).
+- **Cloud defaults (Open VSX only).** Three settings keep their entry but ship a different default, because the EduIDE workspace is pre-provisioned: `artemis.startPage` becomes `workspace-exercise`, and `artemis.showStartPageSuggestion` / `artemis.showSetDefaultClonePathPrompt` become `false`. See [ADR 002](extension/docs/adr/002-theia-openvsx-setting-defaults.md). Renaming one of these settings without updating the override fails the build rather than silently losing it.
+- **The `vscode:prepublish` hook is deleted**, because the staged manifest is packaged as-is and must not re-run the doc sync or a second bundle.
+
+The equivalent guarantee does **not** yet exist for settings. `artemis.iris.proactiveCodeEgress` still ships in the Open VSX manifest although the only code that acts on it (`services/struggleIntervention/proactiveEgressConsent.ts`) is excluded there. It is inert rather than broken - the card that links to it never renders without the engine - but it is a setting describing an absent feature.
 
 ### EduIDE / Theia integration
 
@@ -173,7 +220,13 @@ The store listings show the repo-root **`README.md`** (user docs) and **`CHANGEL
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow & conventions |
 | [extension/docs/DEVELOPER-GUIDE.md](extension/docs/DEVELOPER-GUIDE.md) | Deep dive: webview architecture, message contracts, stores |
 | [recording-viewer/README.md](recording-viewer/README.md) | The standalone session recording viewer |
+| [extension/docs/adr/](extension/docs/adr/) | Architecture decision records |
 | [CHANGELOG.md](CHANGELOG.md) | Release notes (single source) |
+
+Per-change design specs and implementation plans are **not** in the repository. They are working
+notes for one change and age out as soon as it lands, so `docs/superpowers/`,
+`extension/docs/superpowers/` and `extension/docs/plans/` are git-ignored. Rationale that should
+outlive a pull request belongs in the code, in an ADR, or on the issue.
 
 ## Resources
 

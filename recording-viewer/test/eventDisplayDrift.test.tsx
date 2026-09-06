@@ -11,25 +11,56 @@ import { eventSummary, eventDetail } from '../src/utils/eventDisplay';
 const detailText = (e: RecordedEvent) => render(<>{eventDetail(e)}</>).container.textContent ?? '';
 const summaryText = (e: RecordedEvent) => render(<>{eventSummary(e, 0)}</>).container.textContent ?? '';
 
+/**
+ * `intervention` and `eqEngineState` were retired from the canonical schema
+ * (EQ engine removal, commit 87fd6578, synced into the generated types by
+ * 36fbe503) and are no longer part of `RecordedEvent`. Old recordings on disk
+ * still contain rows of these shapes, and `eventDetail`/`eventSummary` still
+ * render them (see the legacy branches in eventDisplay.tsx), so these two
+ * tests keep exercising that path via a viewer-local legacy shape + cast,
+ * mirroring eventDisplay.tsx's own LegacyInterventionEvent/
+ * LegacyEqEngineStateEvent.
+ */
+interface LegacyInterventionEvent {
+    type: 'intervention';
+    timestamp: number;
+    action: string;
+    level: string;
+    shouldIntervene: boolean;
+    eq: number;
+    confidence: 'sufficient' | 'insufficient';
+    triggerType?: string;
+}
+interface LegacyEqEngineStateEvent {
+    type: 'eqEngineState';
+    timestamp: number;
+    snapshots: unknown[];
+    currentEQ: number;
+    pairCount: number;
+    confidence: 'sufficient' | 'insufficient';
+}
+
 describe('eventDisplay drift harmonization (#243)', () => {
     it('intervention: both views uppercase the action and separate level from EQ with a pipe', () => {
-        const e: RecordedEvent = {
+        const e: LegacyInterventionEvent = {
             type: 'intervention', timestamp: 1000, action: 'dismissed', level: 'notification',
             shouldIntervene: true, eq: 0.42, confidence: 'sufficient', triggerType: 'idle',
         };
-        for (const text of [detailText(e), summaryText(e)]) {
+        const event = e as unknown as RecordedEvent;
+        for (const text of [detailText(event), summaryText(event)]) {
             expect(text).toContain('DISMISSED');
             expect(text).toContain('notification | EQ:');
         }
     });
 
     it('eqEngineState: both views show the confidence', () => {
-        const e: RecordedEvent = {
+        const e: LegacyEqEngineStateEvent = {
             type: 'eqEngineState', timestamp: 1000, snapshots: [], currentEQ: 0.5,
             pairCount: 3, confidence: 'sufficient',
         };
-        expect(detailText(e)).toContain('sufficient');
-        expect(summaryText(e)).toContain('sufficient');
+        const event = e as unknown as RecordedEvent;
+        expect(detailText(event)).toContain('sufficient');
+        expect(summaryText(event)).toContain('sufficient');
     });
 
     it('buildResult: both views show the failed-test count', () => {

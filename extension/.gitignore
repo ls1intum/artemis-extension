@@ -33,6 +33,10 @@ reports/
 # extest writes its JUnit summary to the package root
 test-results.xml
 
+# Golden-replay local artifacts (study-derived; never committed — the goldens and
+# any runner output stay local, generated from IrisStudyData via 26_export_ts_goldens.py)
+.golden-replay/
+
 # IDE
 .vscode-test/
 *.swp

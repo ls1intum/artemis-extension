@@ -22,7 +22,8 @@ export enum LogCategory {
     BUILD = 'Build',
     TEST = 'Test',
     CONFIG = 'Config',
-    VIEW = 'View'
+    VIEW = 'View',
+    STRUGGLE = 'Struggle'
 }
 
 interface LoggingConfig {

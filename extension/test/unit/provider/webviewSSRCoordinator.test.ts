@@ -204,8 +204,30 @@ suite('WebviewSSRCoordinator', () => {
         sinon.assert.calledWith(stubs.postMessage, sinon.match({
             type: ExtensionMsg.ProblemStatementRendered,
             html: '<p>Hello</p>',
+            exerciseId: 42,
             participationId: 7,
         }));
+    });
+
+    test('scheduleRender skips when the current exercise has no id (cannot target the broadcast)', async () => {
+        const exercise = { problemStatement: '# Hello', studentParticipations: [{ id: 7 }] };
+        const exerciseData = { exercise } as unknown as ExerciseDetailsResponse;
+        const renderStub = sandbox.stub().resolves({ html: '<p>Hello</p>', contentHash: 'abcdef1234567890' });
+        const { deps, stubs } = buildDeps({
+            appStateManager: {
+                currentState: 'exercise-detail',
+                currentExerciseData: exerciseData,
+                serverRenderedProblemStatement: null as { html: string; participationId?: number } | null,
+                showExerciseDetail: sandbox.stub(),
+                workspaceIsPractice: false,
+            },
+            renderService: { render: renderStub, invalidateAll: sandbox.stub() },
+        });
+
+        await new WebviewSSRCoordinator(deps).scheduleRender();
+
+        sinon.assert.notCalled(renderStub);
+        sinon.assert.notCalled(stubs.postMessage);
     });
 
     /** An exercise with both participations, which is the only case any of this is visible in. */
@@ -226,8 +248,8 @@ suite('WebviewSSRCoordinator', () => {
     }
 
     test('renders for the practice participation when that is the repository the student has open', async () => {
-        // The whole point of the change: the graded one used to be picked by array position, which
-        // Artemis does not even guarantee.
+        // Picked by which repository is open, never by array position: Artemis does not guarantee
+        // the order of that list.
         const { exerciseData, exercise } = bothParticipations();
         const renderStub = sandbox.stub().resolves({ html: '<p>P</p>', contentHash: 'aaaaaaaaaaaaaaaa' });
         const { deps, stubs } = buildDeps({

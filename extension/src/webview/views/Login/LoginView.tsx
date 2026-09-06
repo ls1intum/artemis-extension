@@ -302,8 +302,8 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                     break;
                 }
                 // Not the end of the flow, the middle of it. The credential is committed, but the host
-                // still has to wire up the authenticated UI, and that used to happen behind a form that
-                // had just reset itself and claimed nothing was going on.
+                // still has to wire up the authenticated UI, and the handover is what keeps the form from
+                // resetting itself and claiming nothing is going on while that happens.
                 enterHandover(msg.attemptId === undefined ? 'oidc' : 'password', msg.attemptId ?? null);
                 break;
             }

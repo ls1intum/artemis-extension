@@ -77,10 +77,14 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Iris chat follows Artemis' conversations:** One conversation at a time, exactly the one the server has. Changing the topic now stays in that conversation and is written into the transcript as a divider instead of opening a second one; the `+` in the header starts a fresh conversation. Messages you write in the Artemis web client show up here as they arrive, and a course whose instructor has switched Iris off can be opened and says so.
 - **WebSocket status bar:** Removed the `artemis.showWebSocketStatusBar` setting. The connection indicator now appears automatically only when there is a problem; enable `artemis.developerMode` to keep it always visible with full diagnostics on hover. When the connection drops, students now see a plain-language explanation (no "WS" jargon) instead of a technical label.
 - **Server URL change:** Removed the manual "Clear Credentials" prompts that appeared when the Artemis server URL changed. Changing the server while logged in now logs you out automatically and returns you to the login view (a session is not valid across servers); the logout command remains for clearing credentials on demand.
-- **While Iris is answering:** You can already type your next message. You send it yourself once the answer is there.
+- **Proactive help consent:** Struggle detection now starts only after the proactive-help consent (`artemis.iris.proactiveCodeEgress`) is explicitly enabled. Without consent nothing is observed or computed locally (previously only sending was blocked); granting mid-session starts detection fresh, and revoking stops it immediately and clears any visible hint.
+- Removed the legacy settings `artemis.struggleDetection.enabled` and `artemis.struggleDetection.showInterventions`; proactive help is now controlled solely by the code-reading consent (`artemis.iris.proactiveCodeEgress`) and the per-exercise Off/Less/More level. An existing `false` value of the old settings no longer has any effect.
 
 ### Fixed
 
+- **Proactive nudge banner:** Clicking "Show me" (or "I need more help") on the follow-up offer banner now opens the Iris chat, matching the initial hint banner.
+- **Proactive hint badge:** The "1" badge on the Iris activity-bar icon now clears when a proactive episode ends (solved, timed out, or dismissed), instead of staying visible.
+- **Fullscreen exercise view:** The exercise description now loads when an exercise is opened in the fullscreen (expanded) view, instead of showing "Failed to load the exercise description".
 - **Opening an exercise for the first time:** The chat now waits for the workspace to be recognised instead of racing it, so an exercise you have never chatted about before opens its conversation instead of leaving you on the course list. A course or topic you pick yourself is no longer overridden a moment later, and a chat that cannot reach the server says so and offers a retry rather than pretending the folder has no exercise. A course whose instructor has switched Iris off now says that too, instead of offering a retry that could never work.
 - **Exercise description header:** Tightened the spacing under the "Exercise Description" heading and added a divider line, so the description starts directly below the title instead of after a large gap.
 - **Stale credentials at startup:** Credentials that are no longer valid on the configured Artemis server are now reliably detected during startup validation and cleared, instead of lingering until a later request fails.
@@ -140,6 +144,26 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Internal
 
+- **Engine v2 golden-replay verification**: a local (non-CI) harness replays recorded
+  sessions through the Engine v2 TS port and checks it tick-for-tick against the frozen
+  Python reference (exact engine-math fidelity; causal-mode divergence from the three
+  declared live deviations is characterized locally). Study data and per-session results
+  stay local; only the harness and methodology are in the repo.
+- **Struggle Engine v2 live (switchover)**: the v1 EQ decision path (boundary triggers,
+  adaptive cadence, intervention filter/decision engine, inactivity/build-result/diagnostic
+  trackers, debug dashboard, TelemetryManager) is removed; Engine v2 now drives a single-level
+  status-bar intervention via an AlertSink. Recording schema v3 adds per-tick `struggleScore`
+  and `alert` events; the debug view shows V/S/boundary state. EQ survives as a passive logger
+  only. `services/telemetry/` is deleted.
+- **Sensing Layer**: A single `SensorHub` (`services/sensing/`) now owns all VS Code event subscriptions and state reads for telemetry; the session recorder, the EQ pipeline, and the inactivity/diagnostics services consume typed hub channels. No behavior change; recordings stay schema-v2 identical.
+- **Services restructuring**: recorder and replay moved to `services/recording/`, the
+  passive EQ pipeline to `services/eq/`, URI filter and paste heuristic into the
+  sensing layer. Pure relocation, no behavior change.
+- **Struggle Engine v2 (additive)**: data-derived detection engine in `services/struggle/`
+  (10 s tick contract, severity/decay/boundaries/gates/alert state machine, ports of the
+  26 reference state-machine tests), sensor hub internal sources for build results and
+  task-feedback views, derived paste channel. Not yet wired to UI or recorder (switchover
+  follows in PR 2c); the v1 decision path is unchanged.
 - **Struggle-Detection Config**: Wired `MIN_EVENTS_PER_SESSION` and the paste threshold; removed dead config.
 - **Live Recording Viewer**: The Event Breakdown counts, event total, and session duration now update live alongside the timeline instead of freezing at the values from when the live session was opened.
 - **Live Recording Viewer**: Live mode can now be served from the production build (`npm run preview:live:token`), which eliminates a browser-tab out-of-memory crash that could occur during long or high-volume live sessions on the dev server.

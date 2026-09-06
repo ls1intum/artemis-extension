@@ -29,7 +29,7 @@ Introduce a build-time **`@telemetry` seam** that mirrors the proven `@dataColle
 ### Scope boundaries
 
 - The `full` build is unchanged: real `TelemetryManager` and all wiring intact.
-- Build-time presence (variant) is the seam's job; runtime user preference stays the `artemis.struggleDetection.*` setting. The two axes are kept separate.
+- Build-time presence (variant) is the seam's job; runtime user preference stays the `artemis.struggleDetection.*` setting. The two axes are kept separate. (Superseded by #352: the `artemis.struggleDetection.*` settings were removed; the runtime preference is now the proactive-egress consent plus the Off/Less/More level.)
 - The `@dataCollection` seam is left untouched (recorder and struggle engine are siblings; two thin parallel seams, not one merged one).
 
 ## Consequences
@@ -37,8 +37,8 @@ Introduce a build-time **`@telemetry` seam** that mirrors the proven `@dataColle
 - The managed Theia / cloud build ships **no** struggle-detection engine; local VS Code (Marketplace) behaviour is unchanged.
 - `verify-clean-bundle.js` now also forbids the engine entry points — a future accidental value-import of the engine fails the clean build loudly.
 - The dead `artemis.showStruggleScore` palette command is stripped from the clean manifest.
-- **Revisit when the cloud intervention pipeline goes live:** flip the `@telemetry` alias back (and reconsider the ADR 002 `struggleDetection.*` setting defaults).
-- Residual (cosmetic): the `artemis.struggleDetection.*` settings still appear in the clean manifest but are inert; left in place to avoid re-opening ADR 002.
+- **Revisit when the cloud intervention pipeline goes live:** flip the `@telemetry` alias back (and reconsider the ADR 002 `struggleDetection.*` setting defaults). (Superseded by #352: the `struggleDetection.*` settings no longer exist, so there is nothing left to reconsider on that axis.)
+- Residual (cosmetic): the `artemis.struggleDetection.*` settings still appear in the clean manifest but are inert; left in place to avoid re-opening ADR 002. (Superseded by #352: the settings were removed entirely, so this residual no longer applies.)
 
 ## Alternatives considered
 

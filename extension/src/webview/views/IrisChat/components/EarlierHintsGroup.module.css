@@ -1,0 +1,38 @@
+/* Owns the spacing to the expanded children, so the summary row itself needs no vertical margin
+   that would stack on the list container's gap (#366). */
+.group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Quiet summary line for a run of closed episodes: chevron + "N earlier hints". Same muted, borderless
+   log-line aesthetic as a single episode fold line. */
+.summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    /* Horizontal inset only, matching .episodeFoldLine — the parents own the vertical rhythm. */
+    margin: 0 var(--chat-gutter);
+    padding: 2px 0;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+
+.summary:hover {
+    text-decoration: underline;
+}
+
+/* Expanded: the individual fold lines, indented behind a faint spine so they read as members of the
+   collapsed group rather than top-level rows. */
+.children {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-left: 22px;
+    border-left: 1px solid color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+}

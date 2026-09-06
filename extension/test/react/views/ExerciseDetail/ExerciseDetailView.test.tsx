@@ -115,6 +115,85 @@ describe('ExerciseDetailView', () => {
 		});
 	});
 
+	it('re-requests the proactive card when the .noai status changes (live freshness, spec §14)', async () => {
+		const mockApi = createMockVsCodeApi();
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+		dispatchExtensionMessage({
+			type: 'exerciseDetailInit',
+			exerciseData: makeExerciseData(),
+			hideDeveloperTools: false,
+		});
+		await waitFor(() => expect(screen.getByText('My Exercise')).toBeInTheDocument());
+
+		const post = vi.mocked(mockApi.postMessage);
+		post.mockClear();
+		act(() => {
+			dispatchExtensionMessage({ type: ExtensionMsg.UpdateNoAiStatus, isNoAiDetected: true });
+		});
+
+		// Reads the live exercise from the store at message time (not a closed-over render value).
+		expect(post).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'command',
+				command: 'requestProactiveControl',
+				payload: { exerciseId: 42, courseId: 1 },
+			})
+		);
+	});
+
+	it('UpdateProactiveConsent re-requests the proactive control with the live exercise (#342)', () => {
+		useExerciseDetailStore.setState({ exerciseData: makeExerciseData(), isLoading: false });
+		const mockApi = createMockVsCodeApi();
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+		const post = vi.mocked(mockApi.postMessage);
+		post.mockClear();
+		act(() => {
+			dispatchExtensionMessage({ type: ExtensionMsg.UpdateProactiveConsent });
+		});
+		expect(post).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'command',
+				command: 'requestProactiveControl',
+				payload: { exerciseId: 42, courseId: 1 },
+			})
+		);
+	});
+
+	it('consent-missing settings link posts openSettings with the egress key (#342)', () => {
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseData(),
+			isLoading: false,
+			proactiveControl: { exerciseId: 42, level: 'off', cardState: 'degraded', reason: 'consent-missing', proactiveControlAvailable: true },
+		});
+		const mockApi = createMockVsCodeApi();
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+		fireEvent.click(screen.getByRole('button', { name: /enable in settings/i }));
+		expect(vi.mocked(mockApi.postMessage)).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'command',
+				command: 'openSettings',
+				payload: { setting: 'artemis.iris.proactiveCodeEgress' },
+			})
+		);
+	});
+
+	it('unavailable/noai renders the notice inside the AskIris card, not a standalone banner', () => {
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseData(),
+			isLoading: false,
+			proactiveControl: { exerciseId: 42, level: 'off', cardState: 'unavailable', reason: 'noai', proactiveControlAvailable: false },
+		});
+		const mockApi = createMockVsCodeApi();
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+		const card = screen.getByTestId('ask-iris-card');
+		const notice = 'A .noai file disables Iris for this repository, including the chat.';
+		expect(screen.getAllByText(notice)).toHaveLength(1);
+		expect(within(card).getByText(notice)).toBeInTheDocument();
+		expect(screen.queryByText(/Open the Iris chat/i)).toBeNull();
+		expect(document.querySelector('[data-variant="warning"]')).toBeNull();
+	});
+
 	it('renders exercise title from store data', () => {
 		useExerciseDetailStore.setState({ exerciseData: makeExerciseData(), isLoading: false });
 		const mockApi = createMockVsCodeApi();
@@ -130,11 +209,28 @@ describe('ExerciseDetailView', () => {
 		dispatchExtensionMessage({
 			type: ExtensionMsg.ProblemStatementRendered,
 			html: '<html><body><p>Solve the problem.</p></body></html>',
+			exerciseId: 42,
 		});
 
 		await waitFor(() => {
 			expect(screen.getByText('Solve the problem.')).toBeInTheDocument();
 		});
+	});
+
+	it('ignores a server-rendered problem statement broadcast for a different exercise', async () => {
+		useExerciseDetailStore.setState({ exerciseData: makeExerciseData(), isLoading: false });
+		const mockApi = createMockVsCodeApi();
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+		// The current exercise is 42; a broadcast tagged for another exercise must not paint here.
+		dispatchExtensionMessage({
+			type: ExtensionMsg.ProblemStatementRendered,
+			html: '<html><body><p>Other exercise content.</p></body></html>',
+			exerciseId: 999,
+		});
+
+		await new Promise(r => setTimeout(r, 50));
+		expect(screen.queryByText('Other exercise content.')).not.toBeInTheDocument();
 	});
 
 	it('shows "Ask Iris" section', () => {
@@ -243,7 +339,7 @@ describe('ExerciseDetailView', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 
-		await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+		await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
 		await userEvent.click(screen.getByRole('button', { name: /Open Repository/i }));
 
 		expect(mockApi.postMessage).toHaveBeenCalledWith(
@@ -292,7 +388,7 @@ describe('ExerciseDetailView', () => {
 			// The open/connected exercise must not surface "Open in Artemis".
 			expect(screen.queryByRole('button', { name: 'Open in Artemis' })).not.toBeInTheDocument();
 
-			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
+			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
 			expect(screen.queryByRole('button', { name: 'Clone Repository' })).not.toBeInTheDocument();
 			expect(screen.queryByRole('button', { name: /Open Repository/i })).not.toBeInTheDocument();
 		});
@@ -407,7 +503,7 @@ describe('ExerciseDetailView', () => {
 		const postMessageMock = vi.mocked(mockApi.postMessage);
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 
-		await userEvent.click(screen.getByRole('button', { name: /see test results/i }));
+		await userEvent.click(screen.getByRole('button', { name: 'See test results' }));
 
 		const openedCall = postMessageMock.mock.calls.find(c => (c[0] as Record<string, unknown>).command === 'testResultsOverviewOpened');
 		expect(openedCall).toBeDefined();
@@ -459,7 +555,7 @@ describe('ExerciseDetailView', () => {
 		const mockApi = createMockVsCodeApi();
 		render(<ExerciseDetailView vscodeApi={mockApi} />);
 
-		await userEvent.click(screen.getByRole('button', { name: /see test results/i }));
+		await userEvent.click(screen.getByRole('button', { name: 'See test results' }));
 
 		expect(screen.queryByText('No test results available.')).not.toBeInTheDocument();
 		expect(screen.getByText('Failed (2)')).toBeInTheDocument();
@@ -478,6 +574,7 @@ describe('ExerciseDetailView', () => {
 		dispatchExtensionMessage({
 			type: ExtensionMsg.ProblemStatementRendered,
 			html: '<html><body><span class="artemis-task" data-task-name="taskA" data-test-ids="1,2">taskA</span></body></html>',
+			exerciseId: 42,
 		});
 
 		await waitFor(() => {
@@ -548,7 +645,7 @@ describe('ExerciseDetailView', () => {
 	async function clickTaskAndOpenOverlay(html: string) {
 		const mockApi = createMockVsCodeApi();
 		const { container } = render(<ExerciseDetailView vscodeApi={mockApi} />);
-		dispatchExtensionMessage({ type: ExtensionMsg.ProblemStatementRendered, html });
+		dispatchExtensionMessage({ type: ExtensionMsg.ProblemStatementRendered, html, exerciseId: 42 });
 		await waitFor(() => {
 			expect(container.querySelector('.artemis-task[data-test-ids]')).not.toBeNull();
 		});
@@ -713,7 +810,7 @@ describe('ExerciseDetailView', () => {
 		const mockApi = createMockVsCodeApi();
 		const postMessageMock = vi.mocked(mockApi.postMessage);
 		const { container } = render(<ExerciseDetailView vscodeApi={mockApi} />);
-		dispatchExtensionMessage({ type: ExtensionMsg.ProblemStatementRendered, html: taskHtml('1,2') });
+		dispatchExtensionMessage({ type: ExtensionMsg.ProblemStatementRendered, html: taskHtml('1,2'), exerciseId: 42 });
 		await waitFor(() => expect(container.querySelector('.artemis-task[data-test-ids]')).not.toBeNull());
 		await userEvent.click(container.querySelector('.artemis-task[data-test-ids]')!);
 
@@ -886,6 +983,16 @@ describe('ExerciseDetailView', () => {
 		function bothParticipations(): ExerciseDetailsResponse {
 			return makeExerciseData({
 				exercise: {
+					// Spelled out because `makeExerciseData` spreads the whole override last: an
+					// `exercise` override REPLACES the default one rather than merging into it, and
+					// the view drops a render whose exercise it cannot match.
+					id: 42,
+					title: 'My Exercise',
+					type: 'programming',
+					maxPoints: 10,
+					bonusPoints: 0,
+					problemStatement: 'Solve the problem.',
+					course: { id: 1, title: 'Test Course', shortName: 'TC' },
 					studentParticipations: [
 						{ id: 7, testRun: false, repositoryUri: 'https://a/repo.git' },
 						{ id: 8, testRun: true, repositoryUri: 'https://a/repo-practice.git' },
@@ -908,6 +1015,7 @@ describe('ExerciseDetailView', () => {
 				dispatchExtensionMessage({
 					type: ExtensionMsg.ProblemStatementRendered,
 					html: '<p>practice statement</p>',
+					exerciseId: 42,
 					participationId: 8,
 				});
 			});
@@ -928,6 +1036,7 @@ describe('ExerciseDetailView', () => {
 				dispatchExtensionMessage({
 					type: ExtensionMsg.ProblemStatementRendered,
 					html: '<p>practice statement</p>',
+					exerciseId: 42,
 					participationId: 8,
 				});
 			});
@@ -960,6 +1069,7 @@ describe('ExerciseDetailView', () => {
 				dispatchExtensionMessage({
 					type: ExtensionMsg.ProblemStatementRendered,
 					html: '<p>practice statement</p>',
+					exerciseId: 42,
 					participationId: 8,
 				});
 			});
@@ -967,8 +1077,8 @@ describe('ExerciseDetailView', () => {
 			expect(screen.getByText('practice statement')).toBeInTheDocument();
 		});
 
-		// Characterisation: unlabelled renders were shown before this change too. Here so the new
-		// guard cannot quietly swallow them.
+		// An unlabelled render is shown, not suppressed. Pinned here so the guard above cannot quietly
+		// start swallowing them.
 		it('shows an unlabelled render, which predates the field', () => {
 			useExerciseDetailStore.setState({
 				exerciseData: bothParticipations(),
@@ -981,6 +1091,7 @@ describe('ExerciseDetailView', () => {
 				dispatchExtensionMessage({
 					type: ExtensionMsg.ProblemStatementRendered,
 					html: '<p>legacy statement</p>',
+					exerciseId: 42,
 				});
 			});
 

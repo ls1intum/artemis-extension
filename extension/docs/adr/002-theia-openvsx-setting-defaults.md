@@ -25,6 +25,8 @@ Override a small set of the extension's **own** `artemis.*` configuration defaul
 
 ### Override list
 
+> Superseded in part by #352 (2026-07-19): the `artemis.struggleDetection.*` settings were removed entirely; the row below is historical.
+
 | Setting | `full` default | `openvsx` default | Reason |
 |---------|----------------|-------------------|--------|
 | `artemis.startPage` | `dashboard` | `workspace-exercise` | Workspace is the exercise; auto-open it after login instead of the dashboard. |
@@ -74,7 +76,7 @@ No changes to `esbuild.js`, `package-openvsx.js`, the source `package.json`, or 
 
 - The managed Theia/cloud build gets the tailored defaults; local VS Code (Marketplace) behaviour is unchanged.
 - These are defaults, not forced values — a user or workspace setting still overrides them at runtime.
-- **Revisit when the cloud intervention pipeline goes live:** remove the two `struggleDetection.*` overrides so cloud detection turns back on.
+- **Revisit when the cloud intervention pipeline goes live:** remove the two `struggleDetection.*` overrides so cloud detection turns back on. (Superseded by #352, 2026-07-19: the settings and their overrides were removed entirely; nothing to revisit.)
 - Adding/removing future cloud-specific defaults is a one-line edit to `OPENVSX_SETTING_DEFAULTS`.
 
 ## Alternatives considered

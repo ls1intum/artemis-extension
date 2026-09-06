@@ -26,6 +26,22 @@ interface WorkspaceDetectionDeps {
     registry: ExerciseRegistry;
     courseCatalog: CourseCatalog;
     sink: WorkspaceDetectionSink;
+    /**
+     * Optional: start struggle detection for a passively-detected workspace exercise. Bound to the
+     * (telemetry-seam-gated) struggle coordinator in extension.ts; left undefined in the clean Open VSX
+     * build, so no struggle code is imported here. Without this, reopening VS Code on an already-cloned
+     * exercise activates Iris chat but never starts the struggle session (only the active webview
+     * "open exercise" flow did), so the engine has no active exercise and stays silent.
+     */
+    onWorkspaceExerciseDetected?: (exerciseId: number, exerciseRoot?: vscode.Uri) => void;
+    /**
+     * Optional, symmetric to {@link onWorkspaceExerciseDetected}: end the struggle session when detection
+     * finds no workspace exercise (folder removed, switched to a non-Artemis repo). Without this the
+     * coordinator keeps a stale active exercise after the student leaves it, so `hasExercise` stays true and
+     * the engine would attribute edits / gate a POST against the exercise that is no longer open. Idempotent
+     * (the coordinator no-ops an end when no session is active); undefined in the clean Open VSX build.
+     */
+    onWorkspaceExerciseCleared?: () => void;
     session: {
         readonly state: SessionState;
         readonly epoch: number;
@@ -74,12 +90,19 @@ export function wireWorkspaceDetection(
                     return;
                 }
                 deps.sink.registerWorkspaceExercise(input);
+                // Symmetric with the active open flow (ExerciseOpeningService.handleExerciseOpened): a
+                // passively-detected workspace exercise must also start the struggle session. Idempotent
+                // downstream (the coordinator no-ops a re-start of the same exercise id).
+                deps.onWorkspaceExerciseDetected?.(input.id, vscode.workspace.workspaceFolders?.[0]?.uri);
             },
             clearStaleWorkspaceContext: () => {
                 if (stale()) {
                     return;
                 }
                 deps.sink.clearWorkspaceExercise();
+                // Symmetric with onWorkspaceExerciseDetected: no workspace exercise anymore -> end the
+                // struggle session so a stale exercise/root cannot linger (see the dep's doc comment).
+                deps.onWorkspaceExerciseCleared?.();
             },
         };
         const outcome = await detectAndRegisterWorkspaceExercise(

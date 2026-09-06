@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -25,8 +25,6 @@ function baseManifest(): Manifest {
                 properties: {
                     'artemis.startPage': { type: 'string', default: 'dashboard' },
                     'artemis.showStartPageSuggestion': { type: 'boolean', default: true },
-                    'artemis.struggleDetection.enabled': { type: 'boolean', default: true },
-                    'artemis.struggleDetection.showInterventions': { type: 'boolean', default: true },
                     'artemis.showSetDefaultClonePathPrompt': { type: 'boolean', default: true },
                     'artemis.dataCollectionConsent': { type: 'string', default: 'pending' },
                     'artemis.serverUrl': { type: 'string', default: 'https://artemis.tum.de' },
@@ -69,14 +67,12 @@ describe('generate-clean-manifest: cleanManifest', () => {
     });
 
     describe('desktop profile', () => {
-        it('drops the recorder group but keeps struggle', () => {
+        it('drops the recorder group, keeps the struggle-score command', () => {
             const m = cleanManifest(baseManifest(), 'desktop');
             expect(m.contributes.configuration.properties['artemis.dataCollectionConsent']).toBeUndefined();
             expect(m.contributes.commands.map(c => c.command)).toEqual([
                 'artemis.login', 'artemis.showStruggleScore',
             ]);
-            // struggle settings keep their real defaults on Desktop
-            expect(m.contributes.configuration.properties['artemis.struggleDetection.enabled'].default).toBe(true);
         });
         it('drops the recorder commandPalette entries (no dangling ref)', () => {
             const cp = cleanManifest(baseManifest(), 'desktop').contributes.menus!.commandPalette!;
@@ -88,8 +84,6 @@ describe('generate-clean-manifest: cleanManifest', () => {
         it('applies the cloud setting-default overrides', () => {
             const props = cleanManifest(baseManifest(), 'openvsx').contributes.configuration.properties;
             expect(props['artemis.startPage'].default).toBe('workspace-exercise');
-            expect(props['artemis.struggleDetection.enabled'].default).toBe(false);
-            expect(props['artemis.struggleDetection.showInterventions'].default).toBe(false);
         });
         it('removes consent + recording + struggle-score commands', () => {
             const m = cleanManifest(baseManifest(), 'openvsx');
@@ -171,6 +165,13 @@ describe('generate-clean-manifest: cleanManifest', () => {
 describe('generate-clean-manifest against the real package.json', () => {
     const realManifest = (): Manifest => JSON.parse(readFileSync(join(__dirname, '../../../package.json'), 'utf8'));
 
+    it('neither profile emits any artemis.struggleDetection.* property (settings removed, #352)', () => {
+        for (const profile of ['desktop', 'openvsx'] as const) {
+            const props = cleanManifest(realManifest(), profile).contributes.configuration.properties;
+            expect(Object.keys(props).filter(k => k.startsWith('artemis.struggleDetection'))).toEqual([]);
+        }
+    });
+
     it('desktop: drops recorder + consent, keeps struggle', () => {
         const m = cleanManifest(realManifest(), 'desktop');
         const cmds = m.contributes.commands.map(c => c.command);
@@ -187,8 +188,64 @@ describe('generate-clean-manifest against the real package.json', () => {
         const cmds = m.contributes.commands.map(c => c.command);
         expect(cmds).not.toContain('artemis.replaySession');
         expect(cmds).not.toContain('artemis.showStruggleScore');
-        expect(m.contributes.configuration.properties['artemis.struggleDetection.enabled'].default).toBe(false);
     });
+
+    /**
+     * The drop lists (RECORDER_COMMANDS / STRUGGLE_COMMANDS) are hand-maintained while the code
+     * they describe is not, and `verify-clean-bundle.js` only proves the excluded code is absent
+     * from the BUNDLE, not from the MANIFEST. Without this check, a command added to an excluded
+     * module ships as a palette entry with no handler behind it ("command not found").
+     *
+     * The check is deliberately NOT a scan for `registerCommand('<id>')` call sites: registrations
+     * also go through constants (`registerCommand(HINT_COMMAND, ...)`), so a syntactic scan
+     * silently misses them. It asks a form-independent question instead: does a file that
+     * survives the build contain both this command id and a `registerCommand` call? That holds
+     * for the literal and the constant form alike, since a command's id and its registration sit
+     * in the same file here.
+     *
+     * The check is necessary, not sufficient: it cannot prove the two occurrences belong
+     * together. It targets the failure that actually happens (a command whose module is dropped
+     * from a variant), where the id vanishes from the surviving source entirely.
+     *
+     * Classification comes from `verify-clean-bundle.js` itself, so the two cannot drift.
+     */
+    const { isForbiddenInput } = require(
+        join(__dirname, '../../../scripts/verify-clean-bundle.js')
+    ) as { isForbiddenInput: (p: string, profile: string) => boolean };
+
+    const SRC = join(__dirname, '../../../src');
+
+    function allSourceFiles(dir: string): string[] {
+        return readdirSync(dir, { recursive: true, encoding: 'utf8' })
+            .map(entry => join(dir, entry))
+            .filter(p => /\.(ts|tsx)$/.test(p) && statSync(p).isFile());
+    }
+
+    /** Command ids with no registering file left in the source surviving `profile`. */
+    function unbackedCommands(commands: string[], profile: string): string[] {
+        const registrars = allSourceFiles(SRC)
+            .filter(p => !isForbiddenInput(p, profile))
+            .map(p => readFileSync(p, 'utf8'))
+            .filter(text => text.includes('registerCommand'));
+        // Quoted, so an id is not "found" inside a longer one: 'artemis.login' must not match
+        // 'artemis.loginView.focus'.
+        return commands.filter(c => !registrars.some(t => t.includes(`'${c}'`) || t.includes(`"${c}"`)));
+    }
+
+    for (const profile of ['desktop', 'openvsx'] as const) {
+        it(`${profile}: contributes no command whose id occurs only in code the bundle drops`, () => {
+            const contributed = realManifest().contributes.commands.map(c => c.command);
+
+            // Canary: the classification must actually exclude something that matters, otherwise
+            // a broken predicate (or a moved file) would turn the assertion below into a
+            // vacuous pass. This set is precisely what the profile's drop list must cover.
+            const dropped = unbackedCommands(contributed, profile);
+            expect(dropped.length).toBeGreaterThan(0);
+
+            const shipped = cleanManifest(realManifest(), profile).contributes.commands.map(c => c.command);
+            expect(shipped.filter(c => dropped.includes(c))).toEqual([]);
+        });
+    }
 
     it('openvsx: drops the walkthrough, desktop keeps it', () => {
         expect(cleanManifest(realManifest(), 'openvsx').contributes.walkthroughs).toBeUndefined();

@@ -1,12 +1,46 @@
-import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import type { ITelemetryManager } from '@extension/services/telemetry';
+import type * as vscode from 'vscode';
 
-import { NoopTelemetryManager } from './noopTelemetryManager';
+import type { ILiveEngineFeed, IStruggleCoordinator, Sink, StruggleEngineDeps, StruggleEngineHandle } from './contract';
+import { NoopStruggleCoordinator } from './noopStruggleCoordinator';
 
 /**
- * No-op telemetry seam for the Open VSX (clean) build. Imports nothing from the
- * struggle engine, so esbuild keeps that subtree out of the bundle.
+ * No-op struggle seam for the Open VSX (clean / Theia-cloud / EduIDE) build.
+ * Imports NOTHING from services/struggle|intervention, so esbuild keeps those
+ * subtrees out of the clean bundle. The cloud artifact therefore contains no
+ * behavioural-tracking engine at all (verified fail-closed by
+ * scripts/verify-clean-bundle.js, run in scripts/package-openvsx.js).
  */
-export function createTelemetryManager(_exerciseRegistry?: ExerciseRegistry): ITelemetryManager {
-    return new NoopTelemetryManager();
+export function createStruggleEngine(_deps: StruggleEngineDeps): StruggleEngineHandle {
+    return {
+        coordinator: new NoopStruggleCoordinator(),
+        // No engine in the clean build, so there is nothing to consent to.
+        promptConsentIfAsk: async () => { /* no proactive egress in the clean build */ },
+        // No engine (and no active exercise concept) in the clean build: always the default level.
+        getActiveProactiveLevel: () => 'more',
+        // setStudentProactive / getProactiveGateState are intentionally OMITTED:
+        // the clean build has no proactive engine, so extension.ts builds no proactiveControl capability. The
+        // clean build still sends a control-less availability card (the `proactiveControl` seam is omitted, so
+        // the AskIris level control stays hidden).
+    };
+}
+
+/** No-op live feed in the clean build: no engine, so nothing ever streams. */
+export function createLiveEngineFeed(
+    _coordinator: IStruggleCoordinator,
+    _isDeveloperMode: () => boolean,
+): ILiveEngineFeed {
+    return {
+        subscribe(_sink: Sink) { /* no engine in the clean build */ },
+        unsubscribe(_sink: Sink) { /* no engine in the clean build */ },
+        dropSink(_sink: Sink) { /* no engine in the clean build */ },
+        setSessionActive(_active: boolean) { /* no engine in the clean build */ },
+        setSlotProvider() { /* no engine in the clean build */ },
+        pushSlotUpdate() { /* no engine in the clean build */ },
+        dispose() { /* nothing to dispose */ },
+    };
+}
+
+/** No-op in the clean build: the struggle-score command is never registered. */
+export function registerDebugCommands(_coordinator: IStruggleCoordinator): vscode.Disposable {
+    return { dispose() { /* no command registered in the clean build */ } };
 }

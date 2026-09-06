@@ -89,6 +89,41 @@
   --theme-accent: var(--vscode-textLink-activeForeground);
   --theme-accent-background: var(--theme-button-background);
   --theme-accent-foreground: var(--theme-button-foreground);
+
+  /*
+   * Horizontal budget of the chat panel. The gutter is the distance from the panel edge to the
+   * conversation; the two insets are the padding a message bubble and a proactive card put between
+   * that gutter and their own text. Everything in the chat that sits against the panel edge reads
+   * these instead of repeating a literal, so the narrow-panel media query below has one place to
+   * change and no element can drift out of alignment with its neighbours.
+   *
+   * Vertical spacing is deliberately not tokenised here: the rhythm of the conversation does not
+   * depend on how wide the panel is.
+   */
+  --chat-gutter: 16px;
+  --chat-bubble-inset: 16px;
+  --chat-card-inset: 14px;
+  --chat-code-size: 0.95em;
+}
+
+/*
+ * Narrow sidebar. VS Code lets the user drag this view down to about 170px, where 32px of gutter
+ * plus 32px of bubble padding is a third of the width and a hint's `ProjectPlanner.java:35` has no
+ * room left to stay on one line (it splits into two chips, which reads as a rendering fault rather
+ * than a wrap).
+ *
+ * 280px is the changeover: above it the chip fits at its resting size and the panel can afford the
+ * full chrome, below it the chrome has to give the text column its width back. The smaller code
+ * face is the last lever and applies only here — the resting 0.95em exists because 0.9em was too
+ * small to read against the prose beside it (see richContent.module.css).
+ */
+@media (max-width: 280px) {
+  :root {
+    --chat-gutter: 8px;
+    --chat-bubble-inset: 10px;
+    --chat-card-inset: 10px;
+    --chat-code-size: 0.85em;
+  }
 }
 
 body {

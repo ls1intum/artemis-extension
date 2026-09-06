@@ -2,9 +2,13 @@
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    padding: 8px 16px;
+    padding: 4px var(--chat-gutter);
     position: relative;
 }
+
+/* Marks a card whose action bar overhangs its bubble. The clearance itself is reserved between
+   the bubble and the footer row below it (see .messageWrapper.proactiveWrapper .footRow), not at
+   the bottom of the wrapper, because the bar overlaps that row and not the next message. */
 
 .messageWrapper.user {
     flex-direction: row-reverse;
@@ -15,7 +19,7 @@
 }
 
 .bubble {
-    padding: 12px 16px;
+    padding: 12px var(--chat-bubble-inset);
     border-radius: 12px;
     position: relative;
     word-wrap: break-word;
@@ -39,6 +43,39 @@
 .bubble.error {
     border: 1px solid var(--vscode-inputValidation-errorBorder);
     opacity: 0.85;
+}
+
+/* Proactive (struggle-intervention) assistant messages read as a distinct, unprompted
+   card: a faint tint plus rounded corners set them apart from the transparent normal
+   replies, without the old left "AI line" or a logo (spec §6.2). */
+.proactiveBubble {
+    background-color: color-mix(in srgb, var(--vscode-charts-blue) 9%, transparent);
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+
+.proactiveCaption {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--vscode-charts-blue);
+    margin-bottom: 4px;
+    opacity: 0.85;
+}
+
+/* A proactive message rendered INSIDE an episode timeline: flat, no nested tint or rounded card
+   (the timeline owns the tint and the single caption; the row/node owns the layout). */
+.groupedBubble {
+    background: transparent;
+    padding: 4px 0;
+    border-radius: 0;
+    max-width: none;
+}
+
+/* The wrapper sheds its chat-list chrome inside a timeline row: the timeline card owns all
+   spacing, so the row body starts at the node and uses the full card width. */
+.groupedWrapper {
+    padding: 0;
+    margin: 0;
 }
 
 .content {
@@ -77,7 +114,7 @@
 
 .messageWrapper.assistant .bubbleColumn {
     align-items: flex-start;
-    /* Assistant answers flow full-width (spec §4.4): no column cap, no
+    /* Assistant answers flow full-width: no column cap, no
        heavy bubble background, just the sidebar's own padding. */
     max-width: 100%;
     width: 100%;
@@ -128,62 +165,149 @@
     cursor: not-allowed;
 }
 
+/* A hover-revealed floating action bar. Absolutely positioned so it reserves
+   no layout space in the resting state (no empty gap) and can overhang the
+   bubble's bottom edge. It stays a child of the bubble, so hovering the bar
+   itself keeps `.messageWrapper:hover` true (no disappear-on-approach). */
+.actionRow {
+    position: absolute;
+    left: 10px;
+    bottom: -14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+}
+
+/* `:focus-within` keeps the bar reachable by keyboard: the buttons stay in the
+   tab order, so focusing one must also make it visible (it is not mouse-only). */
+.messageWrapper:hover .actionRow,
+.messageWrapper:focus-within .actionRow {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* On a proactive card the buttons span the card: thumbs on the left, Dismiss
+   on the right. No container chrome — just the buttons float over the edge. */
+.actionRow.actionRowCard {
+    right: 10px;
+    justify-content: space-between;
+}
+
+/* One footer row per message carrying BOTH hover surfaces: the timestamp on the left, the feedback
+   buttons grouped at the trailing edge, matching the episode timeline's foot. Always mounted and
+   always occupying its space, so hover only changes
+   colour and the list can never reflow under the cursor. Because the space is reserved exactly
+   once (rather than once for the buttons and again as dead space under the bubble for an
+   absolutely positioned timestamp), the list rhythm can be tight. At rest it recedes rather than
+   disappearing, mirroring the Artemis web client, which keeps its rate buttons permanently visible.
+
+   Sits in .bubbleColumn under the bubble, not inside it (see the note in MessageBubble.tsx).
+   The inset lines the buttons up with the bubble's own text, which the bubble achieves through its
+   padding, so both read the same token and stay aligned when the panel narrows. */
+.footRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: var(--chat-bubble-inset);
+    color: var(--vscode-descriptionForeground);
+    transition: color 120ms ease;
+}
+
+/* The assistant column is laid out flex-start, so the row would shrink-wrap and the buttons'
+   `margin-left: auto` would have no free space to push into. Stretching it to the column width is
+   what puts the buttons at the trailing edge, opposite the time. */
+.messageWrapper.assistant .footRow {
+    align-self: stretch;
+}
+
+/* On a card with an action bar the bar hangs 14px below the bubble (see.actionRow), which is
+   exactly the band this row would otherwise occupy. Push the row clear of it. */
+.messageWrapper.proactiveWrapper .footRow {
+    margin-top: 14px;
+}
+
+/* Recede via COLOUR, never via container opacity: opacity composites the text into whatever is
+   behind it, so it cannot guarantee a contrast ratio. A user message also has no focusable child,
+   so an opacity-based rest state would never lift for keyboard users. */
+.messageWrapper:hover .footRow,
+.messageWrapper:focus-within .footRow,
+.footRow.visible {
+    color: var(--vscode-foreground);
+}
+
+/* A user row carries only the timestamp, which belongs at the trailing edge under its bubble. */
+.messageWrapper.user .footRow {
+    padding-left: 0;
+    padding-right: 0;
+}
+
 .feedbackContainer {
     display: flex;
     gap: 4px;
-    margin-top: 8px;
-    opacity: 0;
-    transition: opacity 150ms ease;
-}
-
-.messageWrapper:hover .feedbackContainer,
-.messageWrapper:focus-within .feedbackContainer,
-.feedbackContainer.visible {
-    opacity: 1;
+    /* Pushes the whole group to the trailing edge, so two buttons stay side by side there instead
+       of being spread apart by the row's own spacing. */
+    margin-left: auto;
 }
 
 .feedbackButton {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    padding: 4px 6px;
     background: transparent;
-    border: 1px solid var(--vscode-panel-border);
+    border: none;
     border-radius: 4px;
-    color: var(--vscode-foreground);
+    color: inherit;
     cursor: pointer;
-    transition: all 150ms ease;
+    transition: background 150ms ease;
 }
 
 .feedbackButton:hover {
-    background: var(--vscode-list-hoverBackground);
+    background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
 }
 
 .feedbackButton.selected {
-    background: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    border-color: var(--vscode-button-background);
+    color: var(--vscode-charts-blue);
 }
 
+/* Sits at the leading edge of the foot row; the feedback group takes the trailing edge. On a user
+   message there are no buttons, and the row's own row-reverse still carries it to the right. */
 .timestamp {
-    position: absolute;
-    bottom: -18px;
+    font-size: 11px;
+    color: inherit;
+}
+
+/* A dismissed proactive card stays visible but recedes. */
+.proactiveDismissed {
+    opacity: 0.6;
+}
+
+.dismissButton,
+.dismissedToggle {
+    padding: 2px 8px;
     font-size: 11px;
     color: var(--vscode-descriptionForeground);
-    opacity: 0;
-    transition: opacity 120ms ease;
+    background: transparent;
+    border: 1px solid var(--vscode-widget-border, transparent);
+    border-radius: 4px;
+    cursor: pointer;
 }
 
-.messageWrapper:hover .timestamp,
-.messageWrapper:focus-within .timestamp {
-    opacity: 0.7;
+/* The dismissed-collapse toggle ("Show suggestion"/"Hide") sits inline under
+   the caption; the Dismiss action lives in the action row and hugs the right. */
+.dismissedToggle {
+    align-self: flex-start;
+    margin-top: 6px;
 }
 
-.messageWrapper.user .timestamp {
-    right: 16px;
+.dismissButton {
+    margin-left: auto;
 }
 
-.messageWrapper.assistant .timestamp {
-    left: 16px;
+.dismissButton:hover,
+.dismissedToggle:hover {
+    color: var(--vscode-foreground);
 }

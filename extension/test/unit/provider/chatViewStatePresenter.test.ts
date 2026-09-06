@@ -185,7 +185,7 @@ function buildHarness(): Harness {
     };
 }
 
-suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
+suite('ChatViewStatePresenter: conversation-first fields', () => {
     let h: Harness;
 
     setup(() => {
@@ -432,7 +432,7 @@ suite('ChatViewStatePresenter: conversation-first fields (Task 10)', () => {
     });
 });
 
-suite('ChatViewStatePresenter: the catalog projection (Task 9)', () => {
+suite('ChatViewStatePresenter: the catalog projection', () => {
     let h: Harness;
     let catalog: FakeCatalog;
     let tracker: WorkspaceExerciseTracker;

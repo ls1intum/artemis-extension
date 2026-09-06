@@ -15,6 +15,7 @@ import {
     Container,
     ErrorMessage,
     IconButton,
+    type ProactiveLevel,
     SkeletonList,
 } from '@webview/components';
 import { BuildStatusStrip, ParticipationActions, SubmissionStatus } from '@webview/components/exercise';
@@ -68,8 +69,10 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         dirtyPagesStatus,
         clonedNotice,
         pendingSubmissionsByParticipationId,
+        proactiveControl,
         setExerciseData,
         setError,
+        setProactiveControl,
         loadExerciseDetail,
         clearClonedNotice,
     } = useExerciseDetailStore();
@@ -107,16 +110,60 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
             } else {
                 setServerRenderedPS(null);
             }
+            // (Re)request the proactive control state on every init — the provider re-posts init on each sidebar
+            // visibility refresh, so this refreshes the badge (incl. a backoff "Auto-paused" that flipped while hidden).
+            if (msg.exerciseData.exercise?.id !== undefined) {
+                postCommand(vscodeApi, 'requestProactiveControl', {
+                    exerciseId: msg.exerciseData.exercise.id,
+                    courseId: msg.exerciseData.exercise.course?.id,
+                });
+            }
         }
         if (msg.type === ExtensionMsg.ViewInitError) {
             setError(msg.error);
         }
+        // Progressive upgrade: server-rendered problem statement arrived. This is broadcast to every
+        // open webview, so apply it only when it belongs to the exercise THIS view is showing. Read
+        // the live id from the store at message time (not the closed-over exerciseData) to avoid the
+        // useExtensionMessage stale-closure hazard, matching the noAi/consent handlers below.
         if (msg.type === ExtensionMsg.ProblemStatementRendered) {
-            // Kept whatever it says and filtered at render time: a render can arrive before the
-            // status that selects its participation, and nothing would resend it.
-            setServerRenderedPS({ html: msg.html, participationId: msg.participationId });
+            const currentId = useExerciseDetailStore.getState().exerciseData?.exercise?.id;
+            if (currentId !== undefined && msg.exerciseId === currentId) {
+                // Kept whatever it says and filtered at render time: a render can arrive before the
+                // status that selects its participation, and nothing would resend it.
+                setServerRenderedPS({ html: msg.html, participationId: msg.participationId });
+            }
         }
-    }, [vscodeApi, setExerciseData, setError]);
+        // Proactive control state. Stored UNCONDITIONALLY here, tagged with its exerciseId; the render
+        // below only paints it when the tag matches the live exercise, so a late update for a previous exercise can
+        // never show a stale badge (and we avoid closing over a stale exerciseData in this handler).
+        if (msg.type === ExtensionMsg.UpdateProactiveControl) {
+            setProactiveControl({
+                exerciseId: msg.exerciseId,
+                level: msg.level,
+                cardState: msg.cardState,
+                reason: msg.cardReason,
+                proactiveControlAvailable: msg.proactiveControlAvailable,
+            });
+        }
+        // .noai can be created/deleted mid-session and the proactive card derives from it, so re-request the
+        // card when the marker flips. Read the live exercise from the store at message time — NOT a closed-over render
+        // value — to avoid the useExtensionMessage stale-closure hazard (the handler is frozen until its deps change).
+        if (msg.type === ExtensionMsg.UpdateNoAiStatus) {
+            const current = useExerciseDetailStore.getState().exerciseData?.exercise;
+            if (current?.id !== undefined) {
+                postCommand(vscodeApi, 'requestProactiveControl', { exerciseId: current.id, courseId: current.course?.id });
+            }
+        }
+        // Consent flip (#342): repaint the proactive card so a grant restores the remembered level and a
+        // revoke parks the control at Off. Same live-store read as the .noai path above.
+        if (msg.type === ExtensionMsg.UpdateProactiveConsent) {
+            const current = useExerciseDetailStore.getState().exerciseData?.exercise;
+            if (current?.id !== undefined) {
+                postCommand(vscodeApi, 'requestProactiveControl', { exerciseId: current.id, courseId: current.course?.id });
+            }
+        }
+    }, [vscodeApi, setExerciseData, setError, setProactiveControl]);
 
     useExerciseStatusMessages(vscodeApi);
 
@@ -202,6 +249,20 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const exercise = exerciseData.exercise;
     const exerciseType: ExerciseType = isExerciseType(exercise.type) ? exercise.type : 'programming';
     const isProgramming = exerciseType === 'programming';
+
+    // View-model for the standalone Proactive-help card, built only when the host has
+    // supplied the control for THIS exercise.
+    const proactiveVM = proactiveControl && proactiveControl.exerciseId === exercise.id ? {
+        level: proactiveControl.level,
+        cardState: proactiveControl.cardState,
+        reason: proactiveControl.reason,
+        controlAvailable: proactiveControl.proactiveControlAvailable,
+        onLevelChange: (level: ProactiveLevel) =>
+            postCommand(vscodeApi, 'setProactiveLevel', { exerciseId: exercise.id!, level, courseId: exercise.course?.id }),
+        // #342: the consent-missing hint's enable path; AskIris stays presentational.
+        onOpenConsentSettings: () =>
+            postCommand(vscodeApi, 'openSettings', { setting: 'artemis.iris.proactiveCodeEgress' }),
+    } : undefined;
 
     // The same rule the host uses for the server-rendered problem statement.
     //
@@ -603,9 +664,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 />
             )}
 
+ {/* Ask Iris Section, with the proactive-help control divided off inside the same card. */}
             <AskIris
                 description="Open the Iris chat to discuss this exercise or get guidance."
                 onClick={handleAskIris}
+                proactiveControl={proactiveVM}
             />
 
             <ProblemStatement

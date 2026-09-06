@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
-import { ExtensionMsg } from '@shared/messageContracts';
+import type { ProactiveLevel, WebCmd } from '@shared/messageContracts';
+import { ExtensionMsg, WebviewCmd } from '@shared/messageContracts';
 
 import { registerAllCommands } from '@extension/activation/extensionCommands';
 import {
@@ -18,11 +19,16 @@ import { createOidcLoginCallback } from '@extension/services/auth/oidcLoginCallb
 import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { CourseCatalog, toRegistryEntries } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { classifyIrisCourseAvailability } from '@extension/services/iris/chat/irisAvailabilityService';
+import { resolveCourseIdForExercise } from '@extension/services/iris/context/courseIdResolver';
+import { IrisEnabledCache } from '@extension/services/iris/irisEnabledCache';
 import { LogCategory, logger } from '@extension/services/loggingService';
+import { VsCodeSensorHub } from '@extension/services/sensing';
 import { normalizeServerUrl } from '@extension/services/session/identityKeys';
 import { SessionIdentityCoordinator } from '@extension/services/session/sessionIdentityCoordinator';
-import type { ITelemetryManager } from '@extension/services/telemetry';
 import { createProviderRegistry } from '@extension/services/ui';
+import { bannerActionOpensChat } from '@extension/services/ui/nudgeBannerText';
+import { StruggleAlertStatusBar } from '@extension/services/ui/struggleAlertStatusBar';
 import { ArtemisWebsocketService, WebSocketStatusBarService } from '@extension/services/websocket';
 import { NoAiDetectionService } from '@extension/services/workspace';
 import {
@@ -30,6 +36,7 @@ import {
     wireWorkspaceDetection,
 } from '@extension/services/workspace/wireWorkspaceDetection';
 import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
+import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 import {
     authenticateFromEnvironment,
     detectPlatformCapabilities,
@@ -37,10 +44,10 @@ import {
 } from '@extension/theia';
 import { resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
 import { wireDataCollection } from '@dataCollection';
-import { createTelemetryManager } from '@telemetry';
+import { createStruggleEngine, registerDebugCommands } from '@telemetry';
 
 // Module-level references for deactivate() cleanup
-let activeTelemetryManager: ITelemetryManager | undefined;
+let activeStruggleCoordinator: IStruggleCoordinator | undefined;
 let activeDataCollection: DataCollectionHandle | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -87,9 +94,141 @@ export async function activate(context: vscode.ExtensionContext) {
 	const artemisWebsocketService = new ArtemisWebsocketService(authManager);
 	const buildErrorCodeLensProvider = new BuildErrorCodeLensProvider();
 	const exerciseRegistry = new ExerciseRegistry();
-	const telemetryManager = createTelemetryManager(exerciseRegistry);
-	activeTelemetryManager = telemetryManager;
-	telemetryManager.setWebsocketService(artemisWebsocketService);
+	const sensorHub = new VsCodeSensorHub(capabilities);
+	context.subscriptions.push(sensorHub);
+	// The struggle/intervention engine lives behind the @telemetry build seam:
+	// real in the full build, a no-op in the Open VSX (EduIDE/cloud) build, so the
+	// cloud bundle ships no tracking engine. The factory owns the whole value graph
+	// (InterventionService + ThrottledAlertSink + StruggleCoordinator).
+	// Forward-declared so the orchestrator's lazy chat hooks (openProactiveSession /
+	// setProactiveBadge) can reach the chat provider; it is constructed below, well
+	// before any alert or server event fires.
+	let chatWebviewProvider: ChatWebviewProvider | undefined;
+	// Forward-ref to the AskIris provider's single remembered preference: the engine reads it lazily at
+	// alert-time (long after the provider below is built), so default-on until it is wired.
+	let proactivePreferenceRef: ArtemisWebviewProvider['proactivePreference'] | undefined;
+	// Level-aware read of the single remembered preference (issue #341, Off/Less/More);
+	// `isStudentProactiveOn` derives from this rather than duplicating the lookup. Default-on until wired.
+	const getProactiveLevel = (): ProactiveLevel => proactivePreferenceRef?.getLevel() ?? 'more';
+	// Forward-ref: the Iris-enabled cache is constructed later (after the catalog exists), but the
+	// engine's gate reads it lazily at alert-time, so a fail-closed default until it is wired.
+	let irisEnabledCache: IrisEnabledCache | undefined;
+	// Forward-ref: the nudge-banner deps below (showNudgeBanner/hideNudgeBanner) are only ever invoked
+	// lazily (well after the provider is constructed below), so reading it through a mutable binding is safe.
+	let artemisWebviewProvider: ArtemisWebviewProvider | undefined;
+	const { coordinator: struggleCoordinator, promptConsentIfAsk, setStudentProactive, getProactiveGateState, setInSession, dismissEpisode, resolveEpisode, getSlotDebugSnapshot, getEpisodeHistory, setSlotChangeSink, handleBannerAction } = createStruggleEngine({
+		hub: sensorHub,
+		exerciseRegistry,
+		context,
+		isIrisEnabled: () => irisEnabledCache?.isEnabled() ?? false,
+		postIntervention: (exerciseId, body) => artemisApiService.postStruggleIntervention(exerciseId, body),
+		isStudentProactiveOn: () => getProactiveLevel() !== 'off',
+		getProactiveLevel,
+		openProactiveSession: async (courseId, sessionId) => { await chatWebviewProvider?.proactive.openProactiveSession(courseId, sessionId); },
+		setProactiveBadge: on => chatWebviewProvider?.proactive.setProactiveBadge(on),
+		postOptimisticBubble: (text, messageId, episodeId) => chatWebviewProvider?.proactive.postOptimisticBubble(text, messageId, episodeId),
+		setProactiveThinking: on => chatWebviewProvider?.proactive.setThinking(on),
+		// State frame (not an event): the engine dedups by value, so a frame swallowed by the
+		// optional chain would never be re-sent. Safe only because the provider is constructed
+		// below before any slot transition can fire (alerts need the warmup; server events need
+		// the WS subscribe, which no-ops until connected).
+		postLiveEpisode: episodeId => chatWebviewProvider?.proactive.postLiveEpisode(episodeId),
+		// C2: reveal + episode-outcome API + webview reconcile (webview side stubbed until C3/C5 wires it)
+		revealAmbient: (exerciseId, episodeId, hintText, level, clientMessageId) =>
+			artemisApiService.revealAmbient(exerciseId, episodeId, hintText, level, clientMessageId),
+		setEpisodeOutcome: (exerciseId, episodeId, outcome) =>
+			artemisApiService.setEpisodeOutcome(exerciseId, episodeId, outcome),
+		reconcileOptimisticBubble: (_localId, _serverId, _proactiveEpisodeId, _sentAt) => {
+			// TODO C3/C5: wire to chatWebviewProvider.reconcileRevealBubble once the webview supports string-localId dedup
+		},
+		// #364: reveal-into-exercise navigation (persist-then-navigate). All three closures are invoked
+		// lazily (only on a parked-hint reveal, long after activation), so referencing courseCatalog /
+		// chatWebviewProvider (constructed below) is safe.
+		resolveRevealTarget: exerciseId => {
+			const courseId = courseCatalog.authoritativeCourseIdFor(exerciseId);
+			const title = courseCatalog.exerciseTitle(exerciseId);
+			if (courseId === undefined || !title) { return undefined; }
+			return { courseId, title };
+		},
+		currentNavToken: () => chatWebviewProvider?.proactive.currentNavToken() ?? 0,
+		openRevealSession: async (courseId, exerciseId, sessionId, title, expectedNavToken) =>
+			(await chatWebviewProvider?.proactive.revealProactiveSessionForExercise(courseId, exerciseId, sessionId, title, expectedNavToken)) ?? false,
+		notifyRevealUnavailable: () => {
+			void vscode.window.showWarningMessage("Can't open this Iris hint. Its exercise isn't available in the workspace.");
+		},
+		notifyRevealFailed: () => {
+			void vscode.window.showWarningMessage("Couldn't open this Iris hint.");
+		},
+		// C3: slot-continuity seam
+		cancelOutstandingStruggleJob: (exerciseId, requestToken) =>
+			artemisApiService.cancelOutstandingStruggleJob(exerciseId, requestToken),
+		// C7: fold episode host->webview
+		foldEpisode: (episodeId, outcome, praise) => chatWebviewProvider?.proactive.postFoldEpisode(episodeId, outcome, praise),
+		// C4: stale-row suppression
+		postRemoveMessage: (id) => chatWebviewProvider?.proactive.postRemoveMessage(id),
+		deleteSupersededProactiveMessage: (exerciseId, messageId) =>
+			artemisApiService.deleteSupersededProactiveMessage(exerciseId, messageId),
+		// C5: offer-bubble transport (C6-C10 producers). Bubble + resolve go to the chat provider
+		// (like postOptimisticBubble / postRemoveMessage); the offer banner mirrors showNudgeBanner's
+		// reveal-if-hidden wrapper below so an offer shown while the sidebar is collapsed still surfaces.
+		postOfferBubble: (o) => chatWebviewProvider?.proactive.postOfferBubble(o),
+		resolveOfferBubble: (offerId, answered) => chatWebviewProvider?.proactive.resolveOfferBubble(offerId, answered),
+		// Reconnect-aware subscribe primitive for the per-user struggle topic. A
+		// reconnect is a fresh STOMP session, so we (re)subscribe on each connect.
+		subscribeStruggleTopic: (topic, onFrame) => {
+			let activeUnsub: (() => void) | undefined;
+			const subscribeNow = (): void => {
+				if (!artemisWebsocketService.isConnected()) { return; }
+				try { activeUnsub = artemisWebsocketService.subscribeToTopic(topic, onFrame); }
+				catch (error) { logger.error(`Failed to subscribe to ${topic}`, LogCategory.WEBSOCKET, error); }
+			};
+			subscribeNow();
+			const stateSub = artemisWebsocketService.onDidChangeConnectionState(({ connected }) => {
+				if (connected) { subscribeNow(); } else { activeUnsub = undefined; }
+			});
+			return { dispose: () => { stateSub.dispose(); try { activeUnsub?.(); } catch { /* stale sub after disconnect */ } activeUnsub = undefined; } };
+		},
+		showNudgeBanner: (text, episodeId, timerMs) => {
+			if (artemisWebviewProvider?.getCurrentVisibility()) {
+				artemisWebviewProvider.showNudgeBanner(text, episodeId, timerMs);
+				return;
+			}
+			// Sidebar is hidden: reveal it first and post the banner only once the reveal (and the
+			// best-effort editor-focus restore below) has resolved, so the webview's 10s countdown
+			// never starts while the panel is still off-screen and thus invisible to the student.
+			const prev = vscode.window.activeTextEditor;
+			// VS Code has no no-focus reveal command for a collapsed webview view, so revealing steals
+			// focus; we best-effort restore the editor the student was in, but if they were in a
+			// non-editor surface (terminal/explorer) focus stays on the sidebar.
+			void vscode.commands.executeCommand('artemis.loginView.focus').then(() => {
+				if (prev) { void vscode.window.showTextDocument(prev.document, { viewColumn: prev.viewColumn, preserveFocus: false, selection: prev.selection }); }
+				artemisWebviewProvider?.showNudgeBanner(text, episodeId, timerMs);
+			});
+		},
+		// Offer banner: same reveal-if-hidden structure as showNudgeBanner above (an offer shown while
+		// the sidebar is collapsed must reveal the panel before its countdown starts), but the copy +
+		// timer are derived inside the provider from `moment`, so the wrapper just forwards the offer.
+		showOfferBanner: (o) => {
+			if (artemisWebviewProvider?.getCurrentVisibility()) {
+				artemisWebviewProvider.showOfferBanner(o);
+				return;
+			}
+			const prev = vscode.window.activeTextEditor;
+			void vscode.commands.executeCommand('artemis.loginView.focus').then(() => {
+				if (prev) { void vscode.window.showTextDocument(prev.document, { viewColumn: prev.viewColumn, preserveFocus: false, selection: prev.selection }); }
+				artemisWebviewProvider?.showOfferBanner(o);
+			});
+		},
+		hideNudgeBanner: () => artemisWebviewProvider?.hideNudgeBanner(),
+	});
+	activeStruggleCoordinator = struggleCoordinator;
+	struggleCoordinator.setWebsocketService(artemisWebsocketService);
+	context.subscriptions.push(registerDebugCommands(struggleCoordinator));
+	// The behind-the-seam proactive control surface the AskIris command module drives. Built ONLY when
+	// the engine provides the methods (the clean/no-engine build omits them), so that build never shows the switch.
+	const proactiveControl = setStudentProactive && getProactiveGateState
+		? { setStudentProactive, getProactiveGateState }
+		: undefined;
 
 	const websocketStatusBarService = new WebSocketStatusBarService(artemisWebsocketService);
 
@@ -168,7 +307,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// the credential and deliberately shows no login view.
 	const handoverFailures = new HandoverFailureStore();
 
-	const artemisWebviewProvider = new ArtemisWebviewProvider({
+	artemisWebviewProvider = new ArtemisWebviewProvider({
 		extensionUri: context.extensionUri,
 		extensionContext: context,
 		authManager,
@@ -178,15 +317,56 @@ export async function activate(context: vscode.ExtensionContext) {
 		handoverFailures,
 		providerRegistry,
 		websocketService: artemisWebsocketService,
+		noAiDetectionService,
 		buildErrorCodeLensProvider,
-		telemetryManager,
+		struggleCoordinator,
 		updateAuthContext,
+		proactiveControl,
 		courseAccessStorage,
 		courseCatalog,
 	});
+	// Wire the engine's lazy preference read to the provider's preference service (built in its constructor above).
+	proactivePreferenceRef = artemisWebviewProvider.proactivePreference;
+	// Slot debug wiring: connect the orchestrator's slot snapshot to the live feed.
+	// The provider forwards both calls into its private _liveEngineFeed.
+	artemisWebviewProvider.wireSlotDebug(
+		() => getSlotDebugSnapshot && getEpisodeHistory
+			? { snapshot: getSlotDebugSnapshot(), episodes: [...getEpisodeHistory()] }
+			: null,
+	);
+	setSlotChangeSink?.(() => artemisWebviewProvider.pushSlotUpdate());
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ArtemisWebviewProvider.viewType, artemisWebviewProvider)
 	);
+	// Route a nudge-banner button back to the engine outcome. "Show me" jumps to the flagged line
+	// (via the jump lamp, inside handleBannerAction) and opens the chat. A dev mock banner (sentinel
+	// id) is visual only: its buttons neither record an outcome nor open the chat.
+	// Both webviews raise this: the sidebar's banner and the chat's offer bubble. One handler, two
+	// sources, so an offer answered inside the chat takes exactly the same path as one answered
+	// from the banner.
+	const onNudgeBannerAction = (payload: WebCmd<typeof WebviewCmd.NudgeBannerAction>['payload']): void => {
+		handleBannerAction?.(payload);
+		// Any "see the hint" action opens the Iris chat: the active banner's "Show me" AND the offer
+		// banner's accept ("Show me" / "I need more help"). #344: the offer path was previously excluded.
+		if (bannerActionOpensChat(payload)) {
+			void vscode.commands.executeCommand('iris.chatView.focus');
+		}
+	};
+	context.subscriptions.push(artemisWebviewProvider.onDidNudgeBannerAction(onNudgeBannerAction));
+
+	// Developer-only: surface the engine's live alert decision (firing / gated /
+	// armed) in the status bar. Reads the coordinator's tick stream; no-op
+	// coordinator never ticks, so the clean build shows nothing. Clicking it
+	// reveals the panel and opens the live-engine view.
+	const struggleAlertStatusBar = new StruggleAlertStatusBar(
+		struggleCoordinator,
+		() => vscode.workspace.getConfiguration('artemis').get<boolean>('developerMode', false),
+		() => {
+			artemisWebviewProvider.showStruggleDetection();
+			void vscode.commands.executeCommand(`${ArtemisWebviewProvider.viewType}.focus`);
+		},
+	);
+	context.subscriptions.push(struggleAlertStatusBar);
 
 	// Both halves of "the credential is gone": drop the record that outlives the view, and tell a view
 	// that is currently on screen. The second one is not covered by the first: during a handover the app
@@ -215,14 +395,49 @@ export async function activate(context: vscode.ExtensionContext) {
 	const workspaceTracker = new WorkspaceExerciseTracker();
 	context.subscriptions.push(workspaceTracker);
 
-	const chatWebviewProvider = new ChatWebviewProvider(
+	// Iris-enabled gate (no proactive struggle interventions when Iris is disabled for the
+	// course): keyed to the struggle exercise session, refreshed on session start/end and on
+	// websocket reconnect (a transient 'unavailable' classification deserves a retry).
+	const irisReconnect = new vscode.EventEmitter<void>();
+	context.subscriptions.push(
+		irisReconnect,
+		artemisWebsocketService.onDidChangeConnectionState((e) => { if (e.connected) { irisReconnect.fire(); } }),
+	);
+	irisEnabledCache = new IrisEnabledCache({
+		classify: async (exerciseId) => {
+			const courseId = await resolveCourseIdForExercise(exerciseId, courseCatalog, artemisApiService);
+			if (courseId === undefined) { return 'unavailable'; }
+			const { availability } = await classifyIrisCourseAvailability(
+				artemisApiService,
+				courseCatalog,
+				{ type: 'course', id: courseId, title: courseCatalog.courseTitle(courseId) ?? `course ${courseId}` },
+			);
+			return availability.kind;
+		},
+		onSessionStart: struggleCoordinator.onDidStartSession,
+		onSessionEnd: struggleCoordinator.onDidEndSession,
+		onReconnect: irisReconnect.event,
+		getActiveExerciseId: () => struggleCoordinator.activeExerciseId,
+		schedule: (fn, ms) => { const h = setTimeout(fn, ms); return () => clearTimeout(h); },
+	});
+	context.subscriptions.push(irisEnabledCache);
+
+	chatWebviewProvider = new ChatWebviewProvider(
 		context.extensionUri, context, artemisApiService, artemisWebsocketService,
-		noAiDetectionService, exerciseRegistry, courseCatalog, telemetryManager,
+		noAiDetectionService, exerciseRegistry, courseCatalog, struggleCoordinator,
 		workspaceTracker, courseAccessStorage, sessionIdentity,
 	);
 	chatWebviewProvider.onDidChangeExerciseContext(({ exerciseId, exerciseRoot }) => {
-		telemetryManager.startExerciseSession(exerciseId, exerciseRoot);
+		struggleCoordinator.startExerciseSession(exerciseId, exerciseRoot);
 	});
+	chatWebviewProvider.proactive.setStruggleCallbacks({ onEpisodeDismiss: dismissEpisode, onEpisodeResolve: resolveEpisode });
+	// Same handler as the sidebar banner above: an offer answered in the chat bubble must reach the
+	// engine, not the unhandled-command log. Subscribed here because the provider exists only now.
+	context.subscriptions.push(chatWebviewProvider.onDidNudgeBannerAction(onNudgeBannerAction));
+	// C3: in-session flag: toggle the slot's quiet/loud escalation branch as the chat view opens/closes.
+	if (setInSession) {
+		context.subscriptions.push(chatWebviewProvider.onDidChangePanelVisibility(open => setInSession(open)));
+	}
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ChatWebviewProvider.viewType, chatWebviewProvider)
 	);
@@ -232,7 +447,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	sessionIdentity.attach({
 		resetConversation: () => chatWebviewProvider.resetForSessionChange(),
-		endTelemetrySession: () => telemetryManager.endExerciseSession(),
+		endTelemetrySession: () => struggleCoordinator.endExerciseSession(),
 		clearWorkspaceTracker: () => workspaceTracker.clear(),
 		clearCatalog: () => courseCatalog.resetTo(sessionIdentity.epoch),
 		resetRegistry: () => exerciseRegistry.reset(),
@@ -245,18 +460,39 @@ export async function activate(context: vscode.ExtensionContext) {
 		registry: exerciseRegistry,
 		courseCatalog,
 		sink: buildChatProviderSink(chatWebviewProvider),
+		// Reopening VS Code on an already-cloned exercise only triggers passive detection (Iris chat),
+		// not the webview open flow. Start the struggle session here too so detection resumes.
+		onWorkspaceExerciseDetected: (id, root) => struggleCoordinator.startExerciseSession(id, root),
+		// Symmetric: leaving the exercise (no workspace match) ends the session so it cannot go stale.
+		onWorkspaceExerciseCleared: () => struggleCoordinator.endExerciseSession(),
 		session: sessionIdentity,
 	});
 	context.subscriptions.push(workspaceDetection);
 	chatWebviewProvider.attachStartupDetection(workspaceDetection);
 
-	context.subscriptions.push(telemetryManager);
+	context.subscriptions.push(struggleCoordinator);
 	context.subscriptions.push(artemisWebsocketService);
 	context.subscriptions.push(websocketStatusBarService);
 
+	// Task-feedback view lifecycle → engine (consent-independent). The engine
+	// must see feedback views even when recording is OFF, so this is wired here
+	// rather than inside sessionRecorderWiring (whose own feedback subscriptions
+	// only run while recording). Wrapped in try/catch because the hub's internal
+	// emitters do NOT isolate listener errors (see sensorHub.ts).
+	context.subscriptions.push(artemisWebviewProvider.onDidOpenTaskFeedback(p => {
+		try { sensorHub.emitTaskFeedbackView('opened', p.viewId); } catch (err) {
+			logger.error('emitTaskFeedbackView(opened) failed', LogCategory.TELEMETRY, err);
+		}
+	}));
+	context.subscriptions.push(artemisWebviewProvider.onDidCloseTaskFeedback(p => {
+		try { sensorHub.emitTaskFeedbackView('closed', p.viewId); } catch (err) {
+			logger.error('emitTaskFeedbackView(closed) failed', LogCategory.TELEMETRY, err);
+		}
+	}));
+
 	context.subscriptions.push(registerAllCommands({
 		authManager, artemisApiService, artemisWebsocketService,
-		telemetryManager, artemisWebviewProvider, chatWebviewProvider,
+		providerRegistry, artemisWebviewProvider, chatWebviewProvider,
 		updateAuthContext, authCancellation,
 	}));
 
@@ -309,6 +545,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			void artemisWebsocketService.connect().catch(error => {
 				logger.error('Failed to connect to Artemis WebSocket on startup', LogCategory.WEBSOCKET, error);
 			});
+			// Ask once (only while undecided) whether to enable proactive help: local
+			// struggle detection plus code reading when it triggers (#349). No-op in
+			// the clean build.
+			void promptConsentIfAsk();
 		}
 	} catch (error) {
 		logger.error('Error checking initial auth state', LogCategory.AUTH, error);
@@ -338,11 +578,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	activeDataCollection = wireDataCollection({
 		context,
 		artemisWebsocketService,
-		telemetryManager,
+		struggleCoordinator,
 		artemisWebviewProvider,
 		chatWebviewProvider,
 		capabilities,
 		exerciseRegistry,
+		sensorHub,
 		workspaceTracker,
 	});
 
@@ -446,15 +687,15 @@ export async function deactivate(): Promise<void> {
 		}
 		activeDataCollection = undefined;
 	}
-	if (activeTelemetryManager) {
+	if (activeStruggleCoordinator) {
 		try {
 			// Explicit dispose so session-end + command/status-bar teardown
 			// run before VS Code disposes context.subscriptions. dispose() is
 			// idempotent, so the subscription teardown is a safe no-op.
-			activeTelemetryManager.dispose();
+			activeStruggleCoordinator.dispose();
 		} catch (err) {
-			logger.error('Failed to dispose TelemetryManager during deactivate', LogCategory.TELEMETRY, err);
+			logger.error('Failed to dispose StruggleCoordinator during deactivate', LogCategory.TELEMETRY, err);
 		}
-		activeTelemetryManager = undefined;
+		activeStruggleCoordinator = undefined;
 	}
 }

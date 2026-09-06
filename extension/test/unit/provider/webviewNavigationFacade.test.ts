@@ -205,6 +205,42 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.calledOnce(stubs.appStateManager.showLogin);
     });
 
+    const enableDeveloperMode = () => getConfiguration.returns({
+        get: <T>(key: string, fallback?: T): T | undefined => (key === 'developerMode' ? (true as unknown as T) : fallback),
+        update: sandbox.stub().resolves(undefined),
+    } as unknown as vscode.WorkspaceConfiguration);
+
+    test('openStruggleFullscreen: delegates to the injected opener in developer mode', async () => {
+        enableDeveloperMode();
+        const { deps } = buildDeps();
+        const opener = sandbox.stub();
+        deps.openStruggleFullscreen = opener;
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.openStruggleFullscreen();
+
+        sinon.assert.calledOnce(opener);
+    });
+
+    test('openStruggleFullscreen: does NOT open when developer mode is off (developer-only page)', async () => {
+        const { deps } = buildDeps();   // default getConfiguration stub → developerMode false
+        const opener = sandbox.stub();
+        deps.openStruggleFullscreen = opener;
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.openStruggleFullscreen();
+
+        sinon.assert.notCalled(opener);
+    });
+
+    test('openStruggleFullscreen: no-op (no throw) when no opener is injected (clean build), in developer mode', async () => {
+        enableDeveloperMode();
+        const { deps } = buildDeps();
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.openStruggleFullscreen();   // must not throw
+    });
+
     test('showLogin: invokes render callback', () => {
         const { deps, stubs } = buildDeps();
         const facade = new WebviewNavigationFacade(deps);
@@ -650,7 +686,11 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.called(stubs.render);
     });
 
-    test('showStruggleDetection: delegates and renders', () => {
+    test('showStruggleDetection: delegates and renders in developer mode', () => {
+        getConfiguration.returns({
+            get: <T>(key: string, fallback?: T): T | undefined => (key === 'developerMode' ? (true as unknown as T) : fallback),
+            update: sandbox.stub().resolves(undefined),
+        } as unknown as vscode.WorkspaceConfiguration);
         const { deps, stubs } = buildDeps();
         const facade = new WebviewNavigationFacade(deps);
 
@@ -658,6 +698,17 @@ suite('WebviewNavigationFacade', () => {
 
         sinon.assert.calledOnce(stubs.appStateManager.showStruggleDetection);
         sinon.assert.called(stubs.render);
+    });
+
+    test('showStruggleDetection: does NOT navigate when developer mode is off (developer-only page)', () => {
+        // Default getConfiguration stub returns the fallback (false) for developerMode.
+        const { deps, stubs } = buildDeps();
+        const facade = new WebviewNavigationFacade(deps);
+
+        facade.showStruggleDetection();
+
+        sinon.assert.notCalled(stubs.appStateManager.showStruggleDetection);
+        sinon.assert.notCalled(stubs.render);
     });
 
     test('showRecommendedExtensions: delegates and renders', () => {

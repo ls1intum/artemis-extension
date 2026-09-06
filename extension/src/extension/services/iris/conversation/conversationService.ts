@@ -116,6 +116,20 @@ export class IrisConversationService {
 
     private _overviewInFlight: { courseId: number; seq: number; promise: Promise<void> } | undefined;
     private _navRequestSeq = 0;
+
+    /**
+     * The latest-navigation token, for callers that have to survive an async gap
+     * and then ask "did the student navigate away meanwhile?".
+     *
+     * Deliberately this counter and NOT `ConversationState.navigationGeneration`.
+     * This one advances the moment a navigation is admitted, that one only when
+     * a conversation is actually being installed. A navigation still waiting on
+     * its detail request must already invalidate an older reveal, and only this
+     * counter reports that.
+     */
+    public get navigationRequestToken(): number {
+        return this._navRequestSeq;
+    }
     private _navInFlight = 0;
     private _reloadWhenSendSettles = false;
 
@@ -175,7 +189,7 @@ export class IrisConversationService {
 
     /**
      * Called when a subscription actually becomes active, via the client's
-     * `onDidResubscribe`. This is the production wiring for spec §7.7's rule
+     * `onDidResubscribe`. This is the production wiring for the rule
      * that a CTXSWAP can land between adopting a snapshot and the subscription
      * going live, and it covers BOTH cases with one path:
      *

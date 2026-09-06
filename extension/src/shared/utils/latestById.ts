@@ -3,10 +3,9 @@
  * host and the webview so the two cannot drift apart.
  *
  * Artemis represents "latest" as the highest numeric `id`, NOT the newest
- * timestamp. Both sides previously carried their own copy of this rule under
- * different names (`pickHighestId` / `getLatestById`), which is exactly how a
- * host and a webview end up disagreeing about which result a student is
- * looking at.
+ * timestamp. One copy of that rule, in one place: a second copy under a second
+ * name is how a host and a webview end up disagreeing about which result a
+ * student is looking at.
  */
 
 /**

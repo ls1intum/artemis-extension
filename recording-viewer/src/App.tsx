@@ -15,7 +15,7 @@ import { SubtitleUpload } from './components/SubtitleUpload';
 import { OffsetConfig } from './components/OffsetConfig';
 import { LiveControlBar } from './components/LiveControlBar';
 import { HotkeyLegend } from './components/HotkeyLegend';
-import { ALL_EVENT_TYPES } from './constants';
+import { ALL_EVENT_TYPES_WITH_LEGACY } from './constants';
 import type { AuthStatus } from './hooks/useAuth';
 import { useLiveSessions } from './hooks/useLiveSessions';
 import { useOpenLiveOnSpace } from './hooks/useOpenLiveOnSpace';
@@ -26,7 +26,7 @@ import { RaterComparisonView } from './components/RaterComparisonView';
 import { useLiveHotkeys } from './hooks/useLiveHotkeys';
 import { useResearcherLanePolling } from './hooks/useResearcherLanePolling';
 
-const ALL_ENABLED = new Set(ALL_EVENT_TYPES);
+const ALL_ENABLED = new Set(ALL_EVENT_TYPES_WITH_LEGACY);
 
 interface RecordingViewerAppProps { authStatus: AuthStatus }
 

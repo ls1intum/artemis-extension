@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 
+import { ExtensionMsg, WebviewCmd, WebviewMsgType } from '@shared/messageContracts';
+
 import { ArtemisApiService } from '@extension/api';
 import { ArtemisWebviewProvider } from '@extension/provider/artemisWebviewProvider';
 import type { BuildErrorCodeLensProvider } from '@extension/provider/buildErrorCodeLensProvider';
@@ -10,7 +12,8 @@ import { AuthCancellationService } from '@extension/services/auth/authCancellati
 import { HandoverFailureStore } from '@extension/services/auth/handoverFailureStore';
 import { OidcLoginService } from '@extension/services/auth/oidcLoginService';
 import { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
-import { TelemetryManager } from '@extension/services/telemetry';
+import { VsCodeSensorHub } from '@extension/services/sensing';
+import { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import { createProviderRegistry } from '@extension/services/ui/providerRegistry';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
 import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
@@ -124,8 +127,8 @@ suite('ArtemisWebviewProvider Test Suite', () => {
     let suiteSandbox: sinon.SinonSandbox;
 
     setup(() => {
-        // Stub command registration so concurrent TelemetryManager
-        // instances in this suite do not collide on the global registry.
+        // Stub command registration so the services constructed in this suite do not
+        // collide on the global command registry across test-scoped instances.
         suiteSandbox = sinon.createSandbox();
         suiteSandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
 
@@ -135,8 +138,9 @@ suite('ArtemisWebviewProvider Test Suite', () => {
 
         const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
         const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
-        const mockTelemetry = new TelemetryManager();
+        const mockCoordinator = new StruggleCoordinator({ hub: new VsCodeSensorHub(), alertSink: { deliver: () => { /* noop */ } }, detectionConsent: { isGranted: () => true, onDidChange: new vscode.EventEmitter<void>().event } });
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
+        const fakeNoAi = { onNoAiStatusChanged: () => ({ dispose() {} }), dispose() {} } as any;
 
         const oidcLoginService = new OidcLoginService(mockContext, mockAuthManager, mockApiService);
         provider = new ArtemisWebviewProvider({
@@ -149,8 +153,9 @@ suite('ArtemisWebviewProvider Test Suite', () => {
             authCancellation: new AuthCancellationService(oidcLoginService),
             providerRegistry: createProviderRegistry(),
             websocketService: mockWebsocket,
+            noAiDetectionService: fakeNoAi,
             buildErrorCodeLensProvider: mockCodeLens,
-            telemetryManager: mockTelemetry,
+            struggleCoordinator: mockCoordinator,
             updateAuthContext: mockUpdateAuth,
             courseAccessStorage: new CourseAccessStorageService(mockContext.globalState, () => null, () => 0),
         });
@@ -191,6 +196,7 @@ suite('Panel hide/show state persistence', () => {
     let controllableView: ControllableWebviewView;
     let spyWebview: SpyWebview;
     let sandbox: sinon.SinonSandbox;
+    let noAiCb: (v: boolean) => void = () => {};
 
     setup(async () => {
         sandbox = sinon.createSandbox();
@@ -204,8 +210,12 @@ suite('Panel hide/show state persistence', () => {
 
         const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
         const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
-        const mockTelemetry = new TelemetryManager();
+        const mockCoordinator = new StruggleCoordinator({ hub: new VsCodeSensorHub(), alertSink: { deliver: () => { /* noop */ } }, detectionConsent: { isGranted: () => true, onDidChange: new vscode.EventEmitter<void>().event } });
         const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
+        const fakeNoAi = {
+            onNoAiStatusChanged: (cb: (value: boolean) => void) => { noAiCb = cb; return { dispose() {} }; },
+            dispose() {},
+        } as any;
 
         const oidcLoginService = new OidcLoginService(mockContext, mockAuthManager, mockApiService);
         provider = new ArtemisWebviewProvider({
@@ -218,8 +228,9 @@ suite('Panel hide/show state persistence', () => {
             authCancellation: new AuthCancellationService(oidcLoginService),
             providerRegistry: createProviderRegistry(),
             websocketService: mockWebsocket,
+            noAiDetectionService: fakeNoAi,
             buildErrorCodeLensProvider: mockCodeLens,
-            telemetryManager: mockTelemetry,
+            struggleCoordinator: mockCoordinator,
             updateAuthContext: mockUpdateAuth,
             courseAccessStorage: new CourseAccessStorageService(mockContext.globalState, () => null, () => 0),
         });
@@ -325,5 +336,136 @@ suite('Panel hide/show state persistence', () => {
             (provider as any)._appStateManager._currentState, 'login',
             'state should transition to login when auth has expired on re-show'
         );
+    });
+
+    test('a proactiveCodeEgress change posts updateProactiveConsent to the webview (both directions)', async () => {
+        const cfg = () => vscode.workspace.getConfiguration('artemis.iris');
+        const prev = cfg().get('proactiveCodeEgress');
+        const awaitConsentMsg = async () => {
+            // Poll: the config event is async in the extension host.
+            const deadline = Date.now() + 2000;
+            while (Date.now() < deadline) {
+                if (spyWebview.sentMessages.some(m => m.type === 'updateProactiveConsent')) { return true; }
+                await new Promise(r => setTimeout(r, 50));
+            }
+            return false;
+        };
+        try {
+            // Normalize first (no assertion): a leaked 'enabled' from another test would make the
+            // grant-flip below a config no-op that fires no event.
+            await cfg().update('proactiveCodeEgress', 'ask', vscode.ConfigurationTarget.Global);
+
+            spyWebview.sentMessages.length = 0;
+            await cfg().update('proactiveCodeEgress', 'enabled', vscode.ConfigurationTarget.Global);
+            assert.ok(await awaitConsentMsg(), 'expected updateProactiveConsent after granting the consent');
+
+            spyWebview.sentMessages.length = 0;
+            await cfg().update('proactiveCodeEgress', 'disabled', vscode.ConfigurationTarget.Global);
+            assert.ok(await awaitConsentMsg(), 'expected updateProactiveConsent after revoking the consent');
+        } finally {
+            await cfg().update('proactiveCodeEgress', prev, vscode.ConfigurationTarget.Global);
+        }
+    });
+
+    test('a .noai status change posts updateNoAiStatus to the webview (both directions)', async () => {
+        spyWebview.sentMessages.length = 0;
+        noAiCb(true);
+        assert.ok(spyWebview.sentMessages.some(m => m.type === 'updateNoAiStatus'), 'expected updateNoAiStatus after .noai appears');
+        spyWebview.sentMessages.length = 0;
+        noAiCb(false);
+        assert.ok(spyWebview.sentMessages.some(m => m.type === 'updateNoAiStatus'), 'expected updateNoAiStatus after .noai disappears');
+    });
+});
+
+suite('Nudge banner replay and cache-clear', () => {
+    let provider: ArtemisWebviewProvider;
+    let mockContext: MockExtensionContext;
+    let mockAuthManager: MockAuthManager;
+    let mockApiService: MockArtemisApiService;
+    let controllableView: ControllableWebviewView;
+    let spyWebview: SpyWebview;
+    let sandbox: sinon.SinonSandbox;
+
+    setup(async () => {
+        sandbox = sinon.createSandbox();
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
+
+        mockContext = new MockExtensionContext();
+        mockAuthManager = new MockAuthManager(mockContext);
+        mockApiService = new MockArtemisApiService(mockAuthManager);
+        sandbox.stub(mockAuthManager, 'hasAuthToken').resolves(true);
+
+        const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
+        const mockCodeLens = {} as unknown as BuildErrorCodeLensProvider;
+        const mockCoordinator = new StruggleCoordinator({ hub: new VsCodeSensorHub(), alertSink: { deliver: () => { /* noop */ } }, detectionConsent: { isGranted: () => true, onDidChange: new vscode.EventEmitter<void>().event } });
+        const mockUpdateAuth = async (_isAuthenticated: boolean) => {};
+        const fakeNoAi = { onNoAiStatusChanged: () => ({ dispose() {} }), dispose() {} } as any;
+
+        const oidc = new OidcLoginService(mockContext, mockAuthManager, mockApiService);
+        provider = new ArtemisWebviewProvider({
+            extensionUri: vscode.Uri.file('/'),
+            extensionContext: mockContext,
+            authManager: mockAuthManager,
+            oidcLoginService: oidc,
+            authCancellation: new AuthCancellationService(oidc),
+            handoverFailures: new HandoverFailureStore(),
+            courseAccessStorage: new CourseAccessStorageService(mockContext.globalState, () => null, () => 0),
+            artemisApi: mockApiService,
+            providerRegistry: createProviderRegistry(),
+            websocketService: mockWebsocket,
+            noAiDetectionService: fakeNoAi,
+            buildErrorCodeLensProvider: mockCodeLens,
+            struggleCoordinator: mockCoordinator,
+            updateAuthContext: mockUpdateAuth,
+        });
+
+        spyWebview = new SpyWebview();
+        controllableView = new ControllableWebviewView(spyWebview);
+        await provider.resolveWebviewView(controllableView, {} as any, {} as any);
+    });
+
+    teardown(() => {
+        sandbox.restore();
+    });
+
+    const showBannerMessages = () => spyWebview.sentMessages.filter((m: any) => m.type === ExtensionMsg.ShowNudgeBanner);
+
+    test('a fresh resolve replays the cached banner exactly once on ready, and a later requestInit does not replay it again', async () => {
+        // showNudgeBanner can be called while the sidebar reveal is still resolving the view
+        // (see extension.ts's hidden-reveal branch), i.e. before the fresh webview is ready.
+        provider.showNudgeBanner({ title: 'Stuck?', sub: 'Want a hint?' }, 'ep-1', 10_000);
+        assert.strictEqual(showBannerMessages().length, 0, 'no post before the webview is ready');
+
+        spyWebview.simulateMessage({ type: WebviewMsgType.Ready });
+        await Promise.resolve();
+
+        const afterReady = showBannerMessages();
+        assert.strictEqual(afterReady.length, 1, 'the fresh ready should replay the cached banner exactly once');
+        assert.strictEqual((afterReady[0] as any).episodeId, 'ep-1');
+
+        // A RequestInit retry on the now-live view must not restart the 10s countdown.
+        spyWebview.sentMessages = [];
+        spyWebview.simulateMessage({ type: WebviewMsgType.RequestInit });
+        await Promise.resolve();
+
+        assert.strictEqual(showBannerMessages().length, 0, 'requestInit on an already-replayed banner must not post again');
+    });
+
+    test('a nudgeBannerAction command clears the cached banner so a later resolve+ready does not replay it', async () => {
+        provider.showNudgeBanner({ title: 'Stuck?', sub: 'Want a hint?' }, 'ep-2', 10_000);
+        spyWebview.simulateMessage({ type: WebviewMsgType.Ready });
+        await Promise.resolve();
+        assert.strictEqual(showBannerMessages().length, 1, 'sanity check: banner replayed on first ready');
+
+        spyWebview.simulateMessage({ type: 'command', command: WebviewCmd.NudgeBannerAction, payload: { action: 'dismiss', episodeId: 'ep-2' } });
+        await Promise.resolve();
+
+        // Simulate a webview reload: a fresh resolve followed by ready.
+        spyWebview.sentMessages = [];
+        await provider.resolveWebviewView(controllableView, {} as any, {} as any);
+        spyWebview.simulateMessage({ type: WebviewMsgType.Ready });
+        await Promise.resolve();
+
+        assert.strictEqual(showBannerMessages().length, 0, 'a dismissed banner must not be replayed after a later resolve+ready');
     });
 });
