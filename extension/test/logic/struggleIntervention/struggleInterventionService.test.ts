@@ -923,6 +923,31 @@ describe('StruggleInterventionService C2 reveal', () => {
         expect(deps.notifyRevealFailed).not.toHaveBeenCalled();
     });
 
+    it('revealParkedHint: declines the click when nothing is parked, so the caller can fall back', async () => {
+        const deps = fakeDeps();
+        const svc = new StruggleInterventionService(deps);
+        // No setupParked: the slot is not PARKED, which is the state after an ACTIVE delivery. The
+        // inline cue is armed there too, so its "Open chat" link must not dead-end.
+        expect(svc._slot.snapshot().state.kind).not.toBe('parked');
+
+        expect(await svc.revealParkedHint()).toBe(false);
+        expect(deps.revealAmbient).not.toHaveBeenCalled();
+    });
+
+    it('revealParkedHint: consumes the click on a real reveal and on the notified-unavailable abort', async () => {
+        const svc = new StruggleInterventionService(fakeDeps());
+        setupParked(svc, 55, 'Re-check the loop.', 'ep-uuid');
+        expect(await svc.revealParkedHint()).toBe(true);
+
+        // Aborting with a visible notice is also "handled": a fallback on top would stack two
+        // reactions onto one click.
+        const notifying = fakeDeps({ resolveRevealTarget: vi.fn(() => undefined) });
+        const svc2 = new StruggleInterventionService(notifying);
+        setupParked(svc2, 55, 'Re-check the loop.', 'ep-uuid');
+        expect(await svc2.revealParkedHint()).toBe(true);
+        expect(notifying.notifyRevealUnavailable).toHaveBeenCalledTimes(1);
+    });
+
     it('revealParkedHint (#364): unresolvable exercise (resolveRevealTarget undefined) notifies + aborts; no transition/persist/navigate; slot stays PARKED', async () => {
         const deps = fakeDeps({ resolveRevealTarget: vi.fn(() => undefined) });
         const svc = new StruggleInterventionService(deps);

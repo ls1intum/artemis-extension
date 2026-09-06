@@ -667,14 +667,15 @@ export class StruggleInterventionService implements AlertSink {
     }
 
     /**
-     * Reveal the parked ambient hint. Transitions the slot PARKED -> DELIVERED,
-     * opens the proactive session, posts an optimistic bubble, and persists the canonical row.
-     * On reveal: scoped-cancel any in-flight parked_progress confirmClose or decide, and re-owe the
-     * work under DELIVERED (C3 reveal re-evaluation).
+     * Reveal the parked ambient hint: slot PARKED -> DELIVERED, open the proactive session, post an
+     * optimistic bubble, persist the canonical row, scoped-cancel any in-flight parked_progress
+     * confirmClose or decide and re-owe it under DELIVERED (C3 reveal re-evaluation). Returns whether
+     * the click was consumed; `false` means nothing was parked -- the state after an ACTIVE delivery,
+     * where the hint is already in the chat and the caller owns the click.
      */
-    async revealParkedHint(): Promise<void> {
+    async revealParkedHint(): Promise<boolean> {
         const snap = this._slot.snapshot();
-        if (snap.state.kind !== 'parked') { return; }
+        if (snap.state.kind !== 'parked') { return false; }
 
         const { episode, frozenText } = snap.state;
         const episodeId = episode.episodeId;
@@ -687,10 +688,9 @@ export class StruggleInterventionService implements AlertSink {
         // dedups the reveal even across a re-click.
         const localId = `reveal-${episodeId}`;
 
-        // Step-2 guard (spec C.2): no proactive session or no owning exercise -> cannot reveal.
-        if (sessionId === undefined || exerciseId === undefined) {
+        if (sessionId === undefined || exerciseId === undefined) {   // spec C.2: no session / no owning exercise
             this._dbg('revealParkedHint: missing sessionId or exerciseId, cannot reveal');
-            return;
+            return false;
         }
 
         // Resolve the owning course + display title synchronously, BEFORE any transition/persist/
@@ -700,7 +700,7 @@ export class StruggleInterventionService implements AlertSink {
         if (target === undefined) {
             this._deps.notifyRevealUnavailable();
             this._dbg(`revealParkedHint: exercise ${exerciseId} not resolvable, notified + aborted`);
-            return;
+            return true;   // consumed: the notice is the reaction, a fallback would stack a second one
         }
         const { courseId, title } = target;
 
@@ -744,6 +744,7 @@ export class StruggleInterventionService implements AlertSink {
         // branch inside _persistReveal (spec C.6). The parked path posts no optimistic bubble and
         // does not open the session eagerly: the row arrives via the A0-preserved reload.
         await this._reveal.persistReveal(exerciseId, episodeId, frozenText, 'ambient', localId, courseId, sessionId, title, navToken);
+        return true;
     }
 
     /** The mirror of {@link _framePort} for the outbound half. */

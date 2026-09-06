@@ -179,11 +179,17 @@ export function createStruggleEngine(deps: StruggleEngineDeps): StruggleEngineHa
     // does NOT retire it. Registered behind the seam so extension.ts never imports the intervention surface.
     deps.context.subscriptions.push(
         vscode.commands.registerCommand('iris.intervention.inlineOpen', () => {
- // Pull reveal: reveal the parked ambient hint if the slot is PARKED.
-            // Safe unconditional call -- revealParkedHint is a no-op when the slot is not PARKED.
-            // Do not fire focus here: the reveal-navigation
-            // (ChatWebviewProvider.revealProactiveSessionForExercise) is the single owner of focus.
-            void orchestrator.revealParkedHint();
+            // Pull reveal: reveal the parked ambient hint if the slot is PARKED. Do not fire focus on
+            // that branch: the reveal-navigation (ChatWebviewProvider.revealProactiveSessionForExercise)
+            // is the single owner of focus there, and only once navigation has actually started.
+            //
+            // After an ACTIVE delivery nothing is parked, so the reveal declines the click. The hint is
+            // already a message in the chat by then, and the cue is armed in that state too, so the link
+            // has to lead somewhere: bring the chat view forward. Focus is safe here precisely because
+            // there is no navigation to lose a race against.
+            void orchestrator.revealParkedHint().then(consumed => {
+                if (!consumed) { void vscode.commands.executeCommand('iris.chatView.focus'); }
+            });
         }),
         vscode.commands.registerCommand('iris.intervention.inlineDismiss', () => {
             // Remove the in-editor cue and the jump lamp that points at it. It does not touch the episode --
