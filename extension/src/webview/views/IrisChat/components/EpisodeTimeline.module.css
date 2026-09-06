@@ -5,8 +5,8 @@
     flex-direction: column;
     /* Horizontal inset only; the flex parent (.content or .episodeFold) owns the vertical gap, so
        nothing stacks on top of it (#366). */
-    margin: 0 16px;
-    padding: 12px 14px;
+    margin: 0 var(--chat-gutter);
+    padding: 12px var(--chat-card-inset);
     background: color-mix(in srgb, var(--vscode-charts-blue) 7%, transparent);
     border-radius: 8px;
 }
@@ -99,7 +99,6 @@
     bottom: 0;
     display: flex;
     align-items: center;
-    justify-content: space-between;
     line-height: 16px;
     opacity: 0;
     transition: opacity .16s ease .4s;
@@ -131,12 +130,16 @@
     color: inherit;
 }
 
-/* The row's actions as ONE flex item, so the foot's `space-between` reads as "timestamp left,
-   actions right" no matter how many buttons the row carries. */
+/* The row's actions as ONE flex item, so the foot reads as "timestamp left, actions right" no
+   matter how many buttons the row carries. `margin-left: auto` rather than `space-between` on the
+   foot: both place the group opposite the timestamp, but only the auto margin survives a wrap —
+   with `space-between` the actions would jump to the leading edge the moment they took their own
+   line. */
 .actions {
     display: flex;
     align-items: center;
     gap: 6px;
+    margin-left: auto;
 }
 
 /* Must not wrap: out of flow it has no height budget beyond the one reserved line, so a second line
@@ -157,6 +160,9 @@
 .dismiss {
     color: var(--vscode-descriptionForeground);
     font-size: 11px;
+    /* A label that breaks mid-word ("Solved" over "it") reads as a broken control rather than a
+       tight fit. The button keeps its width and the foot wraps around it instead. */
+    white-space: nowrap;
     padding: 2px 8px;
     border: 1px solid var(--vscode-widget-border, transparent);
     border-radius: 4px;
@@ -175,16 +181,32 @@
     line-height: 1.5;
 }
 
-/* An offer (or a Dismiss row) keeps its actions visible at rest — an offer you must hover to find
-   is no offer. The persistent variant pins the foot open regardless of hover/focus. Buttons are
-   targets, so this variant always stays in flow: it must never float over the row above it, even
-   if a future change lets a non-last row carry actions. */
+/* A row that carries actions at all — an offer, Dismiss, or Solved it — keeps them visible at rest:
+   an offer you must hover to find is no offer. The persistent variant pins the foot open regardless
+   of hover/focus. Buttons are targets, so this variant always stays in flow: it must never float
+   over the row above it, even if a future change lets a non-last row carry actions. */
 .foot.footPersistent {
     position: static;
     opacity: 1;
+    /* Only this variant may wrap. In flow it can take a second line, so in a narrow panel the
+       actions drop below the timestamp at full size instead of being squeezed. The resting variant
+       above stays single-line: out of flow it has no height beyond the one reserved line, and a
+       second line would grow upward over the row's own text. */
+    flex-wrap: wrap;
+    row-gap: 6px;
     margin-top: 6px;
     color: var(--vscode-foreground);
     transition: none;
+}
+
+/* The wrap above only moves the action GROUP onto its own line; the buttons inside it are still one
+   unbreakable run. Two offer buttons ("I'm still on it" / "I need more help") are wider than the
+   card at sidebar widths, so the group has to break internally too or it overflows the card edge.
+   They stay at the trailing edge as they break, under the buttons above them. */
+.footPersistent .actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: 6px;
 }
 
 /* In the persistent state the actions are the primary content, so they read as real buttons

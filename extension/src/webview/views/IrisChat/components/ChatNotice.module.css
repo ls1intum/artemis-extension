@@ -1,5 +1,5 @@
 .notice {
-    padding: 0 16px 6px;
+    padding: 0 var(--chat-gutter) 6px;
     font-size: 11px;
     line-height: 1.4;
     color: var(--vscode-descriptionForeground);
@@ -13,7 +13,7 @@
 
 /* The refusal flavour: same line, stated as a failure. */
 .noticeError {
-    padding: 0 16px 6px;
+    padding: 0 var(--chat-gutter) 6px;
     font-size: 11px;
     line-height: 1.4;
     color: var(--vscode-errorForeground);

@@ -2,7 +2,7 @@
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    padding: 4px 16px;
+    padding: 4px var(--chat-gutter);
     position: relative;
 }
 
@@ -19,7 +19,7 @@
 }
 
 .bubble {
-    padding: 12px 16px;
+    padding: 12px var(--chat-bubble-inset);
     border-radius: 12px;
     position: relative;
     word-wrap: break-word;
@@ -205,13 +205,13 @@
    disappearing, mirroring the Artemis web client, which keeps its rate buttons permanently visible.
 
    Sits in .bubbleColumn under the bubble, not inside it (see the note in MessageBubble.tsx).
-   The 16px inset lines the buttons up with the bubble's own text, which the bubble achieves
-   through its padding. */
+   The inset lines the buttons up with the bubble's own text, which the bubble achieves through its
+   padding, so both read the same token and stay aligned when the panel narrows. */
 .footRow {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding-left: 16px;
+    padding-left: var(--chat-bubble-inset);
     color: var(--vscode-descriptionForeground);
     transition: color 120ms ease;
 }

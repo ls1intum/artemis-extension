@@ -14,7 +14,7 @@
     gap: 4px;
     align-self: flex-start;
     /* Horizontal inset only, matching .episodeFoldLine — the parents own the vertical rhythm. */
-    margin: 0 16px;
+    margin: 0 var(--chat-gutter);
     padding: 2px 0;
     font-size: 12px;
     color: var(--vscode-descriptionForeground);

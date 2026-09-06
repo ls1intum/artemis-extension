@@ -100,9 +100,10 @@ export function EpisodeTimeline({ messages, episodeId, dismissable, onDismiss, o
                                 data-testid="row-foot"
                             >
                                 <span className={styles.time} data-testid="row-time">{formatRelativeTime(m.timestamp)}</span>
-                                {/* One group, so `space-between` has two children to place: the timestamp
-                                    left and the actions together on the right. Without it a second button
-                                    becomes a third flex item and the actions drift apart. */}
+                                {/* One group, so the foot has two children to place: the timestamp left and
+                                    the actions together on the right. Without it a second button becomes a
+                                    third flex item, the actions drift apart, and a wrap splits them across
+                                    two lines. */}
                                 <div className={styles.actions}>
                                 {showOfferButtons && offer && (
                                     <>

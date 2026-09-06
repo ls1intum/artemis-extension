@@ -31,9 +31,9 @@
     align-items: center;
     gap: 4px;
     align-self: flex-start;
-    /* Horizontal inset only: it aligns the row with .messageWrapper's 16px padding. A vertical
+    /* Horizontal inset only: the shared gutter aligns the row with .messageWrapper. A vertical
        margin would stack on the parent's gap and push this ~12px row far off the conversation. */
-    margin: 0 16px;
+    margin: 0 var(--chat-gutter);
     padding: 2px 0;
     font-size: 12px;
     color: var(--vscode-descriptionForeground);

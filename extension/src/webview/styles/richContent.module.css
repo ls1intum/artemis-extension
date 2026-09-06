@@ -41,8 +41,11 @@
     padding: 0.1em 0.35em;
     border-radius: 4px;
     font-family: var(--vscode-editor-font-family);
-    /* 0.9em was compounding the problem: a monospace face already reads smaller at the same size. */
-    font-size: 0.95em;
+    /* 0.9em was compounding the problem: a monospace face already reads smaller at the same size.
+       The token holds 0.95em everywhere except a sidebar-width panel, where it drops a step so that
+       a qualified identifier of ordinary length still fits on one line (see base.css). It buys room,
+       it does not forbid a break: a long enough token still wraps under the rule below. */
+    font-size: var(--chat-code-size);
     /* `anywhere` rather than `break-word`: only `anywhere` also shrinks the intrinsic min-content
        width, which is what a flex or grid parent measures when deciding how far the column may
        shrink. With `break-word` the token still wraps, but the parent has already been sized to
