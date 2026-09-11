@@ -63,15 +63,15 @@ suite('detectAndRegisterWorkspaceExercise outcome', () => {
         assert.strictEqual(clearStaleWorkspaceContext.calledOnce, true);
     });
 
-    test('an archived course whose detail cannot be read reports unreachable', async () => {
-        const getCourseForDashboard = sinon.stub().rejects(new Error('offline'));
-        const api = { getCourseForDashboard } as never;
+    test('an archived course whose exercises cannot be read reports unreachable', async () => {
+        const getCourseExercisesForOverview = sinon.stub().rejects(new Error('offline'));
+        const api = { getCourseExercisesForOverview } as never;
 
         const result = await searchArchivedCoursesForRepository(
-            api, 'https://artemis.example/git/AB/ab-student.git', [{ id: 1 } as never],
+            api, REPO_URL, [{ id: 1 } as never],
         );
 
-        assert.strictEqual(getCourseForDashboard.calledOnce, true,
+        assert.strictEqual(getCourseExercisesForOverview.calledOnce, true,
             'the probe must actually have been attempted');
         assert.strictEqual(result.entry, undefined);
         assert.strictEqual(result.reachable, false,
@@ -79,14 +79,64 @@ suite('detectAndRegisterWorkspaceExercise outcome', () => {
     });
 
     test('an archive searched successfully with no hit is reachable', async () => {
-        const api = { getCourseForDashboard: async () => ({ course: { id: 1 }, exercises: [] }) } as never;
+        const api = { getCourseExercisesForOverview: async () => [] } as never;
 
         const result = await searchArchivedCoursesForRepository(
-            api, 'https://artemis.example/git/AB/ab-student.git', [{ id: 1 } as never],
+            api, REPO_URL, [{ id: 1 } as never],
         );
 
         assert.strictEqual(result.entry, undefined);
         assert.strictEqual(result.reachable, true);
+    });
+
+    // The exercise-level `repositoryUri` is gone from the `exercises-for-overview`
+    // projection, so a practice participation next to the graded one is the normal
+    // shape, not an edge case: matching has to walk every participation.
+    test('a match on the second participation still finds the archived course', async () => {
+        const api = {
+            getCourseExercisesForOverview: sinon.stub().resolves([{
+                id: 5,
+                title: 'Archived Exercise',
+                studentParticipations: [
+                    { id: 1, repositoryUri: 'https://artemis.example/git/AB/ab-other.git' },
+                    { id: 2, repositoryUri: REPO_URL, testRun: true },
+                ],
+            }]),
+        } as never;
+
+        const result = await searchArchivedCoursesForRepository(
+            api, REPO_URL, [{ id: 77, title: 'Archived Course', semester: 'WS24/25' } as never],
+        );
+
+        assert.strictEqual(result.reachable, true);
+        assert.strictEqual(result.entry?.course?.id, 77);
+        assert.strictEqual(result.entry?.course?.title, 'Archived Course',
+            'the archive row is the only source of the course metadata now');
+        assert.deepStrictEqual(
+            (result.entry?.course?.exercises ?? []).map(e => e.id), [5],
+            'the fetched exercises must be attached to the entry the catalog stores',
+        );
+    });
+
+    test('one unreadable archived course does not stop the scan of the rest', async () => {
+        const getCourseExercisesForOverview = sinon.stub();
+        getCourseExercisesForOverview.withArgs(1).rejects(new Error('offline'));
+        getCourseExercisesForOverview.withArgs(2).resolves([{
+            id: 9,
+            title: 'Later Exercise',
+            studentParticipations: [{ id: 3, repositoryUri: REPO_URL }],
+        }]);
+        const api = { getCourseExercisesForOverview } as never;
+
+        const result = await searchArchivedCoursesForRepository(
+            api, REPO_URL, [{ id: 1 } as never, { id: 2 } as never],
+        );
+
+        assert.strictEqual(getCourseExercisesForOverview.callCount, 2,
+            'the failure of the first course must not abort the loop');
+        assert.strictEqual(result.entry?.course?.id, 2);
+        assert.strictEqual(result.reachable, false,
+            'the skipped course could have been a better match, so the scan stays unreachable');
     });
 
     test('an exercise with no course is not made the workspace exercise', async () => {

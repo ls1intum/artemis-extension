@@ -4,6 +4,24 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+### Changed
+
+- **Artemis 9.9 or newer is now required.** Artemis removed the endpoint that returned a single course together with its exercises, scores and participations, and it will not be part of Artemis 10. Everything the extension loaded through it now comes from the endpoints that replaced it, which Artemis added in 9.9 (checked against the 9.7, 9.8 and 9.9 tags). Against an older server the course list, the course detail and workspace detection will not work.
+- **Archived courses show less.** The course detail of an archived course no longer has a description, a student count or an instructor group. The archive list Artemis serves does not carry them, and the endpoint that used to supply them is gone. The header now carries an "Archived" badge so the thinner view reads as deliberate rather than as a failed load. Title, semester, ID and the exercise list are unchanged.
+- **Reloading a course detail is cheaper.** The reload button fetches only the course's exercises instead of the whole course payload, and keeps everything else as it was. Nothing you can see changes except that the wait is shorter.
+
+### Fixed
+
+- **Exercise not recognised when you also have a practice repository.** With both a graded and a practice participation, the extension kept whichever one Artemis happened to list first as the exercise's repository. When that was the practice one, a graded working copy matched nothing: the extension could not tell which exercise the folder belonged to, so the exercise did not light up in the course list and Iris did not pick it up as context. It now keeps the graded repository, which identifies both working copies, because a practice address can be resolved back to its graded form and not the other way round.
+
+### Internal
+
+- **Course routes use their canonical paths.** All course requests go to `api/course/courses` through a single constant. The `api/core/` spelling they also answered to was a deprecated alias, and Artemis has already dropped it from the controller behind the course overview.
+- **Exercises of one course come through an explicit adapter.** The replacement endpoint sends a projection rather than the exercise entity, and the type it is mapped onto is permissive enough that a wrong mapping would surface as `undefined` at each reader rather than as a compile error. The mapping is therefore written out field by field in one place, together with what is deliberately not mapped and why.
+- **Reloading a course detail no longer leaves the course list stale.** The reload wrote the refreshed course to the view state only, bypassing the catalog the exercise registry is rebuilt from, so the detail was fresh while the list and the registry still held the participations it had just replaced. The catalog gained a way to replace one course's exercises in the layer that course actually lives in, because its supplemental layer is beaten by the course list for every course the list holds, which is every active one. The reload does not re-stamp the course as recently visited, which a refresh is not.
+- **An archived course opened from the workspace is marked as archived.** The archived flag now travels on the course itself, so the start page, which maps the course record directly and cannot know where it came from, shows the same badge as the archive list does.
+- **A malformed exercise response is no longer read as an empty course.** Only an absent `exercises` key means "no exercises", which is how the server serializes an empty one. Anything else in that slot is rejected instead of blanking the exercise list.
+
 ## [0.5.1] - 2026-08-28
 
 ### Changed

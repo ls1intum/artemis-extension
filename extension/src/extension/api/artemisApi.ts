@@ -13,8 +13,8 @@ import type {
 } from '@extension/types';
 import type {
     CourseDashboardCourse,
-    CourseDashboardEntry,
     CourseDashboardResponse,
+    ExerciseDetail,
     ExerciseDetailsResponse,
     IrisChatMessage,
     IrisChatMode,
@@ -35,6 +35,7 @@ import {
     parseArtemisParticipation,
     parseArtemisUser,
     parseBuildLogEntry,
+    parseCourseExercisesForOverview,
     parseIrisHealthStatus,
     parseProfileInfo,
     parseProgrammingSubmission,
@@ -67,6 +68,15 @@ async function fetchWithTimeout(
         clearTimeout(timer);
     }
 }
+
+/**
+ * The canonical prefix of every course route.
+ *
+ * One constant rather than a literal per call, mirroring the Artemis web client's own
+ * `resourceUrl`. The `api/core/` spelling these routes also answered to was a deprecated alias and
+ * has already been dropped from the course overview controller server-side.
+ */
+const COURSES_BASE = '/api/course/courses';
 
 export class ArtemisApiService {
     private authManager: AuthManager;
@@ -268,7 +278,7 @@ export class ArtemisApiService {
 
     // Get archived courses (inactive courses from previous semesters)
     async getArchivedCourses(): Promise<CourseDashboardCourse[]> {
-        const response = await this.makeRequest('/api/course/courses/for-archive');
+        const response = await this.makeRequest(`${COURSES_BASE}/for-archive`);
         return expectArray<CourseDashboardCourse>(
             'archived courses',
             await response.json(),
@@ -278,13 +288,21 @@ export class ArtemisApiService {
 
     // Dashboard data carries exercises, participations and scores.
     async getCoursesForDashboard(): Promise<CourseDashboardResponse> {
-        const response = await this.makeRequest('/api/course/courses/for-dashboard');
+        const response = await this.makeRequest(`${COURSES_BASE}/for-dashboard`);
         return parseApiObject<CourseDashboardResponse>('CourseDashboardResponse', await response.json());
     }
 
-    async getCourseForDashboard(courseId: number): Promise<CourseDashboardEntry> {
-        const response = await this.makeRequest(`/api/course/courses/${courseId}/for-dashboard`);
-        return parseApiObject<CourseDashboardEntry>('CourseDashboardEntry', await response.json());
+    /**
+     * The exercises of one course, with the participations that carry their repository URIs.
+     *
+     * The per-course counterpart of {@link getCoursesForDashboard}. Its predecessor
+     * `courses/{id}/for-dashboard` returned the course and its exercises together and was deleted
+     * server-side; the course itself now comes from the dashboard list or from what is already
+     * cached, and only the exercises are fetched here.
+     */
+    async getCourseExercisesForOverview(courseId: number): Promise<ExerciseDetail[]> {
+        const response = await this.makeRequest(`${COURSES_BASE}/${courseId}/exercises-for-overview`);
+        return parseCourseExercisesForOverview(await response.json());
     }
 
     // The backend always includes studentParticipations with submissions and

@@ -4,9 +4,11 @@ import * as sinon from 'sinon';
 
 import type { WebCmd } from '@shared/messageContracts';
 
+import type { ArtemisApiService } from '@extension/api';
 import { NavigationCommandModule } from '@extension/controller/commands/navigationCommands';
 import type { CommandContext } from '@extension/controller/commands/types';
 import * as exerciseDataLoader from '@extension/controller/exerciseDataLoader';
+import { CourseCatalog } from '@extension/services/courseCatalog';
 
 suite('handleViewCourseDetails resolver', () => {
     let sandbox: sinon.SinonSandbox;
@@ -23,9 +25,9 @@ suite('handleViewCourseDetails resolver', () => {
 
     function buildContext(overrides: {
         coursesData?: { courses: Array<{ course: { id: number; title?: string } }> };
-        getCourseForDashboard?: sinon.SinonStub;
+        catalogFetch?: sinon.SinonStub;
         showCourseDetail?: sinon.SinonStub;
-        courseCatalog?: { upsertSupplemental: sinon.SinonStub };
+        upsertSupplemental?: sinon.SinonStub;
         courseAccessStorage?: { onCourseAccessed: sinon.SinonStub };
         sessionEpoch?: () => number;
     }): CommandContext {
@@ -34,52 +36,54 @@ suite('handleViewCourseDetails resolver', () => {
                 coursesData: overrides.coursesData,
                 showCourseDetail: overrides.showCourseDetail ?? sandbox.stub(),
             },
-            artemisApi: {
-                getCourseForDashboard: overrides.getCourseForDashboard
-                    ?? sandbox.stub().resolves({ course: undefined }),
-            },
-            actionHandler: { render: sandbox.stub() },
+            // The per-course dashboard endpoint is gone; a cache miss goes
+            // through the catalog's list fetch now, so this handler talks to no
+            // API method of its own.
+            artemisApi: {},
+            actionHandler: { render: sandbox.stub(), sendInitData: sandbox.stub() },
             courseAccessStorage: overrides.courseAccessStorage ?? { onCourseAccessed: sandbox.stub() },
             providerRegistry: { getChatWebviewProvider: () => undefined },
-            courseCatalog: overrides.courseCatalog ?? { upsertSupplemental: sandbox.stub() },
+            courseCatalog: {
+                fetch: overrides.catalogFetch ?? sandbox.stub().resolves(undefined),
+                upsertSupplemental: overrides.upsertSupplemental ?? sandbox.stub(),
+            },
             sessionEpoch: overrides.sessionEpoch ?? (() => 0),
         } as unknown as CommandContext;
     }
 
-    test('uses cache when course is present', async () => {
-        const showCourseDetail = sandbox.stub();
-        const getCourseForDashboard = sandbox.stub().resolves({ course: { id: 7, title: 'fetched' } });
-        const ctx = buildContext({
-            coursesData: { courses: [{ course: { id: 7, title: 'cached' } }] },
-            getCourseForDashboard,
-            showCourseDetail,
-        });
-        const mod = new NavigationCommandModule(ctx);
-
-        await mod.getHandlers().viewCourseDetails({
+    function viewCourse(mod: NavigationCommandModule, courseId: number): Promise<void> {
+        return mod.getHandlers().viewCourseDetails({
             type: 'command',
             command: 'viewCourseDetails',
-            payload: { courseId: 7 },
+            payload: { courseId },
         } satisfies WebCmd<'viewCourseDetails'>);
+    }
 
-        assert.strictEqual(getCourseForDashboard.callCount, 0, 'API must not be called on cache hit');
+    test('uses cache when course is present', async () => {
+        const showCourseDetail = sandbox.stub();
+        const catalogFetch = sandbox.stub().resolves({ courses: [{ course: { id: 7, title: 'fetched' } }] });
+        const ctx = buildContext({
+            coursesData: { courses: [{ course: { id: 7, title: 'cached' } }] },
+            catalogFetch,
+            showCourseDetail,
+        });
+
+        await viewCourse(new NavigationCommandModule(ctx), 7);
+
+        assert.strictEqual(catalogFetch.callCount, 0, 'network must not be touched on cache hit');
         assert.strictEqual(showCourseDetail.callCount, 1, 'showCourseDetail must be called on cache hit');
+        assert.strictEqual(showCourseDetail.firstCall.args[0].course.title, 'cached');
     });
 
     test('records the viewed course in the catalog, stamped with the session epoch', async () => {
         const upsertSupplemental = sandbox.stub();
         const ctx = buildContext({
             coursesData: { courses: [{ course: { id: 7, title: 'cached' } }] },
-            courseCatalog: { upsertSupplemental },
+            upsertSupplemental,
             sessionEpoch: () => 9,
         });
-        const mod = new NavigationCommandModule(ctx);
 
-        await mod.getHandlers().viewCourseDetails({
-            type: 'command',
-            command: 'viewCourseDetails',
-            payload: { courseId: 7 },
-        } satisfies WebCmd<'viewCourseDetails'>);
+        await viewCourse(new NavigationCommandModule(ctx), 7);
 
         assert.strictEqual(upsertSupplemental.callCount, 1);
         const [record, epoch] = upsertSupplemental.firstCall.args as [{ kind: string; entry: { course: { id: number } } }, number];
@@ -90,30 +94,25 @@ suite('handleViewCourseDetails resolver', () => {
 
     // `CommandContext.sessionEpoch`'s contract: captured BEFORE any await the
     // caller issues. Read after the fetch instead, and a logout, a 401 or a
-    // server-URL change landing while the detail request is open would stamp
+    // server-URL change landing while the list request is open would stamp
     // server A's course with the NEW session's generation, so the catalog's
     // guard waves it through and it renders in the Iris picker.
     test('stamps the viewed course with the epoch from before the fetch', async () => {
         const upsertSupplemental = sandbox.stub();
         let epoch = 4;
-        const getCourseForDashboard = sandbox.stub().callsFake(async () => {
+        const catalogFetch = sandbox.stub().callsFake(async () => {
             // The identity changes while the request is open.
             epoch = 5;
-            return { course: { id: 99, title: 'fetched' } };
+            return { courses: [{ course: { id: 99, title: 'fetched' } }] };
         });
         const ctx = buildContext({
             coursesData: { courses: [] },
-            getCourseForDashboard,
-            courseCatalog: { upsertSupplemental },
+            catalogFetch,
+            upsertSupplemental,
             sessionEpoch: () => epoch,
         });
-        const mod = new NavigationCommandModule(ctx);
 
-        await mod.getHandlers().viewCourseDetails({
-            type: 'command',
-            command: 'viewCourseDetails',
-            payload: { courseId: 99 },
-        } satisfies WebCmd<'viewCourseDetails'>);
+        await viewCourse(new NavigationCommandModule(ctx), 99);
 
         assert.strictEqual(upsertSupplemental.callCount, 1);
         assert.strictEqual(
@@ -129,89 +128,269 @@ suite('handleViewCourseDetails resolver', () => {
     test('stamps the recency write with the epoch from before the fetch', async () => {
         const onCourseAccessed = sandbox.stub();
         let epoch = 4;
-        const getCourseForDashboard = sandbox.stub().callsFake(async () => {
+        const catalogFetch = sandbox.stub().callsFake(async () => {
             epoch = 5;
-            return { course: { id: 99, title: 'fetched' } };
+            return { courses: [{ course: { id: 99, title: 'fetched' } }] };
         });
         const ctx = buildContext({
             coursesData: { courses: [] },
-            getCourseForDashboard,
+            catalogFetch,
             courseAccessStorage: { onCourseAccessed },
             sessionEpoch: () => epoch,
         });
-        const mod = new NavigationCommandModule(ctx);
 
-        await mod.getHandlers().viewCourseDetails({
-            type: 'command',
-            command: 'viewCourseDetails',
-            payload: { courseId: 99 },
-        } satisfies WebCmd<'viewCourseDetails'>);
+        await viewCourse(new NavigationCommandModule(ctx), 99);
 
         sinon.assert.calledOnceWithExactly(onCourseAccessed, 99, 4);
     });
 
-    test('falls back to getCourseForDashboard on cache miss', async () => {
+    test('refreshes the course list and resolves the course on a cache miss', async () => {
         const showCourseDetail = sandbox.stub();
-        const getCourseForDashboard = sandbox.stub().resolves({ course: { id: 99, title: 'fetched' } });
+        const catalogFetch = sandbox.stub().resolves({
+            courses: [{ course: { id: 1, title: 'other' } }, { course: { id: 99, title: 'fetched' } }],
+        });
         const ctx = buildContext({
             coursesData: { courses: [] },
-            getCourseForDashboard,
+            catalogFetch,
             showCourseDetail,
         });
-        const mod = new NavigationCommandModule(ctx);
 
-        await mod.getHandlers().viewCourseDetails({
-            type: 'command',
-            command: 'viewCourseDetails',
-            payload: { courseId: 99 },
-        } satisfies WebCmd<'viewCourseDetails'>);
+        await viewCourse(new NavigationCommandModule(ctx), 99);
 
-        assert.strictEqual(getCourseForDashboard.callCount, 1, 'API must be called once on cache miss');
-        sinon.assert.calledWith(getCourseForDashboard, 99);
-        assert.strictEqual(showCourseDetail.callCount, 1, 'showCourseDetail must be called after API fetch');
+        assert.strictEqual(catalogFetch.callCount, 1, 'the list must be refreshed once on cache miss');
+        sinon.assert.calledWith(catalogFetch, { force: true });
+        assert.strictEqual(showCourseDetail.callCount, 1, 'showCourseDetail must be called after the refresh');
+        assert.strictEqual(showCourseDetail.firstCall.args[0].course.title, 'fetched');
     });
 
-    test('shows error and aborts when mapper returns null', async () => {
-        const showCourseDetail = sandbox.stub();
-        const getCourseForDashboard = sandbox.stub().resolves({ course: { title: 'no-id' } });
-        const ctx = buildContext({
-            coursesData: { courses: [] },
-            getCourseForDashboard,
-            showCourseDetail,
-        });
-        const mod = new NavigationCommandModule(ctx);
+    // `CourseCatalog.fetch` answers `undefined` when the request failed, and a
+    // refreshed list that simply does not hold the course is the same dead end.
+    test('shows error and aborts when the refreshed list cannot resolve the course', async () => {
+        for (const refreshed of [undefined, { courses: [] }, { courses: [{ course: { title: 'no-id' } }] }]) {
+            showErrorMessage.resetHistory();
+            const showCourseDetail = sandbox.stub();
+            const ctx = buildContext({
+                coursesData: { courses: [] },
+                catalogFetch: sandbox.stub().resolves(refreshed),
+                showCourseDetail,
+            });
 
-        await mod.getHandlers().viewCourseDetails({
-            type: 'command',
-            command: 'viewCourseDetails',
-            payload: { courseId: 5 },
-        } satisfies WebCmd<'viewCourseDetails'>);
+            await viewCourse(new NavigationCommandModule(ctx), 5);
 
-        assert.strictEqual(showCourseDetail.callCount, 0, 'showCourseDetail must not be called');
-        assert.strictEqual(showErrorMessage.callCount, 1, 'error toast must be shown');
-        sinon.assert.calledWith(showErrorMessage, 'Course data is incomplete');
+            assert.strictEqual(showCourseDetail.callCount, 0, 'showCourseDetail must not be called');
+            sinon.assert.calledOnceWithExactly(showErrorMessage, 'Course data is incomplete');
+        }
     });
 
-    test('shows error toast when API throws on cache miss', async () => {
+    test('shows error toast when the refresh throws on cache miss', async () => {
         const showCourseDetail = sandbox.stub();
-        const apiError = new Error('boom');
-        const getCourseForDashboard = sandbox.stub().rejects(apiError);
         const ctx = buildContext({
             coursesData: { courses: [] },
-            getCourseForDashboard,
+            catalogFetch: sandbox.stub().rejects(new Error('boom')),
             showCourseDetail,
         });
-        const mod = new NavigationCommandModule(ctx);
 
-        await mod.getHandlers().viewCourseDetails({
-            type: 'command',
-            command: 'viewCourseDetails',
-            payload: { courseId: 12 },
-        } satisfies WebCmd<'viewCourseDetails'>);
+        await viewCourse(new NavigationCommandModule(ctx), 12);
 
         assert.strictEqual(showCourseDetail.callCount, 0, 'showCourseDetail must not be called');
         assert.strictEqual(showErrorMessage.callCount, 1, 'error toast must be shown');
         sinon.assert.calledWith(showErrorMessage, 'Error viewing course details');
+    });
+});
+
+/**
+ * A reload can no longer rebuild the course: the endpoint behind it returns
+ * exercises only. What it may not do is lose the scalars it never sees.
+ */
+suite('handleReloadCourseDetail', () => {
+    let sandbox: sinon.SinonSandbox;
+    let showErrorMessage: sinon.SinonStub;
+    let showCourseDetail: sinon.SinonStub;
+    let sendInitData: sinon.SinonStub;
+    let upsertSupplemental: sinon.SinonStub;
+    let replaceCourseExercises: sinon.SinonStub;
+    let onCourseAccessed: sinon.SinonStub;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        showErrorMessage = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as never);
+        showCourseDetail = sandbox.stub();
+        sendInitData = sandbox.stub();
+        upsertSupplemental = sandbox.stub();
+        replaceCourseExercises = sandbox.stub();
+        onCourseAccessed = sandbox.stub();
+    });
+
+    teardown(() => sandbox.restore());
+
+    const openCourse = {
+        course: {
+            id: 7,
+            title: 'Intro',
+            description: 'A course description the exercise endpoint never sends',
+            semester: 'WS24/25',
+            shortName: 'intro',
+            numberOfStudents: 120,
+            instructorGroupName: 'intro-instructors',
+            exercises: [{ id: 1, title: 'Stale' }],
+        },
+    };
+
+    function buildContext(overrides: {
+        currentCourseData?: unknown;
+        coursesData?: unknown;
+        getCourseExercisesForOverview?: sinon.SinonStub;
+        courseCatalog?: unknown;
+        sessionEpoch?: () => number;
+    }): CommandContext {
+        return {
+            appStateManager: {
+                currentCourseData: overrides.currentCourseData,
+                coursesData: overrides.coursesData,
+                showCourseDetail,
+            },
+            artemisApi: {
+                getCourseExercisesForOverview: overrides.getCourseExercisesForOverview ?? sandbox.stub().resolves([]),
+            },
+            actionHandler: { render: sandbox.stub(), sendInitData },
+            courseAccessStorage: { onCourseAccessed },
+            courseCatalog: overrides.courseCatalog
+                ?? { upsertSupplemental, replaceCourseExercises, fetch: sandbox.stub().resolves(undefined) },
+            sessionEpoch: overrides.sessionEpoch ?? (() => 0),
+        } as unknown as CommandContext;
+    }
+
+    function reload(ctx: CommandContext, courseId?: number): Promise<void> {
+        return new NavigationCommandModule(ctx).getHandlers().reloadCourseDetail({
+            type: 'command',
+            command: 'reloadCourseDetail',
+            payload: courseId === undefined ? {} : { courseId },
+        } as WebCmd<'reloadCourseDetail'>);
+    }
+
+    test('keeps the scalars the exercise endpoint does not carry', async () => {
+        const ctx = buildContext({
+            currentCourseData: openCourse,
+            getCourseExercisesForOverview: sandbox.stub().resolves([{ id: 2, title: 'Fresh' }]),
+        });
+
+        await reload(ctx, 7);
+
+        const shown = showCourseDetail.firstCall.args[0].course;
+        assert.strictEqual(shown.description, openCourse.course.description);
+        assert.strictEqual(shown.semester, 'WS24/25');
+        assert.strictEqual(shown.shortName, 'intro');
+        assert.strictEqual(shown.numberOfStudents, 120);
+        assert.strictEqual(shown.instructorGroupName, 'intro-instructors');
+    });
+
+    test('replaces the exercise list with the freshly fetched one', async () => {
+        const getCourseExercisesForOverview = sandbox.stub().resolves([
+            { id: 2, title: 'Fresh', studentParticipations: [{ id: 5, repositoryUri: 'https://git/2' }] },
+        ]);
+        const ctx = buildContext({ currentCourseData: openCourse, getCourseExercisesForOverview });
+
+        await reload(ctx, 7);
+
+        sinon.assert.calledOnceWithExactly(getCourseExercisesForOverview, 7);
+        const shown = showCourseDetail.firstCall.args[0].course;
+        assert.deepStrictEqual(shown.exercises.map((e: { id: number }) => e.id), [2]);
+        assert.strictEqual(sendInitData.callCount, 1, 'the webview is updated without a full re-render');
+    });
+
+    // The reload used to write app state only, which left the course list and
+    // the exercise registry showing the participations it had just replaced.
+    test('writes the refreshed course to the catalog, not only to app state', async () => {
+        // Through a REAL catalog seeded from a dashboard response, not a stub. A stub would
+        // happily record a write that the catalog then discards, which is exactly what a
+        // supplemental write does for a course the dashboard already holds.
+        const api = {
+            getCoursesForDashboard: async () => ({
+                courses: [{ course: { id: 7, title: 'Intro', exercises: [{ id: 1, title: 'Stale' }] } }],
+            }),
+        } as unknown as ArtemisApiService;
+        const catalog = new CourseCatalog(api);
+        await catalog.fetch();
+
+        const ctx = buildContext({
+            currentCourseData: openCourse,
+            getCourseExercisesForOverview: sandbox.stub().resolves([{ id: 2, title: 'Fresh' }]),
+            courseCatalog: catalog,
+            sessionEpoch: () => catalog.currentEpoch,
+        });
+
+        await reload(ctx, 7);
+
+        assert.deepStrictEqual(
+            catalog.projection().exercises.map(e => e.id),
+            [2],
+            'the catalog projection, which the exercise registry is rebuilt from, must see the reload',
+        );
+    });
+
+    // Recency orders the "recently accessed" list. A reload is not a visit to
+    // a course the student navigated to, so it must not reorder that list.
+    test('does not re-stamp course-access recency', async () => {
+        const ctx = buildContext({
+            currentCourseData: openCourse,
+            getCourseExercisesForOverview: sandbox.stub().resolves([]),
+        });
+
+        await reload(ctx, 7);
+
+        assert.strictEqual(onCourseAccessed.callCount, 0);
+    });
+
+    test('resolves the course from the cached list when the payload names another one', async () => {
+        const ctx = buildContext({
+            currentCourseData: openCourse,
+            coursesData: { courses: [{ course: { id: 8, title: 'Other', semester: 'SS25' } }] },
+            getCourseExercisesForOverview: sandbox.stub().resolves([{ id: 9, title: 'Fresh' }]),
+        });
+
+        await reload(ctx, 8);
+
+        const shown = showCourseDetail.firstCall.args[0].course;
+        assert.strictEqual(shown.id, 8);
+        assert.strictEqual(shown.semester, 'SS25');
+        assert.deepStrictEqual(shown.exercises.map((e: { id: number }) => e.id), [9]);
+    });
+
+    test('reports incomplete data when no course can be resolved', async () => {
+        const ctx = buildContext({
+            currentCourseData: undefined,
+            coursesData: { courses: [] },
+            getCourseExercisesForOverview: sandbox.stub().resolves([]),
+        });
+
+        await reload(ctx, 42);
+
+        assert.strictEqual(showCourseDetail.callCount, 0);
+        sinon.assert.calledOnceWithExactly(showErrorMessage, 'Course data is incomplete');
+        assert.strictEqual(sendInitData.callCount, 1);
+    });
+
+    test('does nothing when neither the payload nor the open course names an id', async () => {
+        const getCourseExercisesForOverview = sandbox.stub().resolves([]);
+        const ctx = buildContext({ currentCourseData: undefined, getCourseExercisesForOverview });
+
+        await reload(ctx);
+
+        assert.strictEqual(getCourseExercisesForOverview.callCount, 0);
+        assert.strictEqual(showErrorMessage.callCount, 0);
+    });
+
+    test('shows an error toast when the exercise fetch throws', async () => {
+        const ctx = buildContext({
+            currentCourseData: openCourse,
+            getCourseExercisesForOverview: sandbox.stub().rejects(new Error('boom')),
+        });
+
+        await reload(ctx, 7);
+
+        assert.strictEqual(showCourseDetail.callCount, 0);
+        sinon.assert.calledOnceWithExactly(showErrorMessage, 'Error reloading course details');
+        assert.strictEqual(sendInitData.callCount, 1);
     });
 });
 

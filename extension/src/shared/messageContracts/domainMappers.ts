@@ -37,7 +37,10 @@ export function toCourseDetailData(
             instructorGroupName: course.instructorGroupName,
             shortName: course.shortName,
             startDate: course.startDate,
-            isArchived: opts?.isArchived,
+            // An archived course reached through the workspace archive scan carries the flag
+            // itself, because the start page maps `entry.course` with no opts to pass. Opts still
+            // win, so a caller that knows better is not overridden by stale payload data.
+            isArchived: opts?.isArchived ?? (course.isArchived === true ? true : undefined),
         },
     };
 }
