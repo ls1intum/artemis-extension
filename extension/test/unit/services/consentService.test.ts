@@ -41,9 +41,12 @@ suite('ConsentService', () => {
             assert.strictEqual(service.consentLevel, ConsentLevel.Declined);
         });
 
-        test('should return basic when config returns basic', () => {
+        test('reads a stored legacy basic as pending, so it is asked again', () => {
+            // `basic` was never wired to anything: only `extended` starts the recorder, so a profile
+            // carrying it consented to nothing that ever ran. Declined would read that stale yes as
+            // a permanent no; pending asks again with copy that says what is actually recorded.
             mockConfig.get.returns('basic');
-            assert.strictEqual(service.consentLevel, ConsentLevel.Basic);
+            assert.strictEqual(service.consentLevel, ConsentLevel.Pending);
         });
 
         test('should return extended when config returns extended', () => {
@@ -62,7 +65,7 @@ suite('ConsentService', () => {
             mockConfig.get.returns('extended');
             assert.strictEqual(service.isExtendedCollectionEnabled, true);
 
-            mockConfig.get.returns('basic');
+            mockConfig.get.returns('declined');
             assert.strictEqual(service.isExtendedCollectionEnabled, false);
         });
     });
@@ -90,13 +93,13 @@ suite('ConsentService', () => {
             assert.ok(showInfoStub.notCalled, 'showInformationMessage should not be called');
         });
 
-        test('should not show notification when consent is basic', async () => {
+        test('prompts again for a stored legacy basic', async () => {
             mockConfig.get.returns('basic');
             const showInfoStub = sandbox.stub(vscode.window, 'showInformationMessage').resolves(undefined);
 
             await service.promptIfPending();
 
-            assert.ok(showInfoStub.notCalled, 'showInformationMessage should not be called');
+            assert.ok(showInfoStub.calledOnce, 'a stale yes to terms that no longer exist must be asked again');
         });
 
         test('should not show notification when consent is extended', async () => {
@@ -108,7 +111,9 @@ suite('ConsentService', () => {
             assert.ok(showInfoStub.notCalled, 'showInformationMessage should not be called');
         });
 
-        test('should set consent to basic when Accept is clicked', async () => {
+        test('should set consent to extended when Accept is clicked', async () => {
+            // The level the recorder actually gates on. Accepting used to store `basic`, which
+            // started nothing, so this build recorded nothing until settings.json was hand-edited.
             mockConfig.get.returns('pending');
             sandbox.stub(vscode.window, 'showInformationMessage').resolves('Accept' as any);
 
@@ -116,7 +121,7 @@ suite('ConsentService', () => {
 
             assert.ok(mockConfig.update.calledOnce, 'config.update should be called');
             assert.strictEqual(mockConfig.update.firstCall.args[0], 'dataCollectionConsent');
-            assert.strictEqual(mockConfig.update.firstCall.args[1], 'basic');
+            assert.strictEqual(mockConfig.update.firstCall.args[1], 'extended');
         });
 
         test('should set consent to declined when Decline is clicked', async () => {

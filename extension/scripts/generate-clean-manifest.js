@@ -42,8 +42,13 @@ function dropRecorderGroup(m) {
 }
 
 function dropStruggleGroup(m) {
-    // The legacy struggle settings were removed from the source manifest (#352), so only
-    // the struggle commands remain to drop for the clean build.
+    // The legacy struggle settings were removed from the source manifest (#352). The proactive-help
+    // consent is not one of them: it still gates the engine in the builds that HAVE an engine. Here
+    // the `@telemetry` seam resolves to noop.ts, so nothing reads the setting, no consent prompt
+    // fires and no proactive control is built. Leaving it contributed would offer a switch for
+    // local struggle detection this bundle does not contain.
+    const props = m.contributes && m.contributes.configuration && m.contributes.configuration.properties;
+    if (props) { delete props['artemis.iris.proactiveCodeEgress']; }
     dropCommandsAndMenuRefs(m, STRUGGLE_COMMANDS);
 }
 

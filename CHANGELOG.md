@@ -4,6 +4,16 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+### Changed
+
+- **Data collection consent:** The "basic" level is gone. It read as a middle option between declining and full participation, but nothing was ever gated on it, so choosing it collected exactly as much as declining did: nothing. The choice is now the one that was real all along, decline or take part, and accepting in the startup notification sets the level that actually records. A setting still holding "basic" from an earlier version is read as undecided and asked again, so nobody starts being recorded because of this change and nobody's earlier yes is quietly turned into a no. The notification also now says what taking part involves, instead of the vaguer "anonymous usage data": your edits, builds, terminal commands and Iris chats during exercises.
+
+- **Proactive help on Open VSX:** The "Proactive code egress" setting no longer appears in the Open VSX build (which is also what VSCodium and EduIDE install). That build ships without the struggle detection engine, so the switch controlled nothing: turning it on ran no detection and sent no code, and turning it off changed nothing either. Its description nevertheless described local typing and pause analysis. The desktop build, which has the engine, is unaffected.
+
+### Internal
+
+- **Settings audit (#465):** The two settings above were found by checking every entry in the manifest against the code behind it. A test now pins both halves of that: each contributed setting is still named somewhere in `src`, and each packaged build contributes only settings whose feature it actually bundles. The second half is the one with teeth: dropping a feature from a build without dropping its setting fails CI instead of leaving an inert switch in the student's Settings UI. The first is a floor, since a setting can still be mentioned by a listener after the code that read it is gone.
+
 ## [0.5.1] - 2026-08-28
 
 ### Changed
