@@ -202,7 +202,7 @@
             "No proactive help: no local struggle detection runs and no code is ever sent proactively"
           ],
           "default": "ask",
-          "markdownDescription": "Controls proactive help. When **enabled**, the extension runs local struggle detection (typing/pause analysis) during programming exercises and may send your current exercise code to Iris **only** when the detector flags that you may be stuck. When **disabled** (or while undecided), no local detection runs and no exercise observations or code are sent proactively. Separate from `artemis.dataCollectionConsent`."
+          "markdownDescription": "Controls proactive help. When **enabled**, the extension runs local struggle detection (typing/pause analysis) during programming exercises and may send your current exercise code to Iris **only** when the detector flags that you may be stuck. When **disabled** (or while undecided), no local detection runs and no exercise observations or code are sent proactively.\n\nThis is the global switch. How present Iris then is (Off / Less / More) is chosen in the **Ask Iris** card of an exercise and remembered for your account, so it applies to every exercise; it cannot turn proactive help on while this setting is off.\n\nThis setting governs proactive help only. It starts no research recording, and enables no collection beyond the code sent when the detector triggers."
         },
         "artemis.developerMode": {
           "type": "boolean",
@@ -257,17 +257,15 @@
           "enum": [
             "pending",
             "declined",
-            "basic",
             "extended"
           ],
           "default": "pending",
           "enumDescriptions": [
             "No decision made yet",
             "Data collection declined",
-            "Basic data collection (anonymized)",
-            "Extended data collection (detailed recordings)"
+            "Detailed session recordings, used for research"
           ],
-          "markdownDescription": "Controls your consent level for data collection used to improve Iris. **Extended** enables detailed telemetry for research purposes. You can change this at any time."
+          "markdownDescription": "Controls your consent for data collection used to improve Iris. **Extended** records your exercise sessions for research purposes: your edits and snapshots of your file contents, builds and test results, terminal commands and their output, your Iris chats, and how you move through the views. No session recording happens at any other level. You can change this at any time. Separate from `artemis.iris.proactiveCodeEgress`, which governs proactive help."
         }
       }
     },
