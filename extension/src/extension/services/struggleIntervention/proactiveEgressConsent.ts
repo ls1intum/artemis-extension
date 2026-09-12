@@ -9,6 +9,31 @@ export function isProactiveEgressEnabled(level: ProactiveEgressLevel): boolean {
     return level === 'enabled';
 }
 
+/**
+ * Whether Artemis can act on proactive help yet.
+ *
+ * The server side lives in Artemis #13023, which is not released. Against a server without it the
+ * first intervention gets a 404, the orchestrator latches `serverAvailable = false`, and every
+ * alert after that takes the silent path. Nothing breaks, but a student who accepted a prompt
+ * would be waiting for help that can never arrive, with nothing to tell them why.
+ *
+ * Flip this to `true` in the release that follows the Artemis one, and replace it with a read of
+ * `proactiveStruggleEnabled` from the course's Iris settings once that field is dependable. It is
+ * not yet: `IrisCourseSettings` is serialized NON_EMPTY with the field nullable, so its absence
+ * means "no instructor has set it" just as much as "this server is too old".
+ */
+const SERVER_FEATURE_RELEASED = false;
+
+/**
+ * Whether to ask the student about proactive help at all.
+ *
+ * Separate from {@link isProactiveEgressEnabled}: that one decides whether code may leave, this
+ * one decides whether the question is worth asking. Undecided is a precondition, not the only one.
+ */
+export function shouldAskForProactiveEgress(level: ProactiveEgressLevel): boolean {
+    return SERVER_FEATURE_RELEASED && level === 'ask';
+}
+
 export class ProactiveEgressConsent {
     get level(): ProactiveEgressLevel {
         return vscode.workspace
@@ -26,9 +51,12 @@ export class ProactiveEgressConsent {
             .update(VSCODE_CONFIG.IRIS.PROACTIVE_EGRESS_KEY, level, vscode.ConfigurationTarget.Global);
     }
 
-    /** Prompt once, only while undecided (mirrors ConsentService.promptIfPending). */
+    /**
+     * Prompt once, only while undecided AND only while the question is worth asking
+     * (see {@link shouldAskForProactiveEgress}). Mirrors ConsentService.promptIfPending.
+     */
     async promptIfAsk(): Promise<void> {
-        if (this.level !== 'ask') {
+        if (!shouldAskForProactiveEgress(this.level)) {
             return;
         }
         const choice = await vscode.window.showInformationMessage(
