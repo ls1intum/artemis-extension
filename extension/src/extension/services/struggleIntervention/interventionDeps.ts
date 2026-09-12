@@ -202,7 +202,6 @@ export interface StruggleInterventionDeps {
 }
 
 // Default slot config (mirrors TUNING.slot; injected so tests can override).
-// Default slot config (mirrors TUNING.slot; injected so tests can override).
 export const DEFAULT_SLOT_CFG: StaleConfig = {
     idleAbandonMs: 600_000,
     warnLeadMs: 60_000,
