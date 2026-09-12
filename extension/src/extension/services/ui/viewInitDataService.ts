@@ -50,7 +50,6 @@ export class ViewInitDataService {
             case 'exercise-detail':        return this.sendExerciseDetailInit();
             case 'ai-config':              return this.sendAiConfigInit();
             case 'struggle-detection':     return this.sendStruggleDetectionInit();
-            case 'service-status':         return this.sendServiceStatusInit();
             case 'recommended-extensions': return this.sendRecommendedExtensionsInit();
             case 'git-credentials':        return this.sendGitCredentialsInit();
             case 'login':                  return this.sendLoginInit();
@@ -353,11 +352,6 @@ export class ViewInitDataService {
 
     public sendStruggleDetectionInit(): void {
         this._postMessage(this.buildStruggleDetectionInit());
-    }
-
-    public sendServiceStatusInit(): void {
-        const serverUrl = this._appStateManager.userInfo?.serverUrl;
-        this._postMessage({ type: ExtensionMsg.ServiceStatusInit, serverUrl });
     }
 
     public sendRecommendedExtensionsInit(): void {

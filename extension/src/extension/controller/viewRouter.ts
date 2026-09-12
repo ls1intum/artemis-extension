@@ -12,7 +12,6 @@ const STATE_TO_VIEW: Record<AppState, string> = {
     'course-detail': 'courseDetail',
     'exercise-detail': 'exerciseDetail',
     'ai-config': 'aiConfig',
-    'service-status': 'serviceStatus',
     'struggle-detection': 'struggleDetection',
     'recommended-extensions': 'recommendedExtensions',
     'git-credentials': 'gitCredentials',

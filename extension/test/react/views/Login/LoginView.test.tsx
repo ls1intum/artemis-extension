@@ -727,7 +727,7 @@ describe('LoginView - progress indicator and ownership', () => {
             // The extension had already answered the attempt the user has since retracted. A loginError
             // (not loginSuccess) is used deliberately: cancelAttempt() already clears everything a
             // loginSuccess would set, so only a message type that touches state cancelAttempt leaves
-            // alone (statusMessage, the health-check panel) can actually prove the guard is doing anything.
+            // alone (statusMessage) can actually prove the guard is doing anything.
             act(() => { dispatchExtensionMessage({ type: 'loginError', error: 'stale attempt error', attemptId }); });
 
             expect(screen.queryByTestId('login-progress')).not.toBeInTheDocument();

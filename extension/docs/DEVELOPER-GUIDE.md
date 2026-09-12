@@ -106,8 +106,7 @@ extension/
 │   │               ├── GitCredentials/
 │   │               ├── IrisChat/
 │   │               ├── Login/
-│   │               ├── RecommendedExtensions/
-│   │               └── ServiceStatus/
+│   │               └── RecommendedExtensions/
 │   └── extension.ts                 # Extension entry point
 ├── test/                             # Test files
 │   ├── api/
