@@ -1,3 +1,5 @@
+import { mmss } from '@shared/utils/mmss';
+
 import type { TickRecord } from '@extension/services/struggle/types';
 
 export type AlertBarKind = 'firing' | 'gated' | 'armed';
@@ -59,12 +61,6 @@ export interface AlertBarDisplay {
     text: string;
     tooltip: string;
     background: 'error' | 'warning' | null;
-}
-
-/** Seconds → "M:SS" (ceil, so a countdown stays at 1 until it truly hits 0). */
-function mmss(totalSeconds: number): string {
-    const s = Math.max(0, Math.ceil(totalSeconds));
-    return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 }
 
 /**

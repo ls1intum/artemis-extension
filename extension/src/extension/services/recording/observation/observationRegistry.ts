@@ -311,7 +311,8 @@ export class ObservationRegistry {
      * GDPR-strict: on consent downgrade, DISCARD buffered debounce payloads.
      * Consent is revoked, so the last cached keystroke derivative must not hit
      * disk. Does NOT dispose subscriptions; that happens next via
-     * disposeSubscriptions() during _doDisable.
+     * disposeSubscriptions() during _doDisable, which reuses this method for
+     * exactly that clearing before detaching its listeners.
      */
     discardDebouncesForConsentDowngrade(): void {
         for (const timer of this._selectionDebounceTimers.values()) {
@@ -343,17 +344,7 @@ export class ObservationRegistry {
      * `entry.aborted` suppresses any later record call.
      */
     disposeSubscriptions(): void {
-        for (const timer of this._selectionDebounceTimers.values()) {
-            clearTimeout(timer);
-        }
-        this._selectionDebounceTimers.clear();
-        this._pendingSelectionPayloads.clear();
-        for (const timer of this._visibleRangeDebounceTimers.values()) {
-            clearTimeout(timer);
-        }
-        this._visibleRangeDebounceTimers.clear();
-        this._pendingVisibleRangePayloads.clear();
-        this._terminalCollector.abortAllPending();
+        this.discardDebouncesForConsentDowngrade();
         while (this._eventListenerDisposables.length > 0) {
             const disposable = this._eventListenerDisposables.pop();
             disposable?.dispose();

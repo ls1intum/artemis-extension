@@ -61,6 +61,15 @@ export interface WebviewNavigationFacadeDeps {
  * (rendering HTML, posting messages, scheduling SSR) are exposed as callbacks
  * via `WebviewNavigationFacadeDeps`.
  */
+/** VS Code's extension list keyed by lowercased id, so a blocklist or recommendation lookup is O(1). */
+function indexInstalledExtensions(): Map<string, vscode.Extension<unknown>> {
+    const installed = new Map<string, vscode.Extension<unknown>>();
+    for (const ext of vscode.extensions.all) {
+        installed.set(ext.id.toLowerCase(), ext);
+    }
+    return installed;
+}
+
 export class WebviewNavigationFacade implements WebViewActionHandler {
     constructor(private readonly deps: WebviewNavigationFacadeDeps) { }
 
@@ -214,10 +223,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
     }
 
     public showAiConfig(): void {
-        const installedExtensions = new Map<string, vscode.Extension<unknown>>();
-        for (const ext of vscode.extensions.all) {
-            installedExtensions.set(ext.id.toLowerCase(), ext);
-        }
+        const installedExtensions = indexInstalledExtensions();
 
         const aiExtensions = Object.entries(AI_EXTENSIONS_BLOCKLIST)
             .flatMap(([providerName, providerData]) => {
@@ -243,10 +249,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
     }
 
     public showRecommendedExtensions(): void {
-        const installedExtensions = new Map<string, vscode.Extension<unknown>>();
-        for (const ext of vscode.extensions.all) {
-            installedExtensions.set(ext.id.toLowerCase(), ext);
-        }
+        const installedExtensions = indexInstalledExtensions();
 
         const recommendedCategories = getRecommendedExtensionsByCategory().map(category => ({
             ...category,
