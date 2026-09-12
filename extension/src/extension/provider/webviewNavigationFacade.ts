@@ -47,6 +47,8 @@ export interface WebviewNavigationFacadeDeps {
     sendInitData: () => void;
     backgroundRenderProblemStatement: () => void;
     getServerUrl: () => string;
+    /** Started once per server after sign-in. Fire and forget; see navigateToStartPage. */
+    checkServerVersion: (serverUrl: string) => void;
     /** Open the developer struggle view in its own editor tab. Supplied by the provider (which owns the
      *  struggle coordinator behind the @telemetry seam); absent in the clean build. */
     openStruggleFullscreen?: () => void;
@@ -164,6 +166,11 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
     }
 
     public async navigateToStartPage(userInfo: UserInfo): Promise<void> {
+        // Fire and forget, before the switch, so every branch below is covered by
+        // one call site. Deliberately not awaited: the sign-in handover is not
+        // allowed to wait on a diagnostic, nor to fail because one did.
+        this.deps.checkServerVersion(this.deps.getServerUrl());
+
         // Everything `resolve()` returns was fetched under THIS session, so
         // the epoch that guards writing it back has to be read before the
         // request, not after the answer.

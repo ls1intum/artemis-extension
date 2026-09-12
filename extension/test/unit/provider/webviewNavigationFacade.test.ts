@@ -94,6 +94,7 @@ suite('WebviewNavigationFacade', () => {
         sendInitData: sinon.SinonStub;
         backgroundRenderProblemStatement: sinon.SinonStub;
         getServerUrl: sinon.SinonStub;
+        checkServerVersion: (serverUrl: string) => void;
     }
 
     function buildDeps(overrides: Partial<DepStubs> = {}): {
@@ -149,6 +150,7 @@ suite('WebviewNavigationFacade', () => {
             sendInitData: overrides.sendInitData ?? sandbox.stub(),
             backgroundRenderProblemStatement: overrides.backgroundRenderProblemStatement ?? sandbox.stub(),
             getServerUrl: overrides.getServerUrl ?? sandbox.stub().returns('https://artemis.example/'),
+            checkServerVersion: overrides.checkServerVersion ?? sandbox.stub(),
         };
 
         const deps = {
@@ -165,6 +167,7 @@ suite('WebviewNavigationFacade', () => {
             sendInitData: stubs.sendInitData,
             backgroundRenderProblemStatement: stubs.backgroundRenderProblemStatement,
             getServerUrl: stubs.getServerUrl,
+            checkServerVersion: stubs.checkServerVersion,
         } as unknown as WebviewNavigationFacadeDeps;
 
         return { deps, stubs };
@@ -246,6 +249,26 @@ suite('WebviewNavigationFacade', () => {
         facade.showLogin();
 
         sinon.assert.calledOnce(stubs.render);
+    });
+
+    test('navigateToStartPage starts the version check and does not wait for it', async () => {
+        const checked: string[] = [];
+        const { deps } = buildDeps({
+            getServerUrl: sandbox.stub().returns('https://artemis.tum.de'),
+            checkServerVersion: (url: string) => {
+                checked.push(url);
+                // Never settles. If navigateToStartPage is ever changed to await
+                // this call, the test times out instead of quietly passing. A
+                // callback returning undefined would NOT catch that: `await
+                // undefined` resolves immediately.
+                return new Promise<void>(() => { /* deliberately pending */ });
+            },
+        } as Partial<DepStubs>);
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.navigateToStartPage({ username: 'u', serverUrl: 'https://artemis.tum.de', user: {} as never });
+
+        assert.deepStrictEqual(checked, ['https://artemis.tum.de']);
     });
 
     test('showLogin: posts SetServerUrl message with getServerUrl value', () => {
