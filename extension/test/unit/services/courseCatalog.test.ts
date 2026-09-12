@@ -2,7 +2,9 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 
 import type { ArtemisApiService } from '@extension/api';
-import { CourseCatalog } from '@extension/services/courseCatalog';
+import { CourseCatalog, toRegistryEntries } from '@extension/services/courseCatalog';
+import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import { findExerciseByRepositoryUrl } from '@extension/services/workspace/workspaceDetectionService';
 import type { CourseDashboardEntry, CourseDashboardResponse } from '@extension/types';
 
 function entry(courseId: number, title: string, exercises: Array<Record<string, unknown>> = []): CourseDashboardEntry {
@@ -255,6 +257,42 @@ suite('CourseCatalog', () => {
         assert.strictEqual(projected?.pickable, true);
     });
 
+    /**
+     * The server lists the practice participation first, so the graded
+     * repository the student actually cloned is the SECOND one. Projecting the
+     * first participation put the practice URI into the registry, where the
+     * graded remote matched nothing: the exact pass misses and the
+     * practice-to-graded degradation has nothing to degrade.
+     *
+     * Asserted through a real registry, because that is the collapse the bug
+     * happened in: `ExerciseRegistryEntry` holds ONE repository uri per
+     * exercise, so which participation the projection picks decides the match.
+     */
+    test('an exercise whose graded repository is its second participation is findable by both remotes', () => {
+        const graded = 'https://git.example.org/git/EX/ex-student.git';
+        const practice = 'https://git.example.org/git/EX/ex-practice-student.git';
+        const catalog = new CourseCatalog({} as ArtemisApiService);
+        catalog.upsertSupplemental({
+            kind: 'course',
+            entry: entry(1, 'Archived', [{
+                id: 10, title: 'E',
+                studentParticipations: [
+                    { id: 55, testRun: true, repositoryUri: practice },
+                    { id: 77, testRun: false, repositoryUri: graded },
+                ],
+            }]),
+        }, 0);
+
+        const registry = new ExerciseRegistry();
+        registry.replaceAll(toRegistryEntries(catalog.projection()));
+
+        assert.strictEqual(catalog.projection().exercises.length, 1, 'one exercise, not one per participation');
+        assert.strictEqual(findExerciseByRepositoryUrl(graded, registry.getAllExercises())?.id, 10);
+        assert.strictEqual(findExerciseByRepositoryUrl(practice, registry.getAllExercises())?.id, 10);
+        // The reverse lookup has to name the participation the uri came from.
+        assert.strictEqual(registry.getExerciseIdByParticipation(77), 10);
+    });
+
     test('an exercise with no participation is projected but not pickable', async () => {
         const api = { getCoursesForDashboard: sandbox.stub().resolves({ courses: [entry(1, 'C', [exercise(10, 'E')])] }) } as unknown as ArtemisApiService;
         const catalog = new CourseCatalog(api);
@@ -323,5 +361,69 @@ suite('CourseCatalog', () => {
         resolve(1, { courses: [entry(1, 'C')] });
         await forced;
         assert.strictEqual(callCount(), 2);
+    });
+
+    suite('replaceCourseExercises', () => {
+        test('refreshes a course the dashboard already holds', async () => {
+            // `get()` and `projection()` both let a dashboard entry win over the supplemental
+            // layer, so writing a reload through `upsertSupplemental` changes nothing for an
+            // active course. It has to land in the authoritative layer.
+            const { api, resolve } = fakeApi();
+            const catalog = new CourseCatalog(api);
+            const pending = catalog.fetch();
+            resolve(0, { courses: [entry(7, 'C', [exercise(10, 'Old', 'https://git/old', 1)])] });
+            await pending;
+
+            catalog.replaceCourseExercises(7, [exercise(11, 'New', 'https://git/new', 2)], catalog.currentEpoch);
+
+            const projected = catalog.projection().exercises;
+            assert.deepStrictEqual(projected.map(e => e.id), [11]);
+            assert.strictEqual(projected[0].repositoryUri, 'https://git/new');
+            assert.deepStrictEqual(
+                catalog.get()?.courses?.flatMap(c => (c.course?.exercises ?? []).map(e => e.id)),
+                [11],
+            );
+        });
+
+        test('an emptied course really empties', async () => {
+            // The reload answering with no exercises is the case a stale dashboard entry hides.
+            const { api, resolve } = fakeApi();
+            const catalog = new CourseCatalog(api);
+            const pending = catalog.fetch();
+            resolve(0, { courses: [entry(7, 'C', [exercise(10, 'Old', 'https://git/old', 1)])] });
+            await pending;
+
+            catalog.replaceCourseExercises(7, [], catalog.currentEpoch);
+
+            assert.deepStrictEqual(catalog.projection().exercises, []);
+        });
+
+        test('keeps the course record of a supplemental-only course', () => {
+            // Archived courses live in the supplemental layer. Replacing the record wholesale
+            // would drop the title the archive row supplied.
+            const { api } = fakeApi();
+            const catalog = new CourseCatalog(api);
+            catalog.upsertSupplemental(
+                { kind: 'course', entry: entry(9, 'Archived C', [exercise(20, 'A')]) },
+                catalog.currentEpoch,
+            );
+
+            catalog.replaceCourseExercises(9, [exercise(21, 'B')], catalog.currentEpoch);
+
+            assert.strictEqual(catalog.projection().courses.find(c => c.id === 9)?.title, 'Archived C');
+            assert.deepStrictEqual(catalog.projection().exercises.map(e => e.id), [21]);
+        });
+
+        test('rejects a write from another session', async () => {
+            const { api, resolve } = fakeApi();
+            const catalog = new CourseCatalog(api);
+            const pending = catalog.fetch();
+            resolve(0, { courses: [entry(7, 'C', [exercise(10, 'Old', 'https://git/old', 1)])] });
+            await pending;
+
+            catalog.replaceCourseExercises(7, [exercise(11, 'New')], catalog.currentEpoch + 1);
+
+            assert.deepStrictEqual(catalog.projection().exercises.map(e => e.id), [10]);
+        });
     });
 });
