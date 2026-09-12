@@ -565,6 +565,29 @@ suite('Artemis API Service Test Suite', () => {
             assert.ok(!/object Object/.test(message), message);
         });
 
+        test('an HTML body with no content type at all is still caught', async () => {
+            // A server that declares nothing still sends what it sends.
+            respondWith(500, '<!DOCTYPE html><html><body>gateway error</body></html>', 'Server Error');
+
+            const message = await messageOf();
+            assert.ok(!/DOCTYPE|<html/i.test(message), `HTML leaked into the message: ${message}`);
+        });
+
+        test('an undeclared plain-text body starting with a bracket is not mistaken for HTML', async () => {
+            // The sniff is narrow on purpose: a doctype or an <html> tag, nothing else.
+            respondWith(500, '<login denied by policy>', 'Server Error');
+
+            assert.strictEqual(await messageOf(), '500 Server Error - <login denied by policy>');
+        });
+
+        test('a non-string field does not shadow a usable one behind it', async () => {
+            // Picking the first truthy field and type-checking afterwards threw away
+            // this `message` and fell back to the raw JSON body.
+            respondWith(500, JSON.stringify({ title: {}, message: 'the real reason' }), 'Server Error', 'application/json');
+
+            assert.strictEqual(await messageOf(), '500 Server Error - the real reason');
+        });
+
         test('a plain-text error still reaches the message, even one starting with a bracket', async () => {
             // The declared content type decides, not a leading "<". The bracket
             // heuristic this replaced would have eaten this message, and every

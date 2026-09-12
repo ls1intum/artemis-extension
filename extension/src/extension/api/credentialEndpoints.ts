@@ -134,18 +134,28 @@ export async function authenticateWithPassword(
         // leading "<", which would also eat XML and a legitimate plain-text
         // message that happens to start with a bracket.
         const contentType = (response.headers.get('content-type') ?? '').toLowerCase();
-        const isHtml = contentType.includes('text/html') || contentType.includes('application/xhtml');
+        const declaresHtml = contentType.includes('text/html') || contentType.includes('application/xhtml');
+        // A server that declares nothing still sends what it sends. Sniffing is a
+        // last resort and stays deliberately narrow: only a body that opens with a
+        // doctype or an <html> tag counts, so plain text starting with a bracket
+        // and XML that is not a document are untouched.
+        const looksLikeHtml = contentType === '' && /^\s*(<!doctype\s+html|<html[\s>])/i.test(rawError);
+        const isHtml = declaresHtml || looksLikeHtml;
         let parsedMessage = isHtml ? '' : rawError.trim();
 
         if (parsedMessage) {
             try {
                 const parsed: unknown = JSON.parse(rawError);
                 if (parsed && typeof parsed === 'object') {
-                    const errorObj = parsed as { title?: string; message?: string; detail?: string; error?: string };
-                    const field = errorObj.title || errorObj.message || errorObj.detail || errorObj.error;
-                    // Only a string is a message. A JSON object here would otherwise
-                    // reach the user as "[object Object]".
-                    parsedMessage = typeof field === 'string' ? field : parsedMessage;
+                    const errorObj = parsed as Record<string, unknown>;
+                    // First non-empty STRING among the four, not first truthy value.
+                    // Picking the truthy one first and type-checking afterwards threw
+                    // away a usable `message` whenever `title` happened to be an
+                    // object, and fell back to the raw JSON body instead.
+                    const field = ['title', 'message', 'detail', 'error']
+                        .map(key => errorObj[key])
+                        .find((value): value is string => typeof value === 'string' && value.length > 0);
+                    parsedMessage = field ?? parsedMessage;
                 }
             } catch (parseError) {
                 // Fall back to plain text error message when JSON parsing fails
