@@ -143,24 +143,6 @@
   opacity: 1;
 }
 
-/* Build error action */
-.buildErrorAction {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 0;
-  font-size: 13px;
-  color: var(--vscode-errorForeground, #f14c4c);
-}
-
-/* Test results error */
-.testResultsError {
-  padding: 8px 0;
-  font-size: 13px;
-  color: var(--vscode-errorForeground, #f14c4c);
-}
-
 /* Developer tools */
 .devTools {
   display: flex;

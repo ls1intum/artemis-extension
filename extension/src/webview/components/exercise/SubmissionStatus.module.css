@@ -90,11 +90,6 @@
   color: white;
 }
 
-.statusBadgePartial {
-  background: #ff9800;
-  color: white;
-}
-
 .statusBadgeFailed {
   background: var(--vscode-errorForeground, #f48771);
   color: white;
@@ -126,14 +121,6 @@
 
 .scoreError {
   color: var(--vscode-errorForeground, #f48771);
-}
-
-/* Test results section */
-.testResultsToggleContainer {
-  margin-top: 12px;
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
 }
 
 /* Redesigned build row */
