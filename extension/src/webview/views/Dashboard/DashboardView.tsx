@@ -18,6 +18,7 @@ import { Button, Container, IconButton, ListItem, Skeleton, SkeletonList } from 
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 import { useDashboardStore } from '@webview/stores/useDashboardStore';
 import { getIcon } from '@webview/utils/iconMap';
+import { readInjectedUri } from '@webview/utils/injectedUri';
 
 import styles from './DashboardView.module.css';
 import type { DashboardViewProps, RecentCourseNode } from './types';
@@ -128,7 +129,7 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                         onClick={handleOpenWebsite}
                     >
                         <img
-                            src={document.getElementById('root')?.dataset.logoUri}
+                            src={readInjectedUri('logoUri')}
                             alt="Artemis"
                             className={styles.artemisHeaderLogo}
                         />
