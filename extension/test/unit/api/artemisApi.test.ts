@@ -543,6 +543,28 @@ suite('Artemis API Service Test Suite', () => {
             assert.strictEqual(message, '404 Not Found');
         });
 
+        test('an HTML error page is caught whatever the case of its content type', async () => {
+            // A server writing TEXT/HTML is unusual and entirely legal. Matching
+            // case-sensitively let the whole document through.
+            respondWith(404, '<!DOCTYPE html><html><body>nope</body></html>', 'Not Found', 'TEXT/HTML');
+
+            assert.strictEqual(await messageOf(), '404 Not Found');
+        });
+
+        test('an xhtml error page is caught too', async () => {
+            respondWith(404, '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"/>', 'Not Found', 'application/xhtml+xml');
+
+            assert.strictEqual(await messageOf(), '404 Not Found');
+        });
+
+        test('a JSON field that is not a string does not become the message', async () => {
+            // `{"title": {...}}` used to reach the user as "[object Object]".
+            respondWith(500, JSON.stringify({ title: { length: 201 } }), 'Server Error', 'application/json');
+
+            const message = await messageOf();
+            assert.ok(!/object Object/.test(message), message);
+        });
+
         test('a plain-text error still reaches the message, even one starting with a bracket', async () => {
             // The declared content type decides, not a leading "<". The bracket
             // heuristic this replaced would have eaten this message, and every
@@ -550,14 +572,6 @@ suite('Artemis API Service Test Suite', () => {
             respondWith(500, '<login denied by policy>', 'Server Error', 'text/plain');
 
             assert.strictEqual(await messageOf(), '500 Server Error - <login denied by policy>');
-        });
-
-        test('a very long message is truncated', async () => {
-            respondWith(500, JSON.stringify({ title: 'x'.repeat(500) }), 'Server Error', 'application/json');
-
-            const message = await messageOf();
-            // The bound is on the finished message, ellipsis included.
-            assert.ok(message.length <= 200, `not truncated: ${message.length} characters`);
         });
 
         test('400/401 throw the server message verbatim', async () => {

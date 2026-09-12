@@ -26,15 +26,31 @@ export function describeLoginFailure(error: unknown): string {
         return DEFAULT_MESSAGE;
     }
 
-    const normalized = (error.message || '')
-        .trim()
-        .replace(/^login failed[:]?\s*/i, '')
-        .trim();
+    const normalized = oneLine(
+        (error.message || '')
+            .trim()
+            .replace(/^login failed[:]?\s*/i, '')
+            .trim(),
+    );
 
     if (error instanceof ApiError) {
         return byStatus(error.status, normalized);
     }
     return byText(normalized);
+}
+
+/**
+ * A login error is one line in a banner, not a document.
+ *
+ * Bounded HERE rather than where each message is thrown, because this is the
+ * single point both login stages pass through. The password submit builds its
+ * own message in `credentialEndpoints`, but the login-options lookup comes from
+ * `makeRequest`, whose `errorDetail` is whatever the server sent and is under no
+ * length limit at all. Bounding only the first left the second unguarded.
+ */
+function oneLine(text: string): string {
+    const collapsed = text.replace(/\s+/g, ' ').trim();
+    return collapsed.length > 200 ? `${collapsed.slice(0, 197)}...` : collapsed;
 }
 
 function byStatus(status: number, normalized: string): string {

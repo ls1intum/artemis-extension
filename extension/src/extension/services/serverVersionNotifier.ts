@@ -6,9 +6,9 @@ import { CONFIG } from '@extension/utils';
 export interface ServerVersionNotifierDeps {
     /**
      * An UNAUTHENTICATED GET. Never `makeRequest` or `getProfileInfo`: their 401
-     * branch clears the stored credential and fires the auth-expired handler
-     * (`artemisApi.ts:106-125`), and this check runs beside a fresh sign-in. A
-     * diagnostic must not be able to sign the user out.
+     * branch clears the stored credential and fires the auth-expired handler, and
+     * this check runs beside a fresh sign-in. A diagnostic must not be able to
+     * sign the user out.
      *
      * Takes `init` rather than building it here on purpose: that is what lets the
      * test assert no headers are sent. With a URL-only dependency the decision
@@ -73,8 +73,12 @@ export class ServerVersionNotifier {
             return;
         }
 
+        // The server is named rather than called "this server". The probe is
+        // fire-and-forget, so a slow answer can arrive after the user has already
+        // switched servers, and an unnamed warning would then be pointing at the
+        // wrong one.
         this._deps.showWarning(
-            `This Artemis server runs version ${info.serverVersion}. `
+            `${serverUrl} runs Artemis ${info.serverVersion}. `
             + `The extension needs ${MIN_ARTEMIS_VERSION} or newer. Course contents will not load.`,
         );
     }

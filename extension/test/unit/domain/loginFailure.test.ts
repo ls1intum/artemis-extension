@@ -86,4 +86,19 @@ suite('describeLoginFailure', () => {
         assert.ok(/Invalid username or password/.test(describeLoginFailure(new ApiError('x', 401))));
         assert.ok(/forbidden/i.test(describeLoginFailure(new ApiError('', 403))));
     });
+
+    test('a long message is bounded, whichever login stage produced it', () => {
+        // The login-options lookup throws through makeRequest, whose errorDetail is
+        // whatever the server sent and has no length limit. Bounding only the
+        // password submit left this path wide open.
+        const message = describeLoginFailure(new ApiError('x'.repeat(500), 403));
+        assert.ok(message.length <= 'Login failed: '.length + 200, `not bounded: ${message.length}`);
+        assert.ok(message.endsWith('...'), message.slice(-20));
+    });
+
+    test('a multi-line message is collapsed onto one line', () => {
+        // It goes into a one-line banner. A stack trace pasted there is unreadable.
+        const message = describeLoginFailure(new ApiError('first line\nsecond line\r\n\tthird', 403));
+        assert.strictEqual(message, 'Login failed: first line second line third');
+    });
 });

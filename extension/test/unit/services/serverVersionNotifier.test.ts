@@ -49,6 +49,9 @@ suite('ServerVersionNotifier', () => {
         assert.strictEqual(warnings.length, 1);
         assert.ok(/9\.8\.1/.test(warnings[0]), warnings[0]);
         assert.ok(/9\.9\.0/.test(warnings[0]), warnings[0]);
+        // Named, not "this server": a slow probe can land after the user has
+        // switched servers, and an unnamed warning would then be about the wrong one.
+        assert.ok(warnings[0].includes('artemis.example.edu'), warnings[0]);
     });
 
     test('a second check for the same server stays quiet', async () => {
@@ -69,6 +72,31 @@ suite('ServerVersionNotifier', () => {
 
         assert.strictEqual(warnings.length, 1);
         assert.strictEqual(calls.length, 1, 'the guard is registered before the first await');
+    });
+
+    test('a reentrant probe cannot start a second check', async () => {
+        // The test that actually pins the microtask deferral. The one above passes
+        // even if _probe is called synchronously, because two plain check() calls
+        // are already separated by the map write. This one is not: fetchInfo calls
+        // back into check() from inside the first probe, which is exactly the
+        // window a synchronous _probe would leave open.
+        const warnings: string[] = [];
+        const urls: string[] = [];
+        let notifier: ServerVersionNotifier;
+        notifier = new ServerVersionNotifier({
+            fetchInfo: async (url) => {
+                urls.push(url);
+                notifier.check('https://artemis.example.edu');
+                return jsonResponse(OLD);
+            },
+            showWarning: (message) => { warnings.push(message); },
+        });
+
+        notifier.check('https://artemis.example.edu');
+        await settle();
+
+        assert.strictEqual(urls.length, 1, 'the reentrant call slipped past the guard');
+        assert.strictEqual(warnings.length, 1);
     });
 
     test('a supported version says nothing', async () => {

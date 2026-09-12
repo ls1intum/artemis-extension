@@ -103,11 +103,6 @@ export async function exchangeCodeForToken(
  * Exchange username and password for a JWT. The token is returned, not stored: committing it is the
  * caller's job, once it has been shown to work.
  */
-/** A login error is a one-line banner, not a document. */
-function oneLine(text: string): string {
-    return text.length > 200 ? `${text.slice(0, 197)}...` : text;
-}
-
 export async function authenticateWithPassword(
     serverUrl: string,
     username: string,
@@ -138,7 +133,8 @@ export async function authenticateWithPassword(
         // helps nobody. Keyed on the declared content type rather than on a
         // leading "<", which would also eat XML and a legitimate plain-text
         // message that happens to start with a bracket.
-        const isHtml = (response.headers.get('content-type') ?? '').includes('text/html');
+        const contentType = (response.headers.get('content-type') ?? '').toLowerCase();
+        const isHtml = contentType.includes('text/html') || contentType.includes('application/xhtml');
         let parsedMessage = isHtml ? '' : rawError.trim();
 
         if (parsedMessage) {
@@ -146,7 +142,10 @@ export async function authenticateWithPassword(
                 const parsed: unknown = JSON.parse(rawError);
                 if (parsed && typeof parsed === 'object') {
                     const errorObj = parsed as { title?: string; message?: string; detail?: string; error?: string };
-                    parsedMessage = errorObj.title || errorObj.message || errorObj.detail || errorObj.error || parsedMessage;
+                    const field = errorObj.title || errorObj.message || errorObj.detail || errorObj.error;
+                    // Only a string is a message. A JSON object here would otherwise
+                    // reach the user as "[object Object]".
+                    parsedMessage = typeof field === 'string' ? field : parsedMessage;
                 }
             } catch (parseError) {
                 // Fall back to plain text error message when JSON parsing fails
@@ -157,13 +156,13 @@ export async function authenticateWithPassword(
             if (!parsedMessage || /method argument not valid/i.test(parsedMessage)) {
                 throw new ApiError('Invalid username or password.', response.status);
             }
-            throw new ApiError(oneLine(parsedMessage), response.status);
+            throw new ApiError(parsedMessage, response.status);
         } else if (response.status === 403) {
-            throw new ApiError(oneLine(parsedMessage || 'Account is not activated or access is forbidden.'), response.status);
+            throw new ApiError(parsedMessage || 'Account is not activated or access is forbidden.', response.status);
         } else {
             const statusText = response.statusText || 'Unexpected error';
             const detail = parsedMessage && parsedMessage !== statusText ? ` - ${parsedMessage}` : '';
-            throw new ApiError(oneLine(`${response.status} ${statusText}${detail}`.trim()), response.status);
+            throw new ApiError(`${response.status} ${statusText}${detail}`.trim(), response.status);
         }
     }
 
