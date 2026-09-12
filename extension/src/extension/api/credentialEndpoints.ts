@@ -144,15 +144,15 @@ export async function authenticateWithPassword(
 
         if (response.status === 400 || response.status === 401) {
             if (!parsedMessage || /method argument not valid/i.test(parsedMessage)) {
-                throw new Error('Invalid username or password.');
+                throw new ApiError('Invalid username or password.', response.status);
             }
-            throw new Error(parsedMessage);
+            throw new ApiError(parsedMessage, response.status);
         } else if (response.status === 403) {
-            throw new Error(parsedMessage || 'Account is not activated or access is forbidden.');
+            throw new ApiError(parsedMessage || 'Account is not activated or access is forbidden.', response.status);
         } else {
             const statusText = response.statusText || 'Unexpected error';
             const detail = parsedMessage && parsedMessage !== statusText ? ` - ${parsedMessage}` : '';
-            throw new Error(`${response.status} ${statusText}${detail}`.trim());
+            throw new ApiError(`${response.status} ${statusText}${detail}`.trim(), response.status);
         }
     }
 

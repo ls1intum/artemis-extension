@@ -9,6 +9,7 @@ import { ArtemisApiService } from '@extension/api/artemisApi';
 import { AuthCommandModule } from '@extension/controller/commands/authCommands';
 import type { CommandContext } from '@extension/controller/commands/types';
 import type { ArtemisUser, AuthenticationResult } from '@extension/domain';
+import { ApiError } from '@extension/domain';
 import type { LoginOptionsResponse } from '@extension/domain/auth';
 import { AuthCancellationService } from '@extension/services/auth/authCancellationService';
 import { AuthManager } from '@extension/services/auth/authManager';
@@ -277,6 +278,21 @@ suite('AuthCommandModule Test Suite', () => {
 
         assert.strictEqual(sent[0].type, 'loginOptionsResult');
         assert.strictEqual(sent[0].attemptId, 'a-3');
+    });
+
+    test('a login-options lookup that fails reports a formatted message, not the raw one', async () => {
+        // The case this change exists for. A wrong server URL fails HERE, before the
+        // password is ever submitted, and this path used to forward error.message
+        // untouched.
+        api.getLoginOptions.rejects(new ApiError('Bad credentials', 401));
+
+        await dispatchCheckLoginOptions({});
+
+        assert.strictEqual(sent[0].type, 'loginOptionsError');
+        assert.strictEqual(
+            (sent[0] as { error: string }).error,
+            'Login failed: Invalid username or password. Please verify your credentials and try again.',
+        );
     });
 
     test('cancelling the login-options lookup reports nothing', async () => {
