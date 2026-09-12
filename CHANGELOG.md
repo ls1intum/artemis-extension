@@ -4,6 +4,8 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-12
+
 ### Changed
 
 - **Proactive help is not offered yet.** The extension no longer asks after login whether to turn proactive help on. The Artemis side of it is not released, so accepting would have been followed by nothing at all, with no way to tell why. Local struggle detection stays off in that state and sends nothing. Switching it on by hand in Settings still works and is equally quiet against a server that cannot answer. The question comes back in the release that follows the Artemis one.
