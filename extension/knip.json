@@ -24,6 +24,5 @@
     "@vscode/test-electron",
     "axe-core",
     "mocha-junit-reporter"
-  ],
-  "ignoreBinaries": ["vsce"]
+  ]
 }

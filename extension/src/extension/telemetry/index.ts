@@ -4,10 +4,10 @@ import * as path from 'path';
 
 import type { ProactiveLevel } from '@shared/messageContracts';
 
-import { InterventionService } from '@extension/services/intervention';
 import { showStruggleScoreDialog } from '@extension/services/intervention/debug/struggleDebug';
 import { anchorRelPath, isAnchorDocument } from '@extension/services/intervention/inlineHint';
 import { InlineHintDecoration } from '@extension/services/intervention/inlineHintDecoration';
+import { InterventionService } from '@extension/services/intervention/interventionService';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { BackoffGate } from '@extension/services/struggle/alerting/backoffGate';
 import { ThrottledAlertSink } from '@extension/services/struggle/alerting/throttledAlertSink';

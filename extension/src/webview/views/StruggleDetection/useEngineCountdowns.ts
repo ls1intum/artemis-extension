@@ -22,12 +22,6 @@ export function useEngineNow(anchorNowMs: number): number {
     return baseRef.current.engine + (Date.now() - baseRef.current.client);
 }
 
-/** Seconds → "M:SS"; `ceil` for remaining times (stays at 1 until truly elapsed), floor for elapsed. */
-export function mmss(totalSeconds: number, mode: 'ceil' | 'floor' = 'ceil'): string {
-    const s = Math.max(0, mode === 'ceil' ? Math.ceil(totalSeconds) : Math.floor(totalSeconds));
-    const m = Math.floor(s / 60);
-    return `${m}:${(s % 60).toString().padStart(2, '0')}`;
-}
 
 export interface EngineCountdowns {
     /** Offset-corrected engine "now" (ms), advancing once per second. */

@@ -171,14 +171,7 @@ export class ServerFrameHandler {
                 return;
             }
             const text = message ?? 'Iris has a suggestion for you.';
-            let effectiveAnchorLine = anchorLine;
-            if (anchorFile !== undefined && anchorLine !== undefined && isSafeAnchorPath(anchorFile)) {
-                const base = baseline?.[anchorFile];
-                const current = base !== undefined ? this._p.deps.readFileContent(anchorFile) : undefined;
-                if (base !== undefined && current !== undefined) {
-                    effectiveAnchorLine = rebaseAnchorLine(base, current, anchorLine);
-                }
-            }
+            const effectiveAnchorLine = this._rebaseAnchor(anchorFile, anchorLine, baseline);
             this._rt.slot.appendFollowup({ level: 'active', text, atSessionS: Date.now() / 1000 });
             const episodeId = this._p.deliveredEpisodeId();
             if (episodeId) {
@@ -374,20 +367,8 @@ export class ServerFrameHandler {
     ): void {
         const now = Date.now();
 
-        // Rebase the server anchor line from the snapshot we SENT at trigger onto the live buffer at
-        // delivery: the server picked the line against those exact bytes, but the student kept typing
-        // in the ~10s round-trip. Done ONCE here so every surface (gutter, inline + jump, escalation)
-        // shares the corrected line. undefined -> the anchored line is gone, so the surfaces'
-        // `!== undefined` guards drop the cue while the bubble/message still shows (fail-safe). No
-        // baseline (anchor on an unchanged file) or file not open -> keep the raw line.
-        let effectiveAnchorLine = anchorLine;
-        if (anchorFile !== undefined && anchorLine !== undefined && isSafeAnchorPath(anchorFile)) {
-            const base = baseline?.[anchorFile];
-            const current = base !== undefined ? this._p.deps.readFileContent(anchorFile) : undefined;
-            if (base !== undefined && current !== undefined) {
-                effectiveAnchorLine = rebaseAnchorLine(base, current, anchorLine);
-            }
-        }
+        // Done ONCE here so every surface (gutter, inline + jump, escalation) shares the corrected line.
+        const effectiveAnchorLine = this._rebaseAnchor(anchorFile, anchorLine, baseline);
 
         switch (action.kind) {
             case 'take-parked': {
@@ -490,6 +471,26 @@ export class ServerFrameHandler {
      * Apply the full active push surface (bubble + session open + notification + badge + inline).
      * Called from take-delivered, replace-delivered; NOT for escalation (which uses applyEscalation).
      */
+    /**
+     * Rebases the server anchor line from the snapshot we SENT at trigger onto the live buffer at
+     * delivery: the server picked the line against those exact bytes, but the student kept typing
+     * in the ~10s round-trip. undefined -> the anchored line is gone, so the surfaces'
+     * `!== undefined` guards drop the cue while the bubble/message still shows (fail-safe). No
+     * baseline (anchor on an unchanged file) or file not open -> keep the raw line.
+     */
+    private _rebaseAnchor(
+        anchorFile: string | undefined,
+        anchorLine: number | undefined,
+        baseline: Record<string, string> | undefined,
+    ): number | undefined {
+        if (anchorFile === undefined || anchorLine === undefined || !isSafeAnchorPath(anchorFile)) {
+            return anchorLine;
+        }
+        const base = baseline?.[anchorFile];
+        const current = base !== undefined ? this._p.deps.readFileContent(anchorFile) : undefined;
+        return base !== undefined && current !== undefined ? rebaseAnchorLine(base, current, anchorLine) : anchorLine;
+    }
+
     private _applyActiveSurface(
         text: string,
         messageId: number | null,

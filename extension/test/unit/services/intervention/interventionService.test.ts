@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 
-import { InterventionService } from '@extension/services/intervention';
+import { InterventionService } from '@extension/services/intervention/interventionService';
 
 /** Minimal stand-in so a test can read the status-bar item's backgroundColor (the flash). */
 function fakeStatusBarItem() {
