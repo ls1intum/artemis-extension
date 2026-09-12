@@ -5,11 +5,9 @@ import { ExtensionMsg, postCommand } from '@shared/messageContracts';
 
 import { Button } from '@webview/components/Button';
 import { Container } from '@webview/components/Container';
-import { ServiceHealth, type ServiceInfo } from '@webview/components/ServiceHealth';
 import { StatusMessage } from '@webview/components/StatusMessage';
 import { TextInput } from '@webview/components/TextInput';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
-import { formatServiceName } from '@webview/utils/formatServiceName';
 
 import styles from './LoginView.module.css';
 import type { LoginPersistedState, LoginViewProps } from './types';
@@ -107,11 +105,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
     const [serverUrl, setServerUrl] = useState('');
 
-    const [showHealthChecks, setShowHealthChecks] = useState(false);
-    const [healthServices, setHealthServices] = useState<ServiceInfo[]>([]);
-    const [isHealthChecking, setIsHealthChecking] = useState(false);
-    const [lastHealthCheck, setLastHealthCheck] = useState<Date | undefined>(undefined);
-
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
@@ -178,7 +171,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         setIsSubmitting(false);
         setIsCheckingOptions(false);
         setIsOidcPending(false);
-        setShowHealthChecks(false);
         // Nothing below re-reads it, and it has no business outliving the sign-in it belonged to.
         setPassword('');
         showProgress('Signed in, opening Artemis', 'Loading your courses', attemptId);
@@ -290,10 +282,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 setIsSubmitting(false);
                 setStatusMessage(msg.error ?? 'Failed to reach Artemis server. Please check your connection or server URL.');
                 setStatusType('error');
-                setShowHealthChecks(true);
-                if (serverUrl) {
-                    performHealthChecks();
-                }
                 break;
             }
 
@@ -369,10 +357,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 setIsSubmitting(false);
                 setIsCheckingOptions(false);
                 setIsOidcPending(false);
-                setShowHealthChecks(true);
-                if (serverUrl) {
-                    performHealthChecks();
-                }
                 break;
             }
 
@@ -381,33 +365,11 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                 break;
             }
 
-            case ExtensionMsg.HealthCheckResults: {
-                const services: ServiceInfo[] = Object.entries(msg.results).map(([serviceName, data]) => ({
-                    name: formatServiceName(serviceName),
-                    status: data.status,
-                    message: data.message ?? '',
-                    endpoint: data.endpoint ?? '',
-                    httpStatus: data.httpStatus !== null ? String(data.httpStatus) : undefined,
-                    response: data.response ?? undefined,
-                }));
-                setHealthServices(services);
-                setIsHealthChecking(false);
-                setLastHealthCheck(new Date());
-                break;
-            }
         }
         // Every piece of state the handler branches on is listed, not just the ones `ownsProgress` reads:
         // a stale closure here would let it decide ownership off an outdated indicator, or replay a
         // failure it has already shown.
     }, [serverUrl, activeAttemptId, progress, handover, handoverFailure]);
-
-    const performHealthChecks = () => {
-        if (!serverUrl) {
-            return;
-        }
-        setIsHealthChecking(true);
-        postCommand(vscodeApi, 'performHealthChecks', { serverUrl });
-    };
 
     const handleCheckLogin = () => {
         // Guarded on the phase as well as on the button, for the same reason as `handleOidcLogin`.
@@ -788,19 +750,6 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                     </div>
                 </form>
             </Container>
-
-            {showHealthChecks && healthServices.length > 0 && (
-                <div style={{ marginTop: '24px' }}>
-                    <ServiceHealth
-                        services={healthServices}
-                        onRefresh={performHealthChecks}
-                        isRefreshing={isHealthChecking}
-                        lastCheckTime={lastHealthCheck}
-                        compact
-                        showTitle
-                    />
-                </div>
-            )}
         </div>
     );
 }

@@ -20,7 +20,6 @@ import {
     createExerciseDetailPayload,
     createGitCredentialsPayload,
     createRecommendedExtensionsPayload,
-    createServiceStatusPayload,
 } from '@test/react/fixtures';
 
 describe('Bridge Contracts', () => {
@@ -141,28 +140,6 @@ describe('Bridge Contracts', () => {
             });
             expect(payload.exerciseData.exercise?.id).toBe(55);
             expect(payload.hideDeveloperTools).toBe(true);
-        });
-    });
-
-    describe('service-status (serviceStatusInit)', () => {
-        it('has type discriminant "serviceStatusInit"', () => {
-            const payload = createServiceStatusPayload();
-            expect(payload.type).toBe('serviceStatusInit');
-        });
-
-        it('passes isExtensionMessage() type guard', () => {
-            const payload = createServiceStatusPayload();
-            expect(isExtensionMessage(payload)).toBe(true);
-        });
-
-        it('payload.serverUrl is a string', () => {
-            const payload = createServiceStatusPayload();
-            expect(typeof payload.serverUrl).toBe('string');
-        });
-
-        it('custom serverUrl flows through via overrides', () => {
-            const payload = createServiceStatusPayload({ serverUrl: 'https://custom.artemis.tum.de' });
-            expect(payload.serverUrl).toBe('https://custom.artemis.tum.de');
         });
     });
 

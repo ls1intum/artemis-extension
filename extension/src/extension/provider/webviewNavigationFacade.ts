@@ -269,11 +269,6 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         this.deps.render();
     }
 
-    public showServiceStatus(): void {
-        this.deps.appStateManager.showServiceStatus();
-        this.deps.render();
-    }
-
     public showStruggleDetection(): void {
         // Developer-only page: block navigation entirely when developer mode is off, so the route
         // cannot be reached via the command/action path (the dashboard button is also hidden, but

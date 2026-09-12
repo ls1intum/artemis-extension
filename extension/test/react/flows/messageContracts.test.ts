@@ -65,38 +65,6 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         expect(connected.status).toBe('connected');
     });
 
-    it('HealthCheckResultsMessage has required payload.results record shape', () => {
-        const msg = {
-            type: 'healthCheckResults' as const,
-            results: {
-                artemisApi: {
-                    status: 'online',
-                    message: 'Connected',
-                    endpoint: 'https://artemis.tum.de/api',
-                    httpStatus: 200,
-                    response: 'OK',
-                },
-            },
-        } satisfies ExtMsg<'healthCheckResults'>;
-
-        expect(msg.type).toBe('healthCheckResults');
-        expect(msg.results['artemisApi'].status).toBe('online');
-    });
-
-    it('ServiceStatusInitMessage has optional payload.serverUrl field', () => {
-        const withUrl = {
-            type: 'serviceStatusInit' as const,
-            serverUrl: 'https://artemis.tum.de',
-        } satisfies ExtMsg<'serviceStatusInit'>;
-
-        const withoutUrl = {
-            type: 'serviceStatusInit' as const,
-        } as ExtMsg<'serviceStatusInit'>;
-
-        expect(withUrl.serverUrl).toBe('https://artemis.tum.de');
-        expect(withoutUrl.serverUrl).toBeUndefined();
-    });
-
     it('GitIdentityInfoMessage has name and email fields', () => {
         const msg = {
             type: 'gitIdentityInfo' as const,
@@ -387,16 +355,6 @@ describe('Message contracts: WebviewToExtensionMessage types', () => {
         } satisfies WebCmd<'backToDashboard'>;
 
         expect(msg.command).toBe('backToDashboard');
-    });
-
-    it('PerformHealthChecksCommand has serverUrl payload', () => {
-        const msg = {
-            type: 'command' as const,
-            command: 'performHealthChecks' as const,
-            payload: { serverUrl: 'https://artemis.tum.de' },
-        } satisfies WebCmd<'performHealthChecks'>;
-
-        expect(msg.payload.serverUrl).toBe('https://artemis.tum.de');
     });
 
     it('CloneRepositoryCommand has all required clone fields', () => {

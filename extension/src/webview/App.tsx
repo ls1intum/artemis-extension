@@ -16,7 +16,6 @@ import { GitCredentialsView } from './views/GitCredentials';
 import { IrisChatView } from './views/IrisChat';
 import { LoginView } from './views/Login';
 import { RecommendedExtensionsView } from './views/RecommendedExtensions';
-import { ServiceStatusView } from './views/ServiceStatus';
 
 interface AppProps {
 	vscodeApi: VsCodeApi;
@@ -37,8 +36,6 @@ export function App({ vscodeApi }: AppProps) {
 		switch (viewName) {
 			case 'gitCredentials':
 				return <GitCredentialsView vscodeApi={vscodeApi} />;
-			case 'serviceStatus':
-				return <ServiceStatusView vscodeApi={vscodeApi} />;
 			case 'recommendedExtensions':
 				return <RecommendedExtensionsView vscodeApi={vscodeApi} />;
 			case 'login':

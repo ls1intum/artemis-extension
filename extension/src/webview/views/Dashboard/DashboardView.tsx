@@ -1,4 +1,3 @@
-import Activity from 'lucide-react/dist/esm/icons/activity';
 import Bug from 'lucide-react/dist/esm/icons/bug';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
 import ExternalLink from 'lucide-react/dist/esm/icons/external-link';
@@ -85,10 +84,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
 
     const handleShowRecommendedExtensions = () => {
         postCommand(vscodeApi, 'showRecommendedExtensions');
-    };
-
-    const handleShowServiceStatus = () => {
-        postCommand(vscodeApi, 'showServiceStatus');
     };
 
     const handleShowGitCredentials = () => {
@@ -312,9 +307,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                             </span>
                         </Button>
                     )}
-                    <Button variant="ghost" fullWidth onClick={handleShowServiceStatus} icon={<Activity size={16} />}>
-                        Service Status
-                    </Button>
                     <Button variant="ghost" fullWidth onClick={handleShowGitCredentials} icon={<GitBranch size={16} />}>
                         Git Credentials
                     </Button>
