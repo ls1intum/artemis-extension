@@ -92,7 +92,7 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
                 subtitle="Improve your Artemis workflow with curated VS Code extensions."
             />
 
-            {isLoaded && categories.length > 0 && (
+            {categories.length > 0 && (
                 <Container>
                     <div style={{
                         fontSize: '11px',
@@ -127,7 +127,7 @@ export function RecommendedExtensionsView({ vscodeApi }: RecommendedExtensionsVi
                 </Container>
             )}
 
-            {isLoaded && filteredCategories.map(category => (
+            {filteredCategories.map(category => (
                 <Container
                     key={category.id}
                     className="category-section"
