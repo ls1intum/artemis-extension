@@ -419,7 +419,7 @@
     "tsx": "4.23.11",
     "typescript": "5.9.3",
     "typescript-plugin-css-modules": "5.2.0",
-    "vitest": "4.1.10",
+    "vitest": "4.1.11",
     "vscode-extension-tester": "8.22.0"
   },
   "dependencies": {
