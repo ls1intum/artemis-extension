@@ -33,16 +33,11 @@ const version = engines.vscode.replace(/^[\^~]/, '');
 
 export default defineConfig([
 	{
-		// Unit tests (default). The glob covers EVERYTHING under out/test/unit,
-		// struggle-detection included. This used to carry an
-		// `exclude: ['out/test/unit/struggle-detection/**']`, which never did
-		// anything: @vscode/test-cli only honours ignore patterns passed as the
-		// CLI's `--ignore` flag and drops a config-level `exclude` on the floor
-		// (node_modules/@vscode/test-cli/out/cli/gatherFiles.mjs). Those tests
-		// therefore always ran here, and running the 'struggle' label alongside
-		// this one just executed them a second time. Do not re-add it: if a
-		// future release starts honouring `exclude`, the suite would silently
-		// shrink by 138 tests, which is the exact rot issue #424 is about.
+		// Unit tests (default). Runs everything under out/test/unit/**, which
+		// includes the struggle-engine tests under
+		// out/test/unit/services/struggle/**. There is deliberately no separate
+		// 'struggle' label: the rest of the engine's tests are vitest suites
+		// under test/logic/struggle/** and run via `npm run test:react`.
 		label: 'unit',
 		version,
 		launchArgs,
@@ -55,14 +50,6 @@ export default defineConfig([
 		// writes XML and nothing else unless `toConsole` is set, and no tooling
 		// here reads that XML. (The UI suite is different: run-tests.sh parses
 		// its report, so .mocharc.ui.yml keeps the junit reporter.)
-	},
-	{
-		// Struggle detection tests. A focused subset of the 'unit' label above,
-		// for iterating on the engine alone. CI runs 'unit', which covers these.
-		label: 'struggle',
-		version,
-		launchArgs,
-		files: 'out/test/unit/struggle-detection/**/*.test.js',
 	},
 	{
 		// E2E tests (requires running Artemis + Iris)

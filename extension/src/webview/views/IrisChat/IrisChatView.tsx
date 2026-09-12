@@ -1,10 +1,10 @@
 import Info from 'lucide-react/dist/esm/icons/info';
 import Menu from 'lucide-react/dist/esm/icons/menu';
 import Plus from 'lucide-react/dist/esm/icons/plus';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { VsCodeApi } from '@shared/messageContracts';
-import { postCommand } from '@shared/messageContracts';
+import { postCommand, WebviewCmd } from '@shared/messageContracts';
 
 import { selectCanChangeTopic, useChatStore } from '@webview/stores/useChatStore';
 
@@ -85,6 +85,36 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
         if (sessionId === null) { return; }
         postCommand(vscodeApi, 'messageFeedback', { sessionId, messageId, feedback });
     };
+
+    /**
+     * The two terminal answers a student can give a proactive hint. Both write the
+     * outcome locally first so the row settles immediately, then tell the host, which
+     * routes an episode-keyed outcome to the struggle engine and a bare messageId to
+     * the legacy per-message endpoint.
+     */
+    const postProactiveOutcome = (
+        messageId: number,
+        outcome: 'DISMISSED' | 'RECOVERED',
+        proactiveEpisodeId?: string,
+    ) => {
+        const sessionId = store.currentSessionId;
+        if (typeof sessionId !== 'number') { return; }
+        store.setProactiveOutcome(messageId, outcome);
+        postCommand(vscodeApi, 'messageProactiveOutcome', { sessionId, messageId, outcome, proactiveEpisodeId });
+    };
+
+    const handleDismissProactive = (messageId: number, proactiveEpisodeId?: string) =>
+        postProactiveOutcome(messageId, 'DISMISSED', proactiveEpisodeId);
+
+    const handleResolveProactive = (messageId: number, proactiveEpisodeId?: string) =>
+        postProactiveOutcome(messageId, 'RECOVERED', proactiveEpisodeId);
+
+    const handleOfferAnswer = useCallback(
+        (offerId: string, episodeId: string | undefined, moment: 'stuck' | 'abandon', action: 'accept' | 'decline') => {
+            postCommand(vscodeApi, WebviewCmd.NudgeBannerAction, { moment, action, episodeId, offerId });
+        },
+        [vscodeApi],
+    );
 
     const handleOpenFile = (path: string) => {
         postCommand(vscodeApi, 'openFile', { filePath: path });
@@ -430,11 +460,15 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                     <ChatMessageList
                         messages={store.messages}
                         streaming={store.streaming}
+                        proactiveThinking={store.proactiveThinking}
                         activities={store.activities}
                         liveDraft={store.liveDraft}
                         runState={store.runState}
                         runError={store.runError}
                         onFeedback={handleFeedback}
+                        onDismiss={handleDismissProactive}
+                        onResolve={handleResolveProactive}
+                        onOfferAnswer={handleOfferAnswer}
                         onSendPrompt={handleSendMessage}
                         hasContext={hasConversation}
                         isChatDisabled={isChatDisabled}

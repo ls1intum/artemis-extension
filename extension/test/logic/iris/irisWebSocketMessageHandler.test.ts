@@ -260,7 +260,7 @@ describe('USER frames from another client', () => {
     });
 });
 
-describe('host state ingestion (Task 6 step 7)', () => {
+describe('host state ingestion', () => {
     it('an assistant frame makes the host conversation non-empty', () => {
         const { handler, state } = makeHandler({ currentSessionId: 7 });
         handler.handleIrisWebSocketMessage(

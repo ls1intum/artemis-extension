@@ -4,6 +4,7 @@ import type { ExtensionToWebviewMessage, IrisRunUiProjection, WebSocketDisplaySt
 import { ExtensionMsg } from '@shared/messageContracts';
 import type { IrisChatMessage } from '@shared/types/apiResponses';
 
+import { classifyIrisFrame } from '@extension/services/iris/chat/classifyIrisFrame';
 import { describeContextSwap, isContextSwap, parseContextSwap } from '@extension/services/iris/context/contextMarkers';
 import type { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
 import { IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
@@ -103,6 +104,27 @@ export class IrisWebSocketMessageHandler {
             }
         }
 
+        // Proactive pushes are routed BEFORE run admission but AFTER the source
+        // check and the canonical upsert above: the frame is already in
+        // ConversationState, so this path only adds the proactive rendering.
+        // Deliberately outside the `conversation !== undefined` guard, because
+        // `_handleProactiveMessage` records the message for the study before it
+        // decides whether there is anywhere to draw it.
+        // A proactive push is a complete, server-initiated bubble, never part of
+        // a user-initiated run; letting one that happened to carry a runId/runState
+        // reach admission or applyRunState could bind, reject, or finalize a live
+        // user run and wipe its draft. The proactive path bypasses run state entirely. before the
+        // run state machine ever sees the frame. A proactive push is a complete,
+        // server-initiated bubble, never part of a user-initiated run; letting a
+        // proactive frame that happened to carry a runId/runState reach admission
+        // or applyRunState could bind, reject, or finalize a live user run and
+        // wipe its draft. The proactive path bypasses run state entirely.
+        const frameClass = classifyIrisFrame(data);
+        if (data.type === 'MESSAGE' && frameClass.kind === 'message' && frameClass.proactive) {
+            this._handleProactiveMessage(data);
+            return;
+        }
+
         // Admission MUST come first: a stale run must not be able to rename the
         // live session via sessionTitle.
         if (!this._runs.admit(data)) {
@@ -133,6 +155,67 @@ export class IrisWebSocketMessageHandler {
                 logger.info(`Unhandled Iris frame type: ${data.type}`, LogCategory.WEBSOCKET);
                 this.publishCurrentRunUi();
         }
+    }
+
+    /**
+     * Renders a proactive struggle push (origin `PROACTIVE_STRUGGLE`) as a
+     * complete assistant bubble carrying its proactive provenance. It does NOT
+     * touch the run state machine or the run-UI projection: proactive pushes are
+     * not user-initiated runs, so they must never bind/finalize a run or attach
+     * `runUi`. Because they are also not run-scoped, the run-scoped recorder path
+     * in {@link _handleMessage} never sees them, so this path fires the recorder
+     * event itself.
+     */
+    private _handleProactiveMessage(frame: IrisWebSocketMessage): void {
+        const msg = frame.message;
+        if (!msg) { return; }
+
+        const content = extractIrisMessageContent(msg.content);
+        // A USER frame is the echoed prompt, and a bodiless frame has nothing to
+        // render; neither is a proactive bubble.
+        if (msg.sender === 'USER' || !content) { return; }
+
+        const sentAtMs = msg.sentAt ? new Date(msg.sentAt).getTime() : undefined;
+
+        // Record the received message BEFORE the UI-attribution guard below: a
+        // proactive push is not run-scoped, so the run-scoped recorder path in
+        // _handleMessage never sees it, and recording must not depend on whether
+        // a session happens to be active for rendering.
+        this._onDidReceiveIrisChatMessage.fire({
+            content,
+            messageId: msg.id !== undefined ? String(msg.id) : undefined,
+            sentAt: sentAtMs,
+        });
+
+        const localSessionId = this._targetSessionId();
+        if (!localSessionId) {
+            // No active session to attribute the bubble to. Dropping the render
+            // is correct (it would attach to whatever session the user opens
+            // next); the message is already recorded above.
+            logger.info('Dropping proactive Iris message bubble: no active local session', LogCategory.WEBSOCKET);
+            return;
+        }
+
+        this._postMessage({
+            type: ExtensionMsg.AddMessage,
+            sessionId: localSessionId,
+            message: {
+                id: msg.id,
+                role: 'assistant',
+                content,
+                timestamp: sentAtMs ?? Date.now(),
+                helpful: typeof msg['helpful'] === 'boolean' ? msg['helpful'] : null,
+                origin: 'proactive',
+                ...(msg.proactiveOutcome ? { proactiveOutcome: msg.proactiveOutcome } : {}),
+                ...(msg.proactiveEpisodeId ? { proactiveEpisodeId: msg.proactiveEpisodeId } : {}),
+                // Forward any tool-activity trail and final flag identically to
+                // _handleMessage so a proactive answer's trail shows live (not
+                // only after a reload). A proactive push carries no runUi.
+                activities: Array.isArray(msg.activities) ? msg.activities.filter(isIrisActivity) : undefined,
+                final: typeof msg.final === 'boolean' ? msg.final : undefined,
+            },
+            // No runUi: a proactive push must leave any in-flight user run untouched.
+        });
     }
 
     private _handlePartial(frame: IrisWebSocketMessage): void {

@@ -5,9 +5,92 @@
     background: var(--theme-background);
 }
 
+/* The single source of vertical rhythm for the list. It can be this tight because no child
+   reserves dead space for hover chrome any more: each message carries its buttons and timestamp
+   in one always-mounted footer row instead of an absolutely positioned time below the bubble. */
 .content {
     min-height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 8px;
+}
+
+/* Folded episode container (C7). Wraps the fold-line toggle and any expanded timeline beneath it.
+   Owns the spacing between the two: the children carry no vertical margin of their own, so that
+   nothing stacks on top of the list container's own gap (#366). */
+.episodeFold {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Borderless summary line for a CLOSED episode: chevron + outcome + topic. No box (closed sessions
+   carry no border) — reads as a quiet log line. */
+.episodeFoldLine {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    /* Horizontal inset only: the shared gutter aligns the row with .messageWrapper. A vertical
+       margin would stack on the parent's gap and push this ~12px row far off the conversation. */
+    margin: 0 var(--chat-gutter);
+    padding: 2px 0;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    /* One line, always. The row is a log line: it may run out of width, it may not grow taller. The
+       max-width keeps the inset from pushing it past the panel, and buttons centre their text by
+       default, which reads as a stray heading once the topic is short. */
+    max-width: 100%;
+    text-align: left;
+}
+
+/* Chevron and outcome glyph carry the row's meaning, so only the topic gives up space. */
+.episodeFoldLine > svg,
+.episodeFoldLine > .foldOutcome,
+.episodeFoldLine > .foldWord,
+.episodeFoldLine > .foldSep {
+    flex: none;
+}
+
+.episodeFoldLine:hover {
+    text-decoration: underline;
+}
+
+/* Holds the lucide outcome icon (the whole outcome while collapsed). currentColor flows from the
+   tone class to the icon stroke. */
+.foldOutcome {
+    display: inline-flex;
+    align-items: center;
+}
+
+/* The outcome word, shown next to the icon only once the episode is expanded (spells the glyph out). */
+.foldWord {
+    font-weight: 600;
+}
+
+.foldSep {
+    opacity: 0.5;
+}
+
+/* The only elastic part of the row: it shrinks and ellipsises instead of wrapping. `min-width: 0`
+   is what lets a flex item shrink below its content width at all; without it the other two rules
+   never take effect. The full text stays reachable through the title attribute. */
+.foldTopic {
+    color: var(--vscode-foreground);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.toneSuccess {
+    color: var(--vscode-charts-green);
+}
+
+.toneMuted,
+.toneNeutral {
+    color: var(--vscode-descriptionForeground);
 }

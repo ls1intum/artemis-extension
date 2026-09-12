@@ -29,6 +29,12 @@ const STRUGGLE_SUBTREES = [
     'src/extension/services/intervention/',
     'src/extension/services/struggleIntervention/',
 ];
+// The `@telemetry` seam module itself. esbuild aliases the import to noop.ts for Open VSX, so
+// this file is normally unreachable there -- but only for code that goes through the alias. A
+// direct `../telemetry/index` import would bypass the seam and pull the wiring (and its
+// commands) back in, which nothing else here would notice. The rest of src/extension/telemetry/
+// (noop.ts, contract.ts, formatTick.ts, ...) is the seam's shared surface and stays allowed.
+const TELEMETRY_SEAM_ENTRY = 'src/extension/telemetry/index.ts';
 // The struggle-detection webview lives under this prefix. Only the alias stub and the
 // type/re-export files are allowed in the clean bundle; every OTHER file (view, hook,
 // nested module) is forbidden. Prefix+allowlist (not an explicit file list) so new view
@@ -51,17 +57,34 @@ function isStruggleForbidden(p) {
         const rest = p.slice(viewIdx + STRUGGLE_VIEW_PREFIX.length);
         return !STRUGGLE_VIEW_ALLOWED.includes(rest); // any nested/other view file is forbidden
     }
-    return STRUGGLE_SUBTREES.some(s => p.includes(s))
+    return p.endsWith(TELEMETRY_SEAM_ENTRY)
+        || STRUGGLE_SUBTREES.some(s => p.includes(s))
         || STRUGGLE_MODULES.some(m => p.includes(m));
 }
 
-function forbiddenInputs(metafilePath, profile) {
-    let check;
-    switch (profile) {
-        case 'desktop': check = isRecorderForbidden; break;
-        case 'openvsx': check = p => isRecorderForbidden(p) || isStruggleForbidden(p); break;
-        default: throw new Error(`verify-clean-bundle: unknown profile '${profile}' (expected desktop | openvsx)`);
+/**
+ * Is this source path excluded from the given variant's bundle? Exported so other checks
+ * (e.g. the clean-manifest test) classify code the same way this verifier does, instead of
+ * keeping a second copy of the exclusion rules that drifts from this one.
+ */
+function isForbiddenInput(inputPath, profile) {
+    assertProfile(profile);
+    const p = inputPath.replace(/\\/g, '/');
+    return profile === 'openvsx'
+        ? isRecorderForbidden(p) || isStruggleForbidden(p)
+        : isRecorderForbidden(p);
+}
+
+function assertProfile(profile) {
+    if (profile !== 'desktop' && profile !== 'openvsx') {
+        throw new Error(`verify-clean-bundle: unknown profile '${profile}' (expected desktop | openvsx)`);
     }
+}
+
+function forbiddenInputs(metafilePath, profile) {
+    // Eagerly, so a bad profile is reported as such rather than as a missing metafile.
+    assertProfile(profile);
+    const check = p => isForbiddenInput(p, profile);
     const meta = JSON.parse(fs.readFileSync(metafilePath, 'utf8'));
     const inputs = meta && meta.inputs;
     // Fail-closed: a real esbuild metafile always has a populated `inputs` object. An
@@ -95,5 +118,5 @@ function main() {
     console.log(`OK (${profile}): bundle contains no forbidden inputs`);
 }
 
-module.exports = { forbiddenInputs, RECORDER_FORBIDDEN };
+module.exports = { forbiddenInputs, isForbiddenInput, RECORDER_FORBIDDEN };
 if (require.main === module) { main(); }

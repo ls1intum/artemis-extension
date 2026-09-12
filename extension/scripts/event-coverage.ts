@@ -26,15 +26,15 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 /**
- * Reads `extension/src/extension/services/telemetry/recording/types.ts` and
+ * Reads `extension/src/extension/services/recording/types.ts` and
  * extracts every string literal used as `type: '...'` in the RecordedEvent
  * union, so a new event type in the source is picked up here automatically
  * instead of being duplicated in this tool.
  */
 function extractEventTypesFromSource(): string[] {
     const candidates = [
-        path.resolve(__dirname, '../src/extension/services/telemetry/recording/types.ts'),
-        path.resolve(process.cwd(), 'src/extension/services/telemetry/recording/types.ts'),
+        path.resolve(__dirname, '../src/extension/services/recording/types.ts'),
+        path.resolve(process.cwd(), 'src/extension/services/recording/types.ts'),
     ];
     let typesFile: string | undefined;
     for (const c of candidates) {

@@ -1,0 +1,174 @@
+/**
+ * C8: ChatWebviewProvider _handleProactiveOutcome routes to onEpisodeDismiss when
+ * proactiveEpisodeId is present; legacy setProactiveOutcome persist for a missing id.
+ * There is no dismiss backoff: a dismiss records DISMISSED with no memory that
+ * changes future behavior (no pause/rate event).
+ */
+import * as vscode from 'vscode';
+import * as assert from 'assert';
+import * as sinon from 'sinon';
+
+import { ChatWebviewProvider } from '@extension/provider/chatWebviewProvider';
+import { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
+
+function buildProvider(): {
+    provider: ChatWebviewProvider;
+    sandbox: sinon.SinonSandbox;
+    mockApi: { setProactiveOutcome: sinon.SinonStub };
+} {
+    const sandbox = sinon.createSandbox();
+    sandbox.stub(vscode.commands, 'registerCommand').returns({ dispose: () => undefined });
+    const mockContext = new MockExtensionContext();
+    const noAi = {
+        isNoAiEnabled: false,
+        onNoAiStatusChanged: new vscode.EventEmitter<boolean>().event,
+    };
+    const registry = { getAllExercises: () => [] };
+    const courseCatalog = {
+        onCoursesLoaded: new vscode.EventEmitter<unknown>().event,
+        fetch: async () => undefined,
+    };
+
+    const mockApi = { setProactiveOutcome: sinon.stub().resolves() };
+
+    const provider = new ChatWebviewProvider(
+        vscode.Uri.file('/tmp'),
+        mockContext as unknown as vscode.ExtensionContext,
+        mockApi as never,
+        undefined,
+        noAi as never,
+        registry as never,
+        courseCatalog as never,
+        undefined,
+        new WorkspaceExerciseTracker(),
+        { getAccessTimestamp: () => undefined } as never,
+        { state: 'authenticated', epoch: 0 } as never,
+    );
+    return { provider, sandbox, mockApi };
+}
+
+suite('C8: ChatWebviewProvider proactive outcome routing', () => {
+    let provider: ChatWebviewProvider;
+    let sandbox: sinon.SinonSandbox;
+    let mockApi: { setProactiveOutcome: sinon.SinonStub };
+
+    setup(() => {
+        const built = buildProvider();
+        provider = built.provider;
+        sandbox = built.sandbox;
+        mockApi = built.mockApi;
+    });
+
+    teardown(() => {
+        provider.dispose();
+        sandbox.restore();
+    });
+
+    test('with proactiveEpisodeId: routes to onEpisodeDismiss callback, NOT legacy setProactiveOutcome', (done) => {
+        const onEpisodeDismiss = sinon.stub();
+        provider.proactive.setStruggleCallbacks({ onEpisodeDismiss });
+
+        (provider as unknown as { _handleMessage(msg: unknown): void })._handleMessage({
+            type: 'command',
+            command: 'messageProactiveOutcome',
+            payload: { sessionId: 1, messageId: 10, outcome: 'DISMISSED', proactiveEpisodeId: 'ep-abc' },
+        });
+
+        // Give microtasks a tick
+        setTimeout(() => {
+            assert.ok(onEpisodeDismiss.calledOnce, 'onEpisodeDismiss should be called');
+            assert.strictEqual(onEpisodeDismiss.firstCall.args[0], 'ep-abc');
+            assert.ok(!mockApi.setProactiveOutcome.called, 'legacy setProactiveOutcome must NOT be called');
+            done();
+        }, 0);
+    });
+
+    test('without proactiveEpisodeId: falls back to legacy setProactiveOutcome (no crash)', (done) => {
+        const onEpisodeDismiss = sinon.stub();
+        provider.proactive.setStruggleCallbacks({ onEpisodeDismiss });
+
+        (provider as unknown as { _handleMessage(msg: unknown): void })._handleMessage({
+            type: 'command',
+            command: 'messageProactiveOutcome',
+            payload: { sessionId: 5, messageId: 77, outcome: 'DISMISSED' }, // no proactiveEpisodeId
+        });
+
+        setTimeout(() => {
+            assert.ok(!onEpisodeDismiss.called, 'onEpisodeDismiss must NOT be called for legacy path');
+            assert.ok(mockApi.setProactiveOutcome.calledOnce, 'legacy setProactiveOutcome should be called');
+            assert.strictEqual(mockApi.setProactiveOutcome.firstCall.args[0], 5);
+            assert.strictEqual(mockApi.setProactiveOutcome.firstCall.args[1], 77);
+            done();
+        }, 10);
+    });
+
+    test('legacy dismiss persists DISMISSED with the backoff removed (no dismiss event on the provider)', (done) => {
+        // Regression guard: there is no hidden dismiss backoff. A dismiss on the legacy
+        // (no episode id) path must STILL persist DISMISSED, and the provider must not expose
+        // any backoff-dismiss event (dismissing carries no memory that changes future behavior).
+        assert.strictEqual(
+            (provider as unknown as { onDidDismissProactive?: unknown }).onDidDismissProactive,
+            undefined,
+            'the backoff dismiss event must be removed from the provider',
+        );
+
+        (provider as unknown as { _handleMessage(msg: unknown): void })._handleMessage({
+            type: 'command',
+            command: 'messageProactiveOutcome',
+            payload: { sessionId: 5, messageId: 77, outcome: 'DISMISSED' },
+        });
+
+        setTimeout(() => {
+            assert.ok(mockApi.setProactiveOutcome.calledOnce, 'legacy setProactiveOutcome should still persist DISMISSED');
+            assert.strictEqual(mockApi.setProactiveOutcome.firstCall.args[2], 'DISMISSED');
+            done();
+        }, 10);
+    });
+
+    test('no onEpisodeDismiss callback wired: is a safe no-op (no crash)', () => {
+        // No setStruggleCallbacks called for onEpisodeDismiss
+        assert.doesNotThrow(() => {
+            (provider as unknown as { _handleMessage(msg: unknown): void })._handleMessage({
+                type: 'command',
+                command: 'messageProactiveOutcome',
+                payload: { sessionId: 1, messageId: 99, outcome: 'DISMISSED', proactiveEpisodeId: 'ep-noop' },
+            });
+        });
+    });
+
+    test('with proactiveEpisodeId + RECOVERED ("Solved it"): routes to onEpisodeResolve, NOT onEpisodeDismiss', (done) => {
+        const onEpisodeDismiss = sinon.stub();
+        const onEpisodeResolve = sinon.stub();
+        provider.proactive.setStruggleCallbacks({ onEpisodeDismiss, onEpisodeResolve });
+
+        (provider as unknown as { _handleMessage(msg: unknown): void })._handleMessage({
+            type: 'command',
+            command: 'messageProactiveOutcome',
+            payload: { sessionId: 1, messageId: 10, outcome: 'RECOVERED', proactiveEpisodeId: 'ep-solved' },
+        });
+
+        setTimeout(() => {
+            assert.ok(onEpisodeResolve.calledOnce, 'onEpisodeResolve should be called for RECOVERED');
+            assert.strictEqual(onEpisodeResolve.firstCall.args[0], 'ep-solved');
+            assert.ok(!onEpisodeDismiss.called, 'onEpisodeDismiss must NOT be called for RECOVERED');
+            done();
+        }, 0);
+    });
+
+    test('without proactiveEpisodeId + RECOVERED: legacy setProactiveOutcome persists RECOVERED', (done) => {
+        provider.proactive.setStruggleCallbacks({ onEpisodeDismiss: sinon.stub(), onEpisodeResolve: sinon.stub() });
+
+        (provider as unknown as { _handleMessage(msg: unknown): void })._handleMessage({
+            type: 'command',
+            command: 'messageProactiveOutcome',
+            payload: { sessionId: 5, messageId: 77, outcome: 'RECOVERED' },
+        });
+
+        setTimeout(() => {
+            assert.ok(mockApi.setProactiveOutcome.calledOnce, 'legacy setProactiveOutcome should persist RECOVERED');
+            assert.strictEqual(mockApi.setProactiveOutcome.firstCall.args[2], 'RECOVERED');
+            done();
+        }, 10);
+    });
+});

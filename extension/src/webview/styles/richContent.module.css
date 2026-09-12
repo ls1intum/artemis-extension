@@ -1,10 +1,13 @@
 .richContent {
     color: inherit;
-    line-height: 1.6;
+    line-height: 1.5;
+    /* Prose can carry tokens with no break opportunity at all (identifiers, paths, URLs). Let them
+       break rather than push the container wider than its column. */
+    overflow-wrap: break-word;
 }
 
 .richContent p {
-    margin: 0 0 12px 0;
+    margin: 0 0 10px 0;
 }
 
 .richContent p:last-child {
@@ -13,7 +16,7 @@
 
 .richContent ul,
 .richContent ol {
-    margin: 8px 0;
+    margin: 6px 0;
     padding-left: 24px;
 }
 
@@ -21,13 +24,51 @@
     margin: 4px 0;
 }
 
+/* Inline code carries the most precise part of a message (the method the hint points at), so it
+   has to read at least as well as the prose around it. It used to take
+   `--vscode-textPreformat-foreground`, which in the default dark theme is #8C8C8C, the same value
+   as `descriptionForeground` - the colour reserved for things that do not matter. Measured against
+   its own chip that is 4.57:1, against 8.53:1 for the body text beside it.
+
+   Two separate problems, so two separate levers. Legibility is the text colour, below. Shape is the
+   border: chip #242526 against the proactive card #1D242A is 1.02:1, so the chip is not visible as
+   a surface at all, and moving the background does not fix that (even a much darker chip only
+   reaches 1.16:1). */
 .richContent code {
     background: var(--vscode-textCodeBlock-background);
-    color: var(--vscode-textPreformat-foreground);
-    padding: 2px 6px;
-    border-radius: 3px;
+    color: inherit;
+    border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
     font-family: var(--vscode-editor-font-family);
-    font-size: 0.9em;
+    /* 0.9em was compounding the problem: a monospace face already reads smaller at the same size.
+       The token holds 0.95em everywhere except a sidebar-width panel, where it drops a step so that
+       a qualified identifier of ordinary length still fits on one line (see base.css). It buys room,
+       it does not forbid a break: a long enough token still wraps under the rule below. */
+    font-size: var(--chat-code-size);
+    /* `anywhere` rather than `break-word`: only `anywhere` also shrinks the intrinsic min-content
+       width, which is what a flex or grid parent measures when deciding how far the column may
+       shrink. With `break-word` the token still wraps, but the parent has already been sized to
+       fit it unbroken. */
+    overflow-wrap: anywhere;
+    /* Without this a token that wraps keeps its padding and rounded corners only at the very start
+       and the very end, so the break looks like a rendering fault rather than a wrap. */
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+
+/* A touch beyond the body text, pushed away from the surface rather than toward a fixed grey, so it
+   holds in any theme rather than only in this one. VS Code stamps the theme kind on the webview
+   body. `currentColor` in a `color` declaration resolves to the inherited value, so this reads the
+   surrounding text colour whatever the theme set it to. */
+:global(body.vscode-dark) .richContent code,
+:global(body.vscode-high-contrast) .richContent code {
+    color: color-mix(in srgb, currentColor 76%, #FFFFFF 24%);
+}
+
+:global(body.vscode-light) .richContent code,
+:global(body.vscode-high-contrast-light) .richContent code {
+    color: color-mix(in srgb, currentColor 76%, #000000 24%);
 }
 
 .richContent a {

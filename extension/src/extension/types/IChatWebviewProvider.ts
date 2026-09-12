@@ -6,6 +6,12 @@ import type { TopicChangeOutcome } from '@extension/services/iris/conversation/c
  * Minimal interface for ChatWebviewProvider, consumed by ProviderRegistry for dependency inversion.
  */
 export interface IChatWebviewProvider {
+    /** True iff a `.noai` marker disables AI for the workspace. */
+    isNoAiEnabled(): boolean;
+    /** Resolves once the initial `.noai` workspace scan has completed, so `isNoAiEnabled()` is authoritative. */
+    whenNoAiReady(): Promise<void>;
+    /** Collapse every proactive episode in the transcript to a fold line (student switched proactive help to Off). */
+    collapseProactiveEpisodes(): void;
     /**
      * Points the open conversation at `target`, acquiring one when none is
      * open. `courseHint` travels with the target because a cold start has no

@@ -181,6 +181,44 @@ describe('useChatStore', () => {
 		expect(result.current.messages[1].role).toBe('assistant');
 	});
 
+	it('addMessage deduplicates by id: second call with same id is a no-op', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.addMessage(makeMessage({ localId: 'optimistic-1', id: 42, content: 'Optimistic bubble' }));
+		});
+		act(() => {
+			// Simulate the chat-ws row arriving with the same Artemis id
+			result.current.addMessage(makeMessage({ localId: 'ws-row-1', id: 42, content: 'Server row' }));
+		});
+
+		expect(result.current.messages).toHaveLength(1);
+		expect(result.current.messages[0].localId).toBe('optimistic-1');
+	});
+
+	it('addMessage does NOT dedup when ids are different', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			result.current.addMessage(makeMessage({ localId: 'msg-a', id: 1, content: 'First' }));
+			result.current.addMessage(makeMessage({ localId: 'msg-b', id: 2, content: 'Second' }));
+		});
+
+		expect(result.current.messages).toHaveLength(2);
+	});
+
+	it('addMessage does NOT dedup when id is undefined', () => {
+		const { result } = renderHook(() => useChatStore());
+
+		act(() => {
+			// Two optimistic messages without a server id both append
+			result.current.addMessage(makeMessage({ localId: 'opt-1', id: undefined, content: 'First optimistic' }));
+			result.current.addMessage(makeMessage({ localId: 'opt-2', id: undefined, content: 'Second optimistic' }));
+		});
+
+		expect(result.current.messages).toHaveLength(2);
+	});
+
 	it('applyLoadedMessages replaces the transcript wholesale', () => {
 		const { result } = renderHook(() => useChatStore());
 
@@ -683,6 +721,205 @@ describe('useChatStore', () => {
 			expect(useChatStore.getState().liveDraft).toEqual({ runId: 'A', text: 'live' });
 			expect(useChatStore.getState().streaming.isStreaming).toBe(true);
 			expect(useChatStore.getState().lastRunUiRevision).toBe(1);
+		});
+	});
+
+	// ---------------------------------------------------------------------------
+	// C4: suppressedIds + removeMessageById (stale-row suppression)
+	// ---------------------------------------------------------------------------
+
+	describe('suppressedIds', () => {
+		it('starts empty', () => {
+			const { result } = renderHook(() => useChatStore());
+			expect(result.current.suppressedIds.size).toBe(0);
+		});
+
+		it('addMessage skips a row whose id is in suppressedIds', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => { result.current.removeMessageById(42); });
+			act(() => {
+				result.current.addMessage(makeMessage({ localId: 'ws-1', id: 42, content: 'Stale row' }));
+			});
+
+			expect(result.current.messages).toHaveLength(0);
+		});
+
+		it('clearMessages resets suppressedIds', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => { result.current.removeMessageById(99); });
+			act(() => { result.current.clearMessages(); });
+
+			expect(result.current.suppressedIds.size).toBe(0);
+			// After clear, a message with that id can be inserted again
+			act(() => {
+				result.current.addMessage(makeMessage({ localId: 'fresh-1', id: 99, content: 'Fresh row' }));
+			});
+			expect(result.current.messages).toHaveLength(1);
+		});
+	});
+
+	describe('removeMessageById', () => {
+		it('removes the row if present by numeric id', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({ localId: 'a', id: 10 }));
+				result.current.addMessage(makeMessage({ localId: 'b', id: 20 }));
+			});
+
+			act(() => { result.current.removeMessageById(10); });
+
+			expect(result.current.messages).toHaveLength(1);
+			expect(result.current.messages[0].localId).toBe('b');
+		});
+
+		it('is a no-op on the messages array when id is not present', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => { result.current.addMessage(makeMessage({ localId: 'a', id: 5 })); });
+			act(() => { result.current.removeMessageById(999); });
+
+			expect(result.current.messages).toHaveLength(1);
+		});
+
+		it('records the id in suppressedIds even when no matching row is present', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => { result.current.removeMessageById(77); });
+
+			expect(result.current.suppressedIds.has(77)).toBe(true);
+		});
+
+		it('STALE-ROW SUPPRESSION arrival order 1: row first, then removeMessageById -> zero rows', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			// Row arrives via chat-ws before the control frame drop
+			act(() => {
+				result.current.addMessage(makeMessage({ localId: 'ws-1', id: 55, content: 'Stale hint' }));
+			});
+			expect(result.current.messages).toHaveLength(1);
+
+			// Control frame is dropped -> remove + suppress
+			act(() => { result.current.removeMessageById(55); });
+
+			expect(result.current.messages).toHaveLength(0);
+			expect(result.current.suppressedIds.has(55)).toBe(true);
+		});
+
+		it('STALE-ROW SUPPRESSION arrival order 2: removeMessageById first, then chat-ws row -> zero rows', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			// Control frame drop arrives before the chat-ws row
+			act(() => { result.current.removeMessageById(66); });
+
+			// Chat-ws row arrives later
+			act(() => {
+				result.current.addMessage(makeMessage({ localId: 'ws-2', id: 66, content: 'Stale hint' }));
+			});
+
+			expect(result.current.messages).toHaveLength(0);
+			expect(result.current.suppressedIds.has(66)).toBe(true);
+		});
+	});
+
+	describe('resolveOffer', () => {
+		it('marks the offer as answered on the message with the matching offerId', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({
+					localId: 'p-1', id: 1, role: 'assistant', origin: 'proactive',
+					offer: { offerId: 'offer-1', moment: 'stuck' },
+				}));
+			});
+
+			act(() => { result.current.resolveOffer('offer-1', 'accept'); });
+
+			expect(result.current.messages[0].offer?.answered).toBe('accept');
+		});
+
+		it('is a no-op when no message has a matching offerId', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				result.current.addMessage(makeMessage({
+					localId: 'p-1', id: 1, role: 'assistant', origin: 'proactive',
+					offer: { offerId: 'offer-1', moment: 'stuck' },
+				}));
+			});
+
+			act(() => { result.current.resolveOffer('offer-does-not-exist', 'decline'); });
+
+			expect(result.current.messages[0].offer?.answered).toBeUndefined();
+		});
+	});
+
+	describe('setLiveEpisode (host-authoritative live-episode frame)', () => {
+		it('replaces the live set with the given episode id', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			// A previously registered live episode (via addMessage) is superseded wholesale
+			act(() => {
+				result.current.addMessage(makeMessage({
+					localId: 'p-1', id: 1, role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep-old',
+				}));
+			});
+			expect(result.current.liveEpisodeIds.has('ep-old')).toBe(true);
+
+			act(() => { result.current.setLiveEpisode('ep-new'); });
+
+			expect(result.current.liveEpisodeIds.has('ep-new')).toBe(true);
+			expect(result.current.liveEpisodeIds.has('ep-old')).toBe(false);
+
+			act(() => { result.current.clearMessages(); });
+			act(() => { result.current.setLiveEpisode(null); });
+		});
+
+		it('setLiveEpisode(null) clears the live set', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => { result.current.setLiveEpisode('ep-live'); });
+			expect(result.current.liveEpisodeIds.has('ep-live')).toBe(true);
+
+			act(() => { result.current.setLiveEpisode(null); });
+			expect(result.current.liveEpisodeIds.size).toBe(0);
+		});
+
+		it('clearMessages preserves liveEpisodeIds (liveness is slot state, not session state)', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => { result.current.setLiveEpisode('ep-live'); });
+			act(() => { result.current.clearMessages(); });
+
+			// Switching sessions (clearMessages) must not forget which episode is live,
+			// otherwise switching back re-folds the live episode as "Earlier hint".
+			expect(result.current.liveEpisodeIds.has('ep-live')).toBe(true);
+
+			act(() => { result.current.setLiveEpisode(null); });
+		});
+
+		it('foldAllEpisodes folds every proactive episode in the transcript', () => {
+			const { result } = renderHook(() => useChatStore());
+
+			act(() => {
+				useChatStore.setState({
+					messages: [
+						makeMessage({ localId: 'a', role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep1', content: 'h1' }),
+						makeMessage({ localId: 'b', role: 'assistant', origin: 'proactive', proactiveEpisodeId: 'ep2', content: 'h2' }),
+						makeMessage({ localId: 'c', role: 'user', content: 'not proactive' }),
+					],
+					foldStates: new Map(),
+					liveEpisodeIds: new Set(['ep1', 'ep2']),
+				});
+			});
+
+			act(() => { result.current.foldAllEpisodes(); });
+
+			// Off collapses every proactive episode to a fold line (folded=true is authoritative).
+			expect(result.current.foldStates.get('ep1')?.folded).toBe(true);
+			expect(result.current.foldStates.get('ep2')?.folded).toBe(true);
 		});
 	});
 

@@ -3,6 +3,7 @@
  */
 
 import type { AttemptId } from './domainTypes';
+import type { ProactiveLevel } from './proactiveLevel';
 
 /** Non-command webview message types (ready, requestInit, error) */
 export const WebviewMsgType = {
@@ -37,6 +38,9 @@ export const WebviewCmd = {
     ToggleCourseListFullscreen: 'toggleCourseListFullscreen',
     AskIrisAboutCourse: 'askIrisAboutCourse',
 
+    // Struggle detection (developer)
+    ToggleStruggleFullscreen: 'toggleStruggleFullscreen',
+
     // Exercise
     ReloadExerciseDetail: 'reloadExerciseDetail',
     ToggleFullscreen: 'toggleFullscreen',
@@ -66,7 +70,6 @@ export const WebviewCmd = {
 
     // Recording
     OpenRecordingsFolder: 'openRecordingsFolder',
-    ReplaySession: 'replaySession',
 
     // Views
     ShowAiConfig: 'showAiConfig',
@@ -74,6 +77,8 @@ export const WebviewCmd = {
     ShowServiceStatus: 'showServiceStatus',
     ShowGitCredentials: 'showGitCredentials',
     ShowStruggleDetection: 'showStruggleDetection',
+    StruggleLiveSubscribe: 'struggleLiveSubscribe',
+    StruggleLiveUnsubscribe: 'struggleLiveUnsubscribe',
     PerformHealthChecks: 'performHealthChecks',
 
     // Iris Chat
@@ -96,6 +101,10 @@ export const WebviewCmd = {
     ReconnectWebSocket: 'reconnectWebSocket',
     ReloadChatSession: 'reloadChatSession',
     MessageFeedback: 'messageFeedback',
+    MessageProactiveOutcome: 'messageProactiveOutcome',
+    // Proactive control (AskIris Off/Less/More level)
+    RequestProactiveControl: 'requestProactiveControl',
+    SetProactiveLevel: 'setProactiveLevel',
     OpenFile: 'openFile',
     OpenDiagnostics: 'openDiagnostics',
     OpenHelpPopup: 'openHelpPopup',
@@ -121,6 +130,9 @@ export const WebviewCmd = {
     // Problem-statement tracking
     ProblemStatementScroll: 'problemStatementScroll',
     ProblemStatementSelection: 'problemStatementSelection',
+
+    // Proactive nudge banner
+    NudgeBannerAction: 'nudgeBannerAction',
 } as const;
 
 export type WebviewCmd = (typeof WebviewCmd)[keyof typeof WebviewCmd];
@@ -152,6 +164,9 @@ interface WebviewCmdPayloads {
     toggleCourseListFullscreen: undefined;
     askIrisAboutCourse: { courseId: number; courseTitle: string; courseShortName?: string };
 
+    // Struggle detection (developer)
+    toggleStruggleFullscreen: undefined;
+
     // Exercise
     reloadExerciseDetail: { exerciseId: number };
     toggleFullscreen: undefined;
@@ -178,7 +193,6 @@ interface WebviewCmdPayloads {
 
     // Recording
     openRecordingsFolder: undefined;
-    replaySession: undefined;
 
     // Git
     saveGitIdentity: { name: string; email: string };
@@ -188,6 +202,8 @@ interface WebviewCmdPayloads {
     showServiceStatus: undefined;
     showGitCredentials: undefined;
     showStruggleDetection: undefined;
+    struggleLiveSubscribe: undefined;
+    struggleLiveUnsubscribe: undefined;
     performHealthChecks: { serverUrl: string };
 
     // Iris Chat
@@ -216,6 +232,10 @@ interface WebviewCmdPayloads {
     reconnectWebSocket: undefined;
     reloadChatSession: undefined;
     messageFeedback: { sessionId: number; messageId: number; feedback: 'positive' | 'negative' };
+    messageProactiveOutcome: { sessionId: number; messageId: number; outcome: 'DISMISSED' | 'RECOVERED'; proactiveEpisodeId?: string };
+ // courseId lets every _push (init AND toggle) re-derive availability with the course id (slice 5c).
+    requestProactiveControl: { exerciseId: number; courseId?: number };
+    setProactiveLevel: { exerciseId: number; level: ProactiveLevel; courseId?: number };
     openFile: { filePath: string };
     openDiagnostics: undefined;
     openHelpPopup: undefined;
@@ -281,6 +301,11 @@ interface WebviewCmdPayloads {
         selectionWidth: number;
         selectionHeight: number;
     };
+
+    // Proactive nudge banner
+    nudgeBannerAction:
+        | { action: 'showMe' | 'dismiss' | 'timeout'; episodeId?: string }                                                   // legacy active banner (unchanged)
+        | { moment: 'stuck' | 'abandon'; action: 'accept' | 'decline' | 'timeout'; episodeId?: string; offerId?: string };    // offer banner
 }
 
 /** Commands that require a non-undefined payload object. */
@@ -308,6 +333,9 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.PerformHealthChecks,
     WebviewCmd.SendMessage,
     WebviewCmd.MessageFeedback,
+    WebviewCmd.MessageProactiveOutcome,
+    WebviewCmd.RequestProactiveControl,
+    WebviewCmd.SetProactiveLevel,
     WebviewCmd.OpenFile,
     WebviewCmd.ViewArchivedCourse,
     WebviewCmd.FreshSsrPreview,
@@ -320,6 +348,7 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.TaskFeedbackClosed,
     WebviewCmd.ProblemStatementScroll,
     WebviewCmd.ProblemStatementSelection,
+    WebviewCmd.NudgeBannerAction,
     WebviewCmd.SelectTopic,
     WebviewCmd.OpenConversation,
     WebviewCmd.SwitchCourse,

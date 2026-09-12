@@ -12,7 +12,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 16px;
+    padding: 12px var(--chat-gutter);
     border-bottom: 1px solid var(--vscode-panel-border);
     flex-shrink: 0;
 }
@@ -122,7 +122,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 12px 16px;
+    padding: 12px var(--chat-gutter);
     background: var(--vscode-inputValidation-warningBackground);
     color: var(--vscode-inputValidation-warningForeground);
     border-bottom: 1px solid var(--vscode-inputValidation-warningBorder);
@@ -133,7 +133,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
+    padding: 12px var(--chat-gutter);
     background: var(--vscode-inputValidation-warningBackground);
     color: var(--vscode-inputValidation-warningForeground);
     border-bottom: 1px solid var(--vscode-inputValidation-warningBorder);
@@ -159,7 +159,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 12px 16px;
+    padding: 12px var(--chat-gutter);
     background: var(--vscode-inputValidation-warningBackground);
     color: var(--vscode-inputValidation-warningForeground);
     border-bottom: 1px solid var(--vscode-inputValidation-warningBorder);
@@ -205,7 +205,7 @@
     min-height: 0;
     height: 100%;
     overflow-y: auto;
-    padding: 24px 16px;
+    padding: 24px var(--chat-gutter);
     gap: 12px;
 }
 
@@ -224,7 +224,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 0 16px 6px;
+    padding: 0 var(--chat-gutter) 6px;
 }
 
 .topicButton {
@@ -294,7 +294,7 @@
 }
 
 .disclaimer {
-    padding: 6px 16px;
+    padding: 6px var(--chat-gutter);
     font-size: clamp(8px, 2.6cqi, 10px);
     color: var(--vscode-descriptionForeground);
     text-align: center;

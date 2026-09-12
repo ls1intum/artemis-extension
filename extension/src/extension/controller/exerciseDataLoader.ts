@@ -118,8 +118,8 @@ export async function fetchAndEnrichExerciseDetails(
                 if (target) {
                     target.feedbacks = resultWithFeedbacks.feedbacks;
                 } else {
-                    // Previously a silent drop: the server returned feedbacks
-                    // and nothing consumed them.
+                    // The server returned feedbacks with nothing to attach them to. Say so
+                    // rather than dropping them silently.
                     logger.warn(
                         `Latest-result feedbacks for participation ${participationId} had no result to attach to; dropping`,
                         LogCategory.API,

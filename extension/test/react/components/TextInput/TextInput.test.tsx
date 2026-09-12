@@ -147,9 +147,9 @@ describe('TextInput', () => {
 	});
 
 	it('generates an id that survives a re-render, and links the label to it', () => {
-		// The point of useId over the previous Math.random(): the id used to be
-		// regenerated on every render, so htmlFor pointed somewhere new each
-		// time even though nothing about the field had changed.
+		// This is what useId buys over a random id: a random one is regenerated on
+		// every render, so htmlFor points somewhere new each time even though
+		// nothing about the field has changed.
 		const { rerender } = render(<TextInput value="" onChange={vi.fn()} label="Generated" />);
 		const firstId = screen.getByLabelText('Generated').id;
 		expect(firstId).not.toBe('');

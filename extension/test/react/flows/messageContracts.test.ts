@@ -282,7 +282,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         expect(msg.projection.sessionId).toBe(42);
     });
 
-    it('ShowChatNoticeMessage (landed in Task 6) has the actionless {text} shape', () => {
+    it('ShowChatNoticeMessage has the actionless {text} shape', () => {
         const msg = {
             type: 'showChatNotice' as const,
             text: 'Dropped your staged topic because the conversation moved on.',
@@ -657,6 +657,7 @@ describe('Message contracts: runtime shape validation', () => {
         const dashboardInit: ExtensionToWebviewMessage = {
             type: 'dashboardInit',
             courses: [],
+            hideDeveloperTools: false,
         };
 
         expect(loginSuccess.type).toBe('loginSuccess');
