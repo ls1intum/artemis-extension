@@ -69,6 +69,18 @@ suite('ProfileInfo', () => {
         assert.deepStrictEqual(p.activeProfiles, []);
     });
 
+    test('reads the server version out of build.version', () => {
+        const p = parseProfileInfo({ activeProfiles: [], activeModuleFeatures: [], build: { version: '9.9.2' } });
+        assert.strictEqual(p.serverVersion, '9.9.2');
+    });
+
+    test('a missing build, a non-object build and a non-string version all read as absent', () => {
+        for (const build of [undefined, 'nope', { version: 9.9 }, {}]) {
+            const p = parseProfileInfo({ activeProfiles: [], activeModuleFeatures: [], build });
+            assert.strictEqual(p.serverVersion, undefined, `build=${JSON.stringify(build)}`);
+        }
+    });
+
     test('throws on invalid input', () => {
         assert.throws(() => parseProfileInfo(null), /Invalid/);
         assert.throws(() => parseProfileInfo(undefined), /Invalid/);
