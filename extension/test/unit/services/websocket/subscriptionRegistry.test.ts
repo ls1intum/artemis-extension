@@ -80,6 +80,29 @@ suite('SubscriptionRegistry', () => {
         assert.strictEqual(client.subscribed.has(topic), false);
     });
 
+    test('subscribeToIrisSession forwards the payload and the session it came from', () => {
+        const { registry, client } = makeRegistry();
+        const seen: Array<{ data: unknown; sourceSessionId: number }> = [];
+
+        registry.subscribeToIrisSession(7, (data, sourceSessionId) => { seen.push({ data, sourceSessionId }); });
+        client.subscribed.get('/user/topic/iris/7')!({ body: JSON.stringify({ content: 'hi' }) } as IMessage);
+
+        assert.deepStrictEqual(seen, [{ data: { content: 'hi' }, sourceSessionId: 7 }]);
+    });
+
+    test('a malformed iris frame is swallowed, the subscription survives it', () => {
+        const { registry, client } = makeRegistry();
+        let delivered = 0;
+        registry.subscribeToIrisSession(7, () => { delivered++; });
+        const cb = client.subscribed.get('/user/topic/iris/7')!;
+
+        assert.doesNotThrow(() => cb({ body: 'not json' } as IMessage));
+        assert.strictEqual(delivered, 0);
+
+        cb({ body: JSON.stringify({ content: 'hi' }) } as IMessage);
+        assert.strictEqual(delivered, 1);
+    });
+
     test('subscribe throws if no client attached', () => {
         const registry = new SubscriptionRegistry({ log: () => { /* silent */ } });
         assert.throws(() => registry.subscribeToIrisSession(1, () => { /* noop */ }), /not connected/);
