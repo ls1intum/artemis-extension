@@ -545,9 +545,11 @@ export async function activate(context: vscode.ExtensionContext) {
 			void artemisWebsocketService.connect().catch(error => {
 				logger.error('Failed to connect to Artemis WebSocket on startup', LogCategory.WEBSOCKET, error);
 			});
-			// Ask once (only while undecided) whether to enable proactive help: local
-			// struggle detection plus code reading when it triggers (#349). No-op in
-			// the clean build.
+			// Would ask once, while undecided, whether to enable proactive help: local
+			// struggle detection plus code reading when it triggers (#349). Currently a
+			// no-op on every build: the Artemis side is not released, so the question has
+			// no answer worth acting on yet. See `shouldAskForProactiveEgress`. Also a
+			// no-op in the clean build, which ships no engine at all.
 			void promptConsentIfAsk();
 		}
 	} catch (error) {
