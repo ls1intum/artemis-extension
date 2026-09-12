@@ -21,8 +21,8 @@ import type {
 } from '@extension/types';
 import type {
     CourseDashboardCourse,
-    CourseDashboardEntry,
     CourseDashboardResponse,
+    ExerciseDetail,
     ExerciseDetailsResponse,
     IrisChatMessage,
     IrisChatMode,
@@ -43,12 +43,22 @@ import {
     parseArtemisParticipation,
     parseArtemisUser,
     parseBuildLogEntry,
+    parseCourseExercisesForOverview,
     parseIrisHealthStatus,
     parseProfileInfo,
     parseProgrammingSubmission,
     PROFILE_IRIS,
 } from '@extension/types';
 import { CONFIG, getUserAgent, resolveServerUrl } from '@extension/utils';
+
+/**
+ * The canonical prefix of every course route.
+ *
+ * One constant rather than a literal per call, mirroring the Artemis web client's own
+ * `resourceUrl`. The `api/core/` spelling these routes also answered to was a deprecated alias and
+ * has already been dropped from the course overview controller server-side.
+ */
+const COURSES_BASE = '/api/course/courses';
 
 export class ArtemisApiService {
     private authManager: AuthManager;
@@ -206,7 +216,7 @@ export class ArtemisApiService {
 
     // Get archived courses (inactive courses from previous semesters)
     async getArchivedCourses(): Promise<CourseDashboardCourse[]> {
-        const response = await this.makeRequest('/api/core/courses/for-archive');
+        const response = await this.makeRequest(`${COURSES_BASE}/for-archive`);
         return expectArray<CourseDashboardCourse>(
             'archived courses',
             await response.json(),
@@ -216,13 +226,21 @@ export class ArtemisApiService {
 
     // Dashboard data carries exercises, participations and scores.
     async getCoursesForDashboard(): Promise<CourseDashboardResponse> {
-        const response = await this.makeRequest('/api/core/courses/for-dashboard');
+        const response = await this.makeRequest(`${COURSES_BASE}/for-dashboard`);
         return parseApiObject<CourseDashboardResponse>('CourseDashboardResponse', await response.json());
     }
 
-    async getCourseForDashboard(courseId: number): Promise<CourseDashboardEntry> {
-        const response = await this.makeRequest(`/api/core/courses/${courseId}/for-dashboard`);
-        return parseApiObject<CourseDashboardEntry>('CourseDashboardEntry', await response.json());
+    /**
+     * The exercises of one course, with the participations that carry their repository URIs.
+     *
+     * The per-course counterpart of {@link getCoursesForDashboard}. Its predecessor
+     * `courses/{id}/for-dashboard` returned the course and its exercises together and was deleted
+     * server-side; the course itself now comes from the dashboard list or from what is already
+     * cached, and only the exercises are fetched here.
+     */
+    async getCourseExercisesForOverview(courseId: number): Promise<ExerciseDetail[]> {
+        const response = await this.makeRequest(`${COURSES_BASE}/${courseId}/exercises-for-overview`);
+        return parseCourseExercisesForOverview(await response.json());
     }
 
     // The backend always includes studentParticipations with submissions and
@@ -309,7 +327,7 @@ export class ArtemisApiService {
 
     async getVcsAccessToken(participationId: number): Promise<string> {
         const response = await this.makeRequest(
-            `/api/core/account/participation-vcs-access-token?participationId=${participationId}`,
+            `/api/account/participation-vcs-access-token?participationId=${participationId}`,
             { method: 'GET' }
         );
         return response.text();
@@ -317,7 +335,7 @@ export class ArtemisApiService {
 
     async createVcsAccessToken(participationId: number): Promise<string> {
         const response = await this.makeRequest(
-            `/api/core/account/participation-vcs-access-token?participationId=${participationId}`,
+            `/api/account/participation-vcs-access-token?participationId=${participationId}`,
             { method: 'PUT' }
         );
         return response.text();
@@ -635,7 +653,7 @@ export class ArtemisApiService {
     }
 
     async listChatSessionsForCourse(courseId: number): Promise<SessionSummary[]> {
-        const response = await this.makeRequest(`/api/iris/chat/${courseId}/sessions/overview`);
+        const response = await this.makeRequest(`/api/iris/chat/courses/${courseId}/sessions/overview`);
         return expectArray<SessionSummary>('SessionSummary list', await response.json(), (item, i) => {
             const dto = parseApiObject<IrisChatSessionSummary>(`IrisChatSessionSummary[${i}]`, item, [
                 { key: 'id', type: 'number' },

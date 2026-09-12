@@ -204,7 +204,7 @@ suite('Artemis API Service Test Suite', () => {
     test('should get archived courses', async () => {
         const mockCourses = [{ id: 2, title: 'Archived Course' }];
         global.fetch = async (url: any) => {
-            assert.ok(url.includes('/api/core/courses/for-archive'));
+            assert.ok(url.includes('/api/course/courses/for-archive'));
             return {
                 ok: true,
                 status: 200,
@@ -219,7 +219,7 @@ suite('Artemis API Service Test Suite', () => {
     test('should get courses for dashboard', async () => {
         const mockDashboard = { courses: [] };
         global.fetch = async (url: any) => {
-            assert.ok(url.includes('/api/core/courses/for-dashboard'));
+            assert.ok(url.includes('/api/course/courses/for-dashboard'));
             return {
                 ok: true,
                 status: 200,
@@ -305,20 +305,20 @@ suite('Artemis API Service Test Suite', () => {
         );
     });
 
-    test('should get single course for dashboard', async () => {
+    test('should get the exercises of one course for the overview', async () => {
         const courseId = 1;
-        const mockCourseData = { course: { id: 1, title: 'Course 1', exercises: [] } };
         global.fetch = async (url: any) => {
-            assert.ok(url.includes(`/api/core/courses/${courseId}/for-dashboard`));
+            assert.ok(url.includes(`/api/course/courses/${courseId}/exercises-for-overview`));
             return {
                 ok: true,
                 status: 200,
-                json: async () => mockCourseData,
+                json: async () => ({ exercises: [{ id: 10, title: 'Exercise 10', type: 'programming' }] }),
             } as any;
         };
 
-        const courseData = await apiService.getCourseForDashboard(courseId);
-        assert.deepStrictEqual(courseData, mockCourseData);
+        const exercises = await apiService.getCourseExercisesForOverview(courseId);
+        assert.strictEqual(exercises.length, 1);
+        assert.strictEqual(exercises[0].id, 10);
     });
 
     test('should get build logs', async () => {
@@ -359,7 +359,7 @@ suite('Artemis API Service Test Suite', () => {
         const participationId = 1;
         const mockToken = 'vcs-token';
         global.fetch = async (url: any, options: any) => {
-            assert.ok(url.includes('/api/core/account/participation-vcs-access-token'));
+            assert.ok(url.includes('/api/account/participation-vcs-access-token'));
             assert.strictEqual(options.method, 'GET');
             return {
                 ok: true,
@@ -376,7 +376,7 @@ suite('Artemis API Service Test Suite', () => {
         const participationId = 1;
         const mockToken = 'new-vcs-token';
         global.fetch = async (url: any, options: any) => {
-            assert.ok(url.includes('/api/core/account/participation-vcs-access-token'));
+            assert.ok(url.includes('/api/account/participation-vcs-access-token'));
             assert.strictEqual(options.method, 'PUT');
             return {
                 ok: true,
@@ -1054,7 +1054,7 @@ suite('Artemis API Service Test Suite', () => {
             { id: 2, entityId: 123, mode: 'PROGRAMMING_EXERCISE_CHAT', creationDate: '2026-05-13T01:00:00Z' },
         ];
         global.fetch = async (url: any, options: any) => {
-            assert.ok(url.includes(`/api/iris/chat/${courseId}/sessions/overview`));
+            assert.ok(url.includes(`/api/iris/chat/courses/${courseId}/sessions/overview`));
             assert.ok(!options?.method || options.method === 'GET');
             return { ok: true, status: 200, json: async () => rawSummaries } as any;
         };

@@ -145,13 +145,37 @@ export async function fetchAndEnrichExerciseDetails(
     return exerciseDetails;
 }
 
+/**
+ * The detail view of one archived course.
+ *
+ * Composed from two responses because the server deleted
+ * `courses/{id}/for-dashboard`, which used to return course and exercises
+ * together: the archive list is the only remaining source of the course
+ * metadata, and `exercises-for-overview` supplies the exercises. The archive
+ * list is re-fetched here rather than passed in, so that the caller keeps
+ * addressing an archived course by its id alone.
+ *
+ * Both requests go out together: neither depends on the other's answer, and a
+ * course that has since left the archive is a rejection either way.
+ */
 export async function fetchArchivedCourseDetail(
     api: ArtemisApiService,
     courseId: number,
 ): Promise<CourseDetailData> {
-    const dashboardDTO = await api.getCourseForDashboard(courseId);
-    const mapped = toCourseDetailData(dashboardDTO.course, { isArchived: true });
+    const [archivedCourses, exercises] = await Promise.all([
+        api.getArchivedCourses(),
+        api.getCourseExercisesForOverview(courseId),
+    ]);
+
+    const archiveRow = archivedCourses.find(course => course.id === courseId);
+    if (!archiveRow) {
+        throw new Error(`Archived course ${courseId} is not in the archive list`);
+    }
+
+    const mapped = toCourseDetailData({ ...archiveRow, exercises }, { isArchived: true });
     if (!mapped) {
+        // Unreachable through the lookup above, which matched on a numeric id,
+        // but the mapper is the one place that decides what a valid course is.
         throw new Error(`Archived course ${courseId} is missing an id`);
     }
     return mapped;
