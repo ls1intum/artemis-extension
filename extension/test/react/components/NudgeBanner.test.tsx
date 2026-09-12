@@ -145,6 +145,20 @@ describe('NudgeBanner', () => {
             root.remove();
         });
 
+        it('drops a logo URI that names a scheme the webview would not render', async () => {
+            // The attribute is written by the extension host, so this cannot happen today. It is
+            // still the one place where a string crosses from the DOM into an `src`, and an empty
+            // `src` is the right answer for a decorative image whose source is not trustworthy.
+            root.dataset.irisLogoUri = 'javascript:alert(1)';
+            render(<NudgeBanner vscodeApi={createMockVsCodeApi()} />);
+            showBanner();
+
+            await waitFor(() => {
+                expect(screen.getByText('Hit a wall?')).toBeInTheDocument();
+            });
+            expect(document.querySelector('img')?.getAttribute('src')).toBe('');
+        });
+
         it('reads the Iris logo from the root data-iris-logo-uri attribute', async () => {
             const { container } = render(<NudgeBanner vscodeApi={createMockVsCodeApi()} />);
             showBanner();

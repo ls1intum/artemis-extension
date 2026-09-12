@@ -23,13 +23,34 @@ interface BannerState {
 type BannerAction = 'showMe' | 'dismiss' | 'timeout' | 'accept' | 'decline';
 
 /**
+ * The injected Iris logo URL, or an empty string when it names a scheme we will not render.
+ *
+ * `webviewHtml.ts` writes this attribute from `webview.asWebviewUri(...)`, so in practice it is
+ * always a resource URL the extension itself minted. Reading it back out of the DOM and handing it
+ * to an `src` is nevertheless an unchecked hop between two layers, and checking it here makes the
+ * guarantee local instead of something a reader has to confirm in another file.
+ *
+ * A value with no scheme is relative and resolves against the webview's own document, which cannot
+ * introduce one, so it passes. A value that does name a scheme has to name one the webview's
+ * `img-src` policy would accept anyway. An empty `src` renders nothing, which is already what
+ * `alt=""` says this image is worth.
+ */
+function readInjectedLogoUri(): string {
+    const raw = document.getElementById('root')?.getAttribute('data-iris-logo-uri') ?? '';
+    const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(raw)?.[1].toLowerCase();
+    return scheme === undefined || ALLOWED_LOGO_SCHEMES.includes(scheme) ? raw : '';
+}
+
+const ALLOWED_LOGO_SCHEMES = ['https', 'data', 'vscode-resource', 'vscode-webview-resource'];
+
+/**
  * Bottom-fixed "glass" overlay nudging a struggling student towards Iris. Hidden until a
  * `showNudgeBanner` message arrives; a CSS countdown bar auto-closes it after `timerMs`.
  */
 export function NudgeBanner({ vscodeApi }: NudgeBannerProps) {
     const [banner, setBanner] = useState<BannerState | null>(null);
     // Read once: the extension injects this on the root element at webview-html build time.
-    const [logoUri] = useState(() => document.getElementById('root')?.getAttribute('data-iris-logo-uri') ?? '');
+    const [logoUri] = useState(readInjectedLogoUri);
     // Restarts the countdown-bar animation on every show, even a re-show of the same episode.
     const showCounter = useRef(0);
 

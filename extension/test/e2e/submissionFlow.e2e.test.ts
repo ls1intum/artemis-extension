@@ -410,21 +410,38 @@ suite('E2E: Student Submission Flow', function () {
             }
 
             const absPath = path.join(clonePath, file);
-            if (fs.existsSync(absPath)) {
-                const stats = fs.statSync(absPath);
-                if (stats.size > MAX_FILE_SIZE_BYTES) {
-                    excluded.push({ file, reason: `too large (${(stats.size / 1024 / 1024).toFixed(2)}MB)` });
-                    continue;
-                }
-                if (stats.size > 0) {
-                    const buf = Buffer.alloc(Math.min(512, stats.size));
-                    const fd = fs.openSync(absPath, 'r');
-                    fs.readSync(fd, buf, 0, buf.length, 0);
-                    fs.closeSync(fd);
-                    if (buf.includes(0)) {
-                        excluded.push({ file, reason: 'binary file' });
-                        continue;
+            // One open, then everything through the descriptor. `existsSync` + `statSync` +
+            // `openSync` looked the same path up three times, so the file that was measured was
+            // not necessarily the file that was read. The descriptor also closes on every exit
+            // now, which the old `continue` on a binary file skipped.
+            let fd: number | undefined;
+            try {
+                fd = fs.openSync(absPath, 'r');
+            }
+            catch {
+                fd = undefined;
+            }
+            if (fd !== undefined) {
+                let reason: string | undefined;
+                try {
+                    const stats = fs.fstatSync(fd);
+                    if (stats.size > MAX_FILE_SIZE_BYTES) {
+                        reason = `too large (${(stats.size / 1024 / 1024).toFixed(2)}MB)`;
                     }
+                    else if (stats.size > 0) {
+                        const buf = Buffer.alloc(Math.min(512, stats.size));
+                        fs.readSync(fd, buf, 0, buf.length, 0);
+                        if (buf.includes(0)) {
+                            reason = 'binary file';
+                        }
+                    }
+                }
+                finally {
+                    fs.closeSync(fd);
+                }
+                if (reason !== undefined) {
+                    excluded.push({ file, reason });
+                    continue;
                 }
             }
 

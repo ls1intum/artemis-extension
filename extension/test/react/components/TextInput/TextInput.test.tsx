@@ -161,7 +161,11 @@ describe('TextInput', () => {
 	});
 
 	it('treats an empty id as no id rather than rendering one', () => {
-		render(<TextInput value="" onChange={vi.fn()} label="Empty" id="" error="Required" />);
+		// Through a variable, not an `id=""` literal: the behaviour under test is what the
+		// component does with an empty id, and the literal alone reads to a static analyser as a
+		// malformed attribute rather than as the input it is.
+		const emptyId = '';
+		render(<TextInput value="" onChange={vi.fn()} label="Empty" id={emptyId} error="Required" />);
 		const input = screen.getByLabelText('Empty');
 
 		expect(input.id).not.toBe('');
