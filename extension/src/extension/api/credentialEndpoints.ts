@@ -103,6 +103,11 @@ export async function exchangeCodeForToken(
  * Exchange username and password for a JWT. The token is returned, not stored: committing it is the
  * caller's job, once it has been shown to work.
  */
+/** A login error is a one-line banner, not a document. */
+function oneLine(text: string): string {
+    return text.length > 200 ? `${text.slice(0, 197)}...` : text;
+}
+
 export async function authenticateWithPassword(
     serverUrl: string,
     username: string,
@@ -128,7 +133,13 @@ export async function authenticateWithPassword(
 
     if (!response.ok) {
         const rawError = await response.text();
-        let parsedMessage = rawError.trim();
+        // A body the server labels as HTML is a web server's error page, not an
+        // Artemis message, and pasting a whole document into a one-line banner
+        // helps nobody. Keyed on the declared content type rather than on a
+        // leading "<", which would also eat XML and a legitimate plain-text
+        // message that happens to start with a bracket.
+        const isHtml = (response.headers.get('content-type') ?? '').includes('text/html');
+        let parsedMessage = isHtml ? '' : rawError.trim();
 
         if (parsedMessage) {
             try {
@@ -146,13 +157,13 @@ export async function authenticateWithPassword(
             if (!parsedMessage || /method argument not valid/i.test(parsedMessage)) {
                 throw new ApiError('Invalid username or password.', response.status);
             }
-            throw new ApiError(parsedMessage, response.status);
+            throw new ApiError(oneLine(parsedMessage), response.status);
         } else if (response.status === 403) {
-            throw new ApiError(parsedMessage || 'Account is not activated or access is forbidden.', response.status);
+            throw new ApiError(oneLine(parsedMessage || 'Account is not activated or access is forbidden.'), response.status);
         } else {
             const statusText = response.statusText || 'Unexpected error';
             const detail = parsedMessage && parsedMessage !== statusText ? ` - ${parsedMessage}` : '';
-            throw new ApiError(`${response.status} ${statusText}${detail}`.trim(), response.status);
+            throw new ApiError(oneLine(`${response.status} ${statusText}${detail}`.trim()), response.status);
         }
     }
 

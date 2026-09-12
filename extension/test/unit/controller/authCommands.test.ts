@@ -295,6 +295,18 @@ suite('AuthCommandModule Test Suite', () => {
         );
     });
 
+    test('a login-options lookup against a server with no Artemis API says so', async () => {
+        api.getLoginOptions.rejects(new ApiError('404 Not Found', 404));
+
+        await dispatchCheckLoginOptions({});
+
+        assert.strictEqual(sent[0].type, 'loginOptionsError');
+        assert.strictEqual(
+            (sent[0] as { error: string }).error,
+            'Login failed: Could not find the Artemis API at this address. Check the server URL in the Artemis settings.',
+        );
+    });
+
     test('cancelling the login-options lookup reports nothing', async () => {
         const gate = deferred<LoginOptionsResponse>();
         api.getLoginOptions.returns(gate.promise);

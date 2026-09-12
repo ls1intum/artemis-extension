@@ -507,11 +507,18 @@ suite('Artemis API Service Test Suite', () => {
      * covered and every branch is a sentence a user sees.
      */
     suite('authenticate error mapping', () => {
-        const respondWith = (status: number, body: string, statusText?: string): void => {
+        const respondWith = (status: number, body: string, statusText?: string, contentType?: string): void => {
             global.fetch = (async () => ({
                 ok: false,
                 status,
                 statusText,
+                // A real Response always has headers. This double did not, which is
+                // why reading a content type off it broke every test in this suite.
+                headers: {
+                    get: (name: string) => (
+                        name.toLowerCase() === 'content-type' ? (contentType ?? null) : null
+                    ),
+                },
                 text: async () => body,
             })) as any;
         };
@@ -524,6 +531,34 @@ suite('Artemis API Service Test Suite', () => {
             }
             throw new Error('authenticate resolved where a rejection was expected');
         };
+
+        test('an HTML error page does not become the error message', async () => {
+            // A wrong server URL answers 404 with a whole HTML document. Appending
+            // that to the message put a web page into a one-line error banner.
+            const html = '<!DOCTYPE html><html><body><h1>404 Not Found</h1></body></html>';
+            respondWith(404, html, 'Not Found', 'text/html; charset=utf-8');
+
+            const message = await messageOf();
+            assert.ok(!/DOCTYPE|<html/i.test(message), `HTML leaked into the message: ${message}`);
+            assert.strictEqual(message, '404 Not Found');
+        });
+
+        test('a plain-text error still reaches the message, even one starting with a bracket', async () => {
+            // The declared content type decides, not a leading "<". The bracket
+            // heuristic this replaced would have eaten this message, and every
+            // XML error body with it.
+            respondWith(500, '<login denied by policy>', 'Server Error', 'text/plain');
+
+            assert.strictEqual(await messageOf(), '500 Server Error - <login denied by policy>');
+        });
+
+        test('a very long message is truncated', async () => {
+            respondWith(500, JSON.stringify({ title: 'x'.repeat(500) }), 'Server Error', 'application/json');
+
+            const message = await messageOf();
+            // The bound is on the finished message, ellipsis included.
+            assert.ok(message.length <= 200, `not truncated: ${message.length} characters`);
+        });
 
         test('400/401 throw the server message verbatim', async () => {
             respondWith(401, JSON.stringify({ title: 'Bad credentials' }));

@@ -5,6 +5,8 @@ const BAD_CREDENTIALS = 'Login failed: Invalid username or password. Please veri
 const FORBIDDEN = 'Login failed: Your account is not activated or access is forbidden.';
 const UNREACHABLE = 'Login failed: Could not reach the Artemis server. Check your network connection or server URL.';
 const TIMED_OUT = 'Login failed: The Artemis server did not respond in time. Please try again.';
+const NO_API_HERE = 'Login failed: Could not find the Artemis API at this address. '
+    + 'Check the server URL in the Artemis settings.';
 
 /**
  * The one sentence the student reads when signing in did not work.
@@ -47,6 +49,14 @@ function byStatus(status: number, normalized: string): string {
     // which applies.
     if (status === 403) {
         return normalized ? `Login failed: ${normalized}` : FORBIDDEN;
+    }
+    // 404 and 405: something answered, but the Artemis API is not at this
+    // address. Deliberately not phrased as "there is no Artemis server here":
+    // a reverse proxy, a gateway that blocks POST, or a base URL missing a path
+    // prefix produce exactly the same status, and the body of a 404 is a web
+    // server's, not Artemis'.
+    if (status === 404 || status === 405) {
+        return NO_API_HERE;
     }
     return normalized ? `Login failed: ${normalized}` : DEFAULT_MESSAGE;
 }

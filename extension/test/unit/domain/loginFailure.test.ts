@@ -68,4 +68,22 @@ suite('describeLoginFailure', () => {
             'Login failed: An unexpected error occurred. Please try again.',
         );
     });
+
+    test('404 says the API was not found here, without claiming there is no Artemis', () => {
+        const expected = 'Login failed: Could not find the Artemis API at this address. '
+            + 'Check the server URL in the Artemis settings.';
+        assert.strictEqual(describeLoginFailure(new ApiError('404 Not Found', 404)), expected);
+    });
+
+    test('405 says the same thing', () => {
+        const expected = 'Login failed: Could not find the Artemis API at this address. '
+            + 'Check the server URL in the Artemis settings.';
+        assert.strictEqual(describeLoginFailure(new ApiError('405 Method Not Allowed', 405)), expected);
+    });
+
+    test('the 404 message does not swallow the 401 and 403 branches', () => {
+        // Ordering guard: the new branch must sit after the more specific ones.
+        assert.ok(/Invalid username or password/.test(describeLoginFailure(new ApiError('x', 401))));
+        assert.ok(/forbidden/i.test(describeLoginFailure(new ApiError('', 403))));
+    });
 });
