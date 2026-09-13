@@ -86,8 +86,19 @@ export async function exchangeCodeForToken(
     });
 
     if (!response.ok) {
-        if (response.status === 404 || response.status === 401) {
+        if (response.status === 401) {
             throw new Error('The login code has expired or is invalid. Please try logging in again.');
+        }
+        if (response.status === 404) {
+            // Artemis added this route after 9.9.2, so a released server answers 404 for it
+            // while serving everything else the extension needs. That is a missing route, not
+            // a rejected code, and no number of retries will make it appear. Whether the
+            // account can fall back to a password is the server's decision, not ours, so the
+            // message offers it without promising it.
+            throw new Error(
+                'This Artemis server is too old for single sign-on from the extension. '
+                + 'Use an Artemis username and password, or ask for the server to be updated.',
+            );
         }
         throw new Error(`Server returned status ${response.status} during code exchange.`);
     }

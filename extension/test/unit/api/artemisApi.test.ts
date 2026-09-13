@@ -1407,14 +1407,16 @@ suite('Artemis API Service Test Suite', () => {
         await apiService.logoutFromServer();
     });
 
-    test('exchangeCodeForToken maps a 401 to the same expired-code message as a 404', async () => {
-        // The 401 arm was described but never exercised, and it is the one a
-        // replayed code actually hits.
+    test('exchangeCodeForToken tells the user to retry only when the code itself was rejected', async () => {
+        // 401 is what the endpoint returns for a code that is spent, wrong, or whose
+        // PKCE verifier does not match. Retrying is the correct advice here, and only here.
         global.fetch = (async () => ({ ok: false, status: 401, text: async () => '' })) as any;
 
         await assert.rejects(
             () => apiService.exchangeCodeForToken('replayed-code', 'verifier-12345678901234567890123456789012345'),
-            /login code has expired or is invalid/,
+            (err: unknown) => err instanceof Error
+                && /login code has expired or is invalid/.test(err.message)
+                && /try logging in again/.test(err.message),
         );
     });
 
@@ -1535,9 +1537,14 @@ suite('Artemis API Service Test Suite', () => {
             text: async () => 'Not Found',
         } as any);
 
+        // A 404 from THIS endpoint means the route is absent, so the server is too old
+        // for the extension's single sign-on. No number of retries can make it appear,
+        // which is why this must not reuse the expired-code message.
         await assert.rejects(
             () => apiService.exchangeCodeForToken('expired-code', 'verifier-12345678901234567890123456789012345'),
-            (err: unknown) => err instanceof Error && err.message.includes('expired or is invalid'),
+            (err: unknown) => err instanceof Error
+                && /too old for single sign-on/.test(err.message)
+                && !/try logging in again/.test(err.message),
         );
     });
 

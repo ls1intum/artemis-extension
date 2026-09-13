@@ -26,6 +26,8 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 - **Exercise not recognised when you also have a practice repository.** With both a graded and a practice participation, the extension kept whichever one Artemis happened to list first as the exercise's repository. When that was the practice one, a graded working copy matched nothing: the extension could not tell which exercise the folder belonged to, so the exercise did not light up in the course list and Iris did not pick it up as context. It now keeps the graded repository, which identifies both working copies, because a practice address can be resolved back to its graded form and not the other way round.
 
+- **Single sign-on against an older server no longer tells you to try again.** The failure was reported as an expired login code, so the advice was to repeat a step that could not work. It now says the server is too old for sign-on from the extension.
+
 ### Internal
 
 - **Login errors are classified by HTTP status instead of by matching the message text**, and the login-options lookup goes through the same classifier as the password submit.
