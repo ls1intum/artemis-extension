@@ -72,7 +72,6 @@ export const WebviewCmd = {
     OpenRecordingsFolder: 'openRecordingsFolder',
 
     // Views
-    ShowAiConfig: 'showAiConfig',
     ShowRecommendedExtensions: 'showRecommendedExtensions',
     ShowGitCredentials: 'showGitCredentials',
     ShowStruggleDetection: 'showStruggleDetection',
@@ -195,7 +194,6 @@ interface WebviewCmdPayloads {
     // Git
     saveGitIdentity: { name: string; email: string };
     // Views
-    showAiConfig: undefined;
     showRecommendedExtensions: undefined;
     showGitCredentials: undefined;
     showStruggleDetection: undefined;

@@ -19,7 +19,6 @@ export class NavigationCommandModule {
             [WebviewCmd.BackToDashboard]: this.handleBackToDashboard,
             [WebviewCmd.OpenExerciseDetails]: this.handleOpenExerciseDetails,
             [WebviewCmd.BackToCourseDetails]: this.handleBackToCourseDetails,
-            [WebviewCmd.ShowAiConfig]: this.handleShowAiConfig,
             [WebviewCmd.ShowStruggleDetection]: this.handleShowStruggleDetection,
             [WebviewCmd.StruggleLiveSubscribe]: this.handleStruggleLiveSubscribe,
             [WebviewCmd.StruggleLiveUnsubscribe]: this.handleStruggleLiveUnsubscribe,
@@ -136,10 +135,6 @@ export class NavigationCommandModule {
     private handleBackToCourseDetails = async (_message: WebviewToExtensionMessage): Promise<void> => {
         this.context.appStateManager.backToCourseDetails();
         this.context.actionHandler.render();
-    };
-
-    private handleShowAiConfig = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        this.context.actionHandler.showAiConfig();
     };
 
     private handleShowStruggleDetection = async (_message: WebviewToExtensionMessage): Promise<void> => {

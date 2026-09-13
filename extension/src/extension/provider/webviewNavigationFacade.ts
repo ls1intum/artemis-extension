@@ -24,7 +24,6 @@ import {
 } from '@extension/services/workspace';
 import type { ExerciseDetailsResponse } from '@extension/types';
 import {
-    AI_EXTENSIONS_BLOCKLIST,
     getRecommendedExtensionsByCategory,
     VSCODE_CONFIG,
 } from '@extension/utils';
@@ -63,7 +62,7 @@ export interface WebviewNavigationFacadeDeps {
  * (rendering HTML, posting messages, scheduling SSR) are exposed as callbacks
  * via `WebviewNavigationFacadeDeps`.
  */
-/** VS Code's extension list keyed by lowercased id, so a blocklist or recommendation lookup is O(1). */
+/** VS Code's extension list keyed by lowercased id, so a recommendation lookup is O(1). */
 function indexInstalledExtensions(): Map<string, vscode.Extension<unknown>> {
     const installed = new Map<string, vscode.Extension<unknown>>();
     for (const ext of vscode.extensions.all) {
@@ -227,32 +226,6 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         this.deps.render();
         // The login page needs the server URL for its status check.
         this.postServerUrl();
-    }
-
-    public showAiConfig(): void {
-        const installedExtensions = indexInstalledExtensions();
-
-        const aiExtensions = Object.entries(AI_EXTENSIONS_BLOCKLIST)
-            .flatMap(([providerName, providerData]) => {
-                return providerData.extensions.map(blocklistExt => {
-                    const installedExt = installedExtensions.get(blocklistExt.id.toLowerCase());
-                    const packageJson = (installedExt?.packageJSON ?? {}) as { publisher?: string; version?: string };
-
-                    return {
-                        id: blocklistExt.id,
-                        name: blocklistExt.name,
-                        publisher: packageJson.publisher ?? 'Not installed',
-                        version: packageJson.version ?? '-',
-                        description: blocklistExt.description,
-                        isInstalled: installedExt !== undefined,
-                        provider: providerName,
-                        providerColor: providerData.color
-                    };
-                });
-            });
-
-        this.deps.appStateManager.showAiConfig(aiExtensions);
-        this.deps.render();
     }
 
     public showRecommendedExtensions(): void {
