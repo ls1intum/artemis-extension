@@ -43,12 +43,11 @@ describe('ParticipationActions', () => {
 	});
 
 	describe('programming exercise - in progress', () => {
-		it('renders "Clone Repository" button when the repo is not in the workspace', () => {
+		it('renders "Clone Repository" button when participating', () => {
 			render(
 				<ParticipationActions
 					exerciseType="programming"
 					participationStatus="in-progress"
-					workspaceStatus="disconnected"
 				/>
 			);
 			expect(screen.getByRole('button', { name: 'Clone Repository' })).toBeInTheDocument();
@@ -147,16 +146,15 @@ describe('ParticipationActions', () => {
 			expect(screen.queryByPlaceholderText('Enter commit message...')).not.toBeInTheDocument();
 		});
 
-		it('shows the unsaved-files warning when connected and hasUnsavedChanges', () => {
+		it('shows unsaved changes banner when hasUnsavedChanges is true', () => {
 			render(
 				<ParticipationActions
 					exerciseType="programming"
 					participationStatus="in-progress"
-					workspaceStatus="clean"
 					hasUnsavedChanges={true}
 				/>
 			);
-			expect(screen.getByText(/Save before submitting/)).toBeInTheDocument();
+			expect(screen.getByText(/Unsaved changes detected/)).toBeInTheDocument();
 		});
 
 		it('shows Practice Mode indicator when isPracticeMode is true', () => {
@@ -168,44 +166,6 @@ describe('ParticipationActions', () => {
 				/>
 			);
 			expect(screen.getByText(/Practice Mode/)).toBeInTheDocument();
-		});
-
-		it('shows a disabled Submit (not Clone) while checking', () => {
-			render(
-				<ParticipationActions
-					exerciseType="programming"
-					participationStatus="in-progress"
-					canSubmit={true}
-					workspaceStatus="checking"
-				/>
-			);
-			expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
-			expect(screen.queryByRole('button', { name: 'Clone Repository' })).not.toBeInTheDocument();
-		});
-
-		it('suppresses the auto-save warning when disconnected (workspace hint wins)', () => {
-			render(
-				<ParticipationActions
-					exerciseType="programming"
-					participationStatus="in-progress"
-					workspaceStatus="disconnected"
-					hasUnsavedChanges={true}
-				/>
-			);
-			expect(screen.queryByText(/Save before submitting/)).not.toBeInTheDocument();
-			expect(screen.getByText('Repository not in your workspace')).toBeInTheDocument();
-		});
-
-		it('gives the commit-message toggle an accessible name', () => {
-			render(
-				<ParticipationActions
-					exerciseType="programming"
-					participationStatus="in-progress"
-					canSubmit={true}
-					workspaceStatus="dirty"
-				/>
-			);
-			expect(screen.getByRole('button', { name: 'Add a commit message' })).toBeInTheDocument();
 		});
 	});
 
@@ -251,7 +211,7 @@ describe('ParticipationActions', () => {
 					workspaceStatus="clean"
 				/>
 			);
-			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			await userEvent.click(screen.getByRole('button', { name: /More options/ }));
 			// The dropdown Clone is a plain <button>, not a Button component.
 			// Use getByRole so the assertion is robust to icon children inside the button.
 			expect(screen.getByRole('button', { name: 'Clone Repository' })).toBeInTheDocument();
@@ -264,7 +224,7 @@ describe('ParticipationActions', () => {
 					participationStatus="in-progress"
 				/>
 			);
-			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			await userEvent.click(screen.getByRole('button', { name: /More options/ }));
 			expect(screen.getByText('Check workspace status')).toBeInTheDocument();
 		});
 
@@ -278,7 +238,7 @@ describe('ParticipationActions', () => {
 				/>
 			);
 
-			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			await userEvent.click(screen.getByRole('button', { name: /More options/ }));
 			await userEvent.click(screen.getByText('Check workspace status'));
 
 			expect(handleCheckWorkspace).toHaveBeenCalledOnce();
@@ -297,7 +257,7 @@ describe('ParticipationActions', () => {
 				/>
 			);
 
-			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
 			await userEvent.click(screen.getByRole('button', { name: /Open Repository/i }));
 
 			expect(onOpenRepository).toHaveBeenCalledOnce();
@@ -312,7 +272,7 @@ describe('ParticipationActions', () => {
 				/>
 			);
 
-			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
 			expect(screen.queryByRole('button', { name: /Open Repository/i })).not.toBeInTheDocument();
 		});
 	});
@@ -329,7 +289,7 @@ describe('ParticipationActions', () => {
 				/>
 			);
 
-			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
 			expect(screen.getByRole('button', { name: 'Copy Clone URL' })).toBeInTheDocument();
 			expect(
 				screen.getByRole('button', { name: /Copy Clone URL with authentication token/i }),
@@ -346,7 +306,7 @@ describe('ParticipationActions', () => {
 				/>
 			);
 
-			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
 			expect(screen.getByRole('button', { name: 'Copy Clone URL' })).toBeInTheDocument();
 			expect(
 				screen.queryByRole('button', { name: /Copy Clone URL with authentication token/i }),
@@ -363,7 +323,7 @@ describe('ParticipationActions', () => {
 				/>
 			);
 
-			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
 			expect(screen.getByRole('button', { name: 'Copy Clone URL with Token' })).toBeInTheDocument();
 			expect(screen.queryByRole('button', { name: 'Copy Clone URL' })).not.toBeInTheDocument();
 		});
@@ -381,7 +341,7 @@ describe('ParticipationActions', () => {
 				/>
 			);
 
-			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
 			await userEvent.click(screen.getByRole('button', { name: 'Copy Clone URL' }));
 
 			expect(handleCopy).toHaveBeenCalledOnce();
@@ -402,7 +362,7 @@ describe('ParticipationActions', () => {
 				/>
 			);
 
-			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
 			await userEvent.click(
 				screen.getByRole('button', { name: /Copy Clone URL with authentication token/i }),
 			);
@@ -425,7 +385,7 @@ describe('ParticipationActions', () => {
 				/>
 			);
 
-			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
 			await userEvent.click(screen.getByRole('button', { name: 'Copy Clone URL with Token' }));
 
 			expect(handleCopyAuth).toHaveBeenCalledOnce();
@@ -440,7 +400,7 @@ describe('ParticipationActions', () => {
 				/>
 			);
 
-			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
 			expect(screen.queryByRole('button', { name: 'Copy Clone URL' })).not.toBeInTheDocument();
 			expect(screen.queryByRole('button', { name: 'Copy Clone URL with Token' })).not.toBeInTheDocument();
 			expect(
@@ -457,7 +417,7 @@ describe('ParticipationActions', () => {
 					participationStatus="in-progress"
 				/>
 			);
-			const toggle = screen.getByRole('button', { name: 'More ▾' });
+			const toggle = screen.getByRole('button', { name: /More options/ });
 
 			expect(screen.queryByText('Pull Changes')).not.toBeInTheDocument();
 
@@ -476,7 +436,7 @@ describe('ParticipationActions', () => {
 				/>
 			);
 
-			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			await userEvent.click(screen.getByRole('button', { name: /More options/ }));
 			expect(screen.getByText('Pull Changes')).toBeInTheDocument();
 
 			await userEvent.keyboard('{Escape}');
@@ -495,7 +455,7 @@ describe('ParticipationActions', () => {
 			);
 			const statusEl = container.querySelector('[data-state="clean"]');
 			expect(statusEl).toBeInTheDocument();
-			expect(screen.getByText('Up to date')).toBeInTheDocument();
+			expect(screen.getByText('Workspace is up to date')).toBeInTheDocument();
 		});
 
 		it('renders workspace status with data-state="dirty"', () => {
@@ -508,7 +468,7 @@ describe('ParticipationActions', () => {
 			);
 			const statusEl = container.querySelector('[data-state="dirty"]');
 			expect(statusEl).toBeInTheDocument();
-			expect(screen.getByText('Uncommitted changes ready to submit')).toBeInTheDocument();
+			expect(screen.getByText('Uncommitted changes detected')).toBeInTheDocument();
 		});
 
 		it('renders workspace status with data-state="disconnected"', () => {
@@ -521,7 +481,7 @@ describe('ParticipationActions', () => {
 			);
 			const statusEl = container.querySelector('[data-state="disconnected"]');
 			expect(statusEl).toBeInTheDocument();
-			expect(screen.getByText('Repository not in your workspace')).toBeInTheDocument();
+			expect(screen.getByText('Repository not found in workspace')).toBeInTheDocument();
 		});
 
 		it('renders workspace status with data-state="checking" by default', () => {
@@ -533,7 +493,7 @@ describe('ParticipationActions', () => {
 			);
 			const statusEl = container.querySelector('[data-state="checking"]');
 			expect(statusEl).toBeInTheDocument();
-			expect(screen.getByText('Checking workspace…')).toBeInTheDocument();
+			expect(screen.getByText('Checking workspace status...')).toBeInTheDocument();
 		});
 	});
 
@@ -628,7 +588,7 @@ describe('ParticipationActions', () => {
 				/>
 			);
 
-			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
 			expect(screen.queryByRole('button', { name: 'Clone Repository' })).not.toBeInTheDocument();
 		});
 
@@ -643,7 +603,7 @@ describe('ParticipationActions', () => {
 				/>
 			);
 
-			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
 			expect(screen.queryByRole('button', { name: /Open Repository/i })).not.toBeInTheDocument();
 		});
 
@@ -658,7 +618,7 @@ describe('ParticipationActions', () => {
 				/>
 			);
 
-			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			await userEvent.click(screen.getByRole('button', { name: /More options/i }));
 			expect(screen.getByRole('button', { name: 'Copy Clone URL' })).toBeInTheDocument();
 		});
 	});

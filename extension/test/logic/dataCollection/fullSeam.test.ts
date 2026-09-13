@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
     recorderDisposable: { dispose: vi.fn() },
     promptIfPending: vi.fn().mockResolvedValue(undefined),
     consentDispose: vi.fn(),
+    executeReplayCommand: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('vscode', () => ({
@@ -20,6 +21,7 @@ vi.mock('@extension/services/auth/consentService', () => ({
 vi.mock('@extension/activation/sessionRecorderWiring', () => ({
     wireSessionRecorder: () => ({ sessionRecorder: { shutdown: h.recorderShutdown }, disposable: h.recorderDisposable }),
 }));
+vi.mock('@extension/services/telemetry/replay', () => ({ executeReplayCommand: h.executeReplayCommand }));
 vi.mock('@extension/services/loggingService', () => ({ logger: { error: vi.fn() }, LogCategory: { TELEMETRY: 'telemetry' } }));
 
 import { createRecordingWebviewHandlers, wireDataCollection } from '@extension/dataCollection/index';
@@ -27,9 +29,9 @@ import { createRecordingWebviewHandlers, wireDataCollection } from '@extension/d
 const deps = { context: { globalStorageUri: { path: '/storage' } } } as never;
 
 describe('full data-collection seam', () => {
-    it('exposes the recording webview handler', () => {
+    it('exposes the two recording webview handlers', () => {
         expect(Object.keys(createRecordingWebviewHandlers({ path: '/storage' } as never)).sort())
-            .toEqual(['openRecordingsFolder']);
+            .toEqual(['openRecordingsFolder', 'replaySession']);
     });
 
     it('wireDataCollection prompts for consent and registers the recording palette commands', () => {
@@ -38,7 +40,7 @@ describe('full data-collection seam', () => {
         wireDataCollection(deps);
         expect(h.promptIfPending).toHaveBeenCalledOnce();
         const ids = h.registerCommand.mock.calls.map(c => (c as unknown[])[0]);
-        expect(ids).toEqual(expect.arrayContaining(['artemis.openRecordingsFolder']));
+        expect(ids).toEqual(expect.arrayContaining(['artemis.replaySession', 'artemis.openRecordingsFolder']));
     });
 
     it('dispose awaits the recorder flush and is idempotent', async () => {

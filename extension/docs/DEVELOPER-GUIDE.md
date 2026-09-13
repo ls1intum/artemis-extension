@@ -799,6 +799,8 @@ npm run coverage:all
 
 ```bash
 npm run test:vscode    # All extension host tests, exactly what CI runs
+npm run test:struggle  # Struggle detection tests only (a subset of the above)
+npm run test:react     # React component tests only
 npm run test:e2e       # E2E tests only
 ```
 

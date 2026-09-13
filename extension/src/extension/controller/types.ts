@@ -21,7 +21,6 @@ export interface WebViewActionHandler {
     openExerciseFullscreen(exerciseData: ExerciseDetailsResponse): Promise<void>;
     openCourseFullscreen(courseData: CourseDetailData): Promise<void>;
     openCourseListFullscreen(): Promise<void>;
-    openStruggleFullscreen(): Promise<void>;
     render(): void;
     sendInitData(): void;
     backgroundRenderProblemStatement(): void;

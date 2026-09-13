@@ -149,7 +149,7 @@ export type IrisChatMode =
     | 'COURSE_CHAT'
     | 'LECTURE_CHAT';
 
-/** Detail DTO returned by /api/iris/chat/sessions/current, /sessions, and /courses/{courseId}/sessions/{sessionId}. */
+/** Detail DTO returned by /api/iris/chat/sessions/current, /sessions, and /{courseId}/session/{sessionId}. */
 export interface IrisChatSession {
     id: number;
     mode?: IrisChatMode;
@@ -162,7 +162,7 @@ export interface IrisChatSession {
     [key: string]: unknown;
 }
 
-/** Listing DTO returned by /api/iris/chat/courses/{courseId}/sessions/overview. No messages. */
+/** Listing DTO returned by /api/iris/chat/{courseId}/sessions/overview. No messages. */
 export interface IrisChatSessionSummary {
     id: number;
     entityId: number;
@@ -186,10 +186,6 @@ export interface IrisChatMessage {
     sender?: string;
     sentAt?: string;
     content?: IrisChatMessageContent[];
-    origin?: string;
-    proactiveOutcome?: 'DISMISSED' | 'RECOVERED' | 'ABANDONED';
-    /** Client-allocated uuid grouping proactive messages by episode (C4/A9). */
-    proactiveEpisodeId?: string;
     /** Tool activity persisted with this message; rendered as the trail. */
     activities?: IrisActivityDTO[];
     /** `false` marks an intermediate message. Absent or `true` means final. */
@@ -223,8 +219,6 @@ export interface IrisActivityDTO {
 export interface IrisSettingsResponse {
     settings?: {
         enabled?: boolean;
-        /** Course-level proactive struggle detection toggle. */
-        proactiveStruggleEnabled?: boolean;
         [key: string]: unknown;
     };
     effectiveRateLimit?: {

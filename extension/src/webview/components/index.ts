@@ -15,7 +15,6 @@ export { ListItem } from './ListItem';
 // Composite components
 export { AskIris } from './AskIris';
 export { ServiceHealth } from './ServiceHealth';
-export type { ProactiveLevel } from '@shared/messageContracts';
 
 // Feedback / page-state components
 export { EmptyState } from './EmptyState';

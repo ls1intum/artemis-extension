@@ -10,6 +10,5 @@
 export * from './domainMappers';
 export * from './domainTypes';
 export * from './extensionMessages';
-export * from './proactiveLevel';
 export * from './typeGuards';
 export * from './webviewCommands';

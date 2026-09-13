@@ -1,0 +1,33 @@
+{
+    "id": "slow-progress",
+    "name": "Slow Progress - Errors Then Different Error Then Clean",
+    "description": "Student starts with error A (3 saves), changes to error B (1 save), then fixes (4 clean saves). Pairs: (A,A)same=1.0, (A,A)same=1.0, (A,B)diff=8/11≈0.727, (B,c)=0, (c,c)=0, (c,c)=0, (c,c)=0. EQ=(1.0+1.0+0.727)/7≈0.390.",
+    "difficulty": "edge-case",
+    "tags": ["edge-case", "slow-progress", "error-transition"],
+    "expectedOutcome": {
+        "shouldDetectStruggle": true,
+        "expectedEQ": { "min": 0.38, "max": 0.40 },
+        "expectedAction": "notification"
+    },
+    "events": [
+        { "type": "diagnostic", "timestamp": 0, "action": "add", "diagnostics": [{ "file": "Calculator.java", "line": 3, "severity": "error", "code": "compiler.err.expected", "message": "';' expected" }] },
+        { "type": "save", "timestamp": 100, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 6100, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 12100, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 18100, "action": "clear" },
+        { "type": "diagnostic", "timestamp": 18100, "action": "add", "diagnostics": [{ "file": "Calculator.java", "line": 6, "severity": "error", "code": "compiler.err.cant.resolve", "message": "cannot find symbol" }] },
+        { "type": "save", "timestamp": 18200, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 24200, "action": "clear" },
+        { "type": "save", "timestamp": 24300, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 30300, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 36300, "file": "Calculator.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 42300, "file": "Calculator.java" }
+    ]
+}

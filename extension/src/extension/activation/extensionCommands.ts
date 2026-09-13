@@ -5,7 +5,7 @@ import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/pro
 import type { AuthCancellationService, AuthManager } from '@extension/services/auth';
 import { performLogout } from '@extension/services/auth';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import type { IProviderRegistry } from '@extension/services/ui';
+import type { ITelemetryManager } from '@extension/services/telemetry';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import { getTheiaEnvironment, KNOWN_BRIDGE_KEYS, probeDataBridge } from '@extension/theia';
 import { extractErrorMessage, normalizeRelativePath, VSCODE_CONFIG } from '@extension/utils';
@@ -564,6 +564,11 @@ function registerSetServerUrlCommand(): vscode.Disposable {
     });
 }
 
+function registerStruggleScoreCommand(telemetryManager: ITelemetryManager): vscode.Disposable {
+    return vscode.commands.registerCommand('artemis.showStruggleScore', async () => {
+        await telemetryManager.showStruggleScoreDialog();
+    });
+}
 
 /**
  * Developer-only command: copy the current raw JWT to the clipboard for use
@@ -713,7 +718,7 @@ interface CommandDeps {
     authManager: AuthManager;
     artemisApiService: ArtemisApiService;
     artemisWebsocketService: ArtemisWebsocketService;
-    providerRegistry: IProviderRegistry;
+    telemetryManager: ITelemetryManager;
     artemisWebviewProvider: ArtemisWebviewProvider;
     chatWebviewProvider: ChatWebviewProvider;
     updateAuthContext: (isAuthenticated: boolean) => Promise<void>;
@@ -731,6 +736,7 @@ export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
         registerGoToSourceErrorCommand(),
         registerSetServerUrlCommand(),
         registerSetDefaultClonePathCommand(),
+        registerStruggleScoreCommand(deps.telemetryManager),
         registerShowJwtTokenCommand(deps.authManager),
         registerShowTheiaEnvironmentCommand(),
     );

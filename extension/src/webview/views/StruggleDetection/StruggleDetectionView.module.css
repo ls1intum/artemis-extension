@@ -3,28 +3,3 @@
     flex-direction: column;
     gap: var(--theme-view-gap);
 }
-
-/* Narrow (sidebar): the panels stack in source order. */
-.masonry {
-    display: flex;
-    flex-direction: column;
-    gap: var(--theme-view-gap);
-}
-
-/* Wide (fullscreen editor tab): CSS multi-column masonry — the panels flow into
-   two columns auto-balanced by height, so no fixed assignment can leave one
-   side mostly empty. Panels may switch columns when one is (un)collapsed. */
-@media (min-width: 900px) {
-    .masonry {
-        display: block;
-        columns: 2;
-        column-gap: var(--theme-view-gap);
-    }
-
-    /* Keep each panel in one piece and restore the vertical rhythm that the
-       flex gap provided in the stacked layout. */
-    .masonry > * {
-        break-inside: avoid;
-        margin-bottom: var(--theme-view-gap);
-    }
-}

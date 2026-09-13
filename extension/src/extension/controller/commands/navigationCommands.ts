@@ -22,8 +22,6 @@ export class NavigationCommandModule {
             [WebviewCmd.ShowAiConfig]: this.handleShowAiConfig,
             [WebviewCmd.ShowServiceStatus]: this.handleShowServiceStatus,
             [WebviewCmd.ShowStruggleDetection]: this.handleShowStruggleDetection,
-            [WebviewCmd.StruggleLiveSubscribe]: this.handleStruggleLiveSubscribe,
-            [WebviewCmd.StruggleLiveUnsubscribe]: this.handleStruggleLiveUnsubscribe,
             [WebviewCmd.ShowRecommendedExtensions]: this.handleShowRecommendedExtensions,
             [WebviewCmd.ShowGitCredentials]: this.handleShowGitCredentials,
             [WebviewCmd.LoadArchivedCourses]: this.handleLoadArchivedCourses,
@@ -36,7 +34,6 @@ export class NavigationCommandModule {
             [WebviewCmd.ToggleFullscreen]: this.handleToggleFullscreen,
             [WebviewCmd.ToggleCourseFullscreen]: this.handleToggleCourseFullscreen,
             [WebviewCmd.ToggleCourseListFullscreen]: this.handleToggleCourseListFullscreen,
-            [WebviewCmd.ToggleStruggleFullscreen]: this.handleToggleStruggleFullscreen,
         };
     }
 
@@ -59,14 +56,8 @@ export class NavigationCommandModule {
 
             let courseDTO = cached?.course;
             if (!courseDTO) {
-                // The server dropped the per-course dashboard endpoint, so the
-                // course record itself only exists in the list response. Forced,
-                // because the cache is precisely what just failed to answer:
-                // an unforced fetch would hand back the same stale snapshot.
-                // A failed fetch answers `undefined`, which falls through to
-                // the incomplete-data path below like an unknown course does.
-                const refreshed = await this.context.courseCatalog?.fetch({ force: true });
-                courseDTO = refreshed?.courses?.find(e => e.course?.id === courseId)?.course;
+                const fetched = await this.context.artemisApi.getCourseForDashboard(courseId);
+                courseDTO = fetched.course;
             }
 
             const detail = toCourseDetailData(courseDTO);
@@ -94,27 +85,17 @@ export class NavigationCommandModule {
         // session change during the fetch would put this course into the new
         // account's persisted history.
         this.context.courseAccessStorage?.onCourseAccessed(courseId, epoch);
-        this.publishCourseToCatalog(detail, epoch);
 
-        this.context.actionHandler.render();
-    }
-
-    /**
-     * Writes the catalog's supplemental layer rather than the registry
-     * directly: the registry is rebuilt from the catalog projection, so a
-     * direct registry write is data the next catalog event silently discards.
-     *
-     * Split out of `processCourseDetails` for the reload path, which shows the
-     * same course data but must not repeat that method's recency stamp.
-     *
-     * `epoch` is captured by the caller, before the fetch it may have issued.
-     */
-    private publishCourseToCatalog(detail: CourseDetailData, epoch: number): void {
-        const course = detail.course;
+        // Writes the catalog's supplemental layer rather than the registry
+        // directly: the registry is rebuilt from the catalog projection, so a
+        // direct registry write is data the next catalog event silently
+        // discards.
         this.context.courseCatalog?.upsertSupplemental({
             kind: 'course',
-            entry: { course: { id: course.id, title: course.title, shortName: course.shortName, exercises: course.exercises } },
+            entry: { course: { id: courseId, title: course.title, shortName: course.shortName, exercises: course.exercises } },
         }, epoch);
+
+        this.context.actionHandler.render();
     }
 
     private handleBackToDashboard = async (_message: WebviewToExtensionMessage): Promise<void> => {
@@ -149,16 +130,6 @@ export class NavigationCommandModule {
 
     private handleShowStruggleDetection = async (_message: WebviewToExtensionMessage): Promise<void> => {
         this.context.actionHandler.showStruggleDetection();
-    };
-
-    private handleStruggleLiveSubscribe = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        const sink = this.context.getCurrentSender();
-        this.context.struggleLiveFeed?.subscribe(sink);
-    };
-
-    private handleStruggleLiveUnsubscribe = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        const sink = this.context.getCurrentSender();
-        this.context.struggleLiveFeed?.unsubscribe(sink);
     };
 
     private handleShowRecommendedExtensions = async (_message: WebviewToExtensionMessage): Promise<void> => {
@@ -228,45 +199,18 @@ export class NavigationCommandModule {
     private handleReloadCourseDetail = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const payload = getPayload<WebCmd<'reloadCourseDetail'>>(message);
-            const open = this.context.appStateManager.currentCourseData;
-            const courseId = payload.courseId || open?.course?.id;
+            const courseId = payload.courseId || this.context.appStateManager.currentCourseData?.course?.id;
             if (courseId) {
-                // Before the fetch, per `CommandContext.sessionEpoch`, for the
-                // catalog write below.
-                const epoch = this.context.sessionEpoch();
-                // Only the exercises: the endpoint behind a reload returns no
-                // course record, and the scalars it cannot supply (description,
-                // semester, shortName, numberOfStudents, instructorGroupName)
-                // must survive a reload rather than blank out. What a reload is
-                // for rides on the exercises anyway: participations,
-                // submissions, results and due dates.
-                const exercises = await this.context.artemisApi.getCourseExercisesForOverview(courseId);
-                const base = open?.course?.id === courseId
-                    ? open
-                    : toCourseDetailData(this.context.appStateManager.coursesData
-                        ?.courses
-                        ?.find(e => e.course?.id === courseId)
-                        ?.course);
-                if (!base) {
+                const dashboardDTO = await this.context.artemisApi.getCourseForDashboard(courseId);
+                const courseData = toCourseDetailData(dashboardDTO.course);
+                if (!courseData) {
                     logger.viewError(`Reload course detail: course ${courseId} resolved without a valid id`);
                     vscode.window.showErrorMessage('Course data is incomplete');
                     this.context.actionHandler.sendInitData();
                     return;
                 }
-                const courseData: CourseDetailData = { ...base, course: { ...base.course, exercises } };
 
                 this.context.appStateManager.showCourseDetail(courseData);
-                // App state alone would leave the course list and the exercise
-                // registry on the participations this reload just replaced.
-                // Not `publishCourseToCatalog`: that writes the supplemental
-                // layer, which a dashboard entry beats for every course the
-                // list already holds, so the refresh would be discarded for
-                // exactly the active courses it is for. Deliberately without
-                // `processCourseDetails`'s recency stamp too: the student is
-                // refreshing the course already in front of them, not visiting
-                // one, and re-stamping would let a refresh reorder the
-                // recently-accessed list.
-                this.context.courseCatalog?.replaceCourseExercises(courseId, exercises, epoch);
                 // Send updated data to React without re-rendering
                 this.context.actionHandler.sendInitData();
             }
@@ -397,15 +341,6 @@ export class NavigationCommandModule {
         } catch (error: unknown) {
             logger.viewError('Error opening course list in fullscreen:', error);
             vscode.window.showErrorMessage('Failed to open course list in fullscreen mode');
-        }
-    };
-
-    private handleToggleStruggleFullscreen = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            await this.context.actionHandler.openStruggleFullscreen();
-        } catch (error: unknown) {
-            logger.viewError('Error opening struggle detection in fullscreen:', error);
-            vscode.window.showErrorMessage('Failed to open struggle detection in a new tab');
         }
     };
 
