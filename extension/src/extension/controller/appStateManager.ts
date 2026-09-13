@@ -9,7 +9,7 @@ import type {
 import type { ArtemisUser } from '@extension/types';
 import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '@extension/utils/recommendedExtensions';
 
-export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'ai-config' | 'service-status' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials';
+export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'ai-config' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials';
 
 export interface UserInfo {
     username: string;
@@ -241,10 +241,6 @@ export class AppStateManager {
     public showAiConfig(aiExtensions: AiExtension[]): void {
         this._aiExtensions = aiExtensions;
         this._setCurrentState('ai-config');
-    }
-
-    public showServiceStatus(): void {
-        this._setCurrentState('service-status');
     }
 
     public showStruggleDetection(): void {

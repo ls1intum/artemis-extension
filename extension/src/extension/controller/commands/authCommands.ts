@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 
+import { describeLoginFailure } from '@extension/domain';
 import { LoginCancelledError, performLogout } from '@extension/services/auth';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { normalizeServerUrl } from '@extension/services/session/identityKeys';
@@ -56,7 +57,7 @@ export class AuthCommandModule {
 
             this.context.sendMessage({
                 type: ExtensionMsg.LoginOptionsError,
-                error: error instanceof Error ? error.message : 'Failed to determine login method',
+                error: describeLoginFailure(error),
                 attemptId,
             });
         } finally {
@@ -165,7 +166,7 @@ export class AuthCommandModule {
             }
 
             logger.error('Login error:', LogCategory.AUTH, error);
-            const friendlyError = this.formatLoginError(error);
+            const friendlyError = describeLoginFailure(error);
             vscode.window.showErrorMessage(friendlyError);
             this.context.sendMessage({ type: ExtensionMsg.LoginError, error: friendlyError, attemptId });
             return;
@@ -222,42 +223,4 @@ export class AuthCommandModule {
         });
     };
 
-    private formatLoginError(error: unknown): string {
-        const defaultMessage = 'Login failed: An unexpected error occurred. Please try again.';
-
-        if (!(error instanceof Error)) {
-            return defaultMessage;
-        }
-
-        const rawMessage = (error.message || '').trim();
-        if (!rawMessage) {
-            return defaultMessage;
-        }
-
-        const normalized = rawMessage.replace(/^login failed[:]?\s*/i, '').trim();
-        if (!normalized) {
-            return defaultMessage;
-        }
-
-        if (/invalid username or password/i.test(normalized)
-            || /method argument not valid/i.test(normalized)
-            || /\b400\b/.test(normalized)
-            || /\b401\b/.test(normalized)) {
-            return 'Login failed: Invalid username or password. Please verify your credentials and try again.';
-        }
-
-        if (/not activated/i.test(normalized) || /forbidden/i.test(normalized) || /\b403\b/.test(normalized)) {
-            return 'Login failed: Your account is not activated or access is forbidden.';
-        }
-
-        if (/failed to fetch/i.test(normalized) || /enotfound/i.test(normalized) || /econnrefused/i.test(normalized)) {
-            return 'Login failed: Could not reach the Artemis server. Check your network connection or server URL.';
-        }
-
-        if (/timed out/i.test(normalized)) {
-            return 'Login failed: The Artemis server did not respond in time. Please try again.';
-        }
-
-        return `Login failed: ${normalized}`;
-    }
 }

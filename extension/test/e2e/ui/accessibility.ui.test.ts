@@ -127,45 +127,6 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 			await assertNoAxeViolations('course-list', driver);
 		});
 
-		it('ServiceStatus view should have zero axe violations', async function () {
-			this.timeout(30000);
-
-			await openArtemisView();
-			await switchToWebviewFrame(driver);
-
-			try {
-				await waitForElement(driver, 'h1', 10000);
-			} catch {
-				await takeScreenshot(driver, 'a11y-skip-service-status');
-				this.skip();
-				return;
-			}
-
-			try {
-				const serviceStatusBtn = await driver.wait(
-					until.elementLocated(
-						By.xpath("//button[.//span[contains(text(),'Service Status')]]"),
-					),
-					8000,
-				);
-				await serviceStatusBtn.click();
-				await driver.sleep(2000);
-			} catch {
-				await takeScreenshot(driver, 'a11y-skip-service-status');
-				this.skip();
-				return;
-			}
-
-			// Wait for the server URL input that identifies this view.
-			try {
-				await waitForElement(driver, '#serverUrl', 8000);
-			} catch {
-				// Accept loading/partial state.
-			}
-
-			await assertNoAxeViolations('service-status', driver);
-		});
-
 		it('GitCredentials view should have zero axe violations', async function () {
 			this.timeout(30000);
 

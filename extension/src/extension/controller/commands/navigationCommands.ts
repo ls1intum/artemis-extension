@@ -20,7 +20,6 @@ export class NavigationCommandModule {
             [WebviewCmd.OpenExerciseDetails]: this.handleOpenExerciseDetails,
             [WebviewCmd.BackToCourseDetails]: this.handleBackToCourseDetails,
             [WebviewCmd.ShowAiConfig]: this.handleShowAiConfig,
-            [WebviewCmd.ShowServiceStatus]: this.handleShowServiceStatus,
             [WebviewCmd.ShowStruggleDetection]: this.handleShowStruggleDetection,
             [WebviewCmd.StruggleLiveSubscribe]: this.handleStruggleLiveSubscribe,
             [WebviewCmd.StruggleLiveUnsubscribe]: this.handleStruggleLiveUnsubscribe,
@@ -141,10 +140,6 @@ export class NavigationCommandModule {
 
     private handleShowAiConfig = async (_message: WebviewToExtensionMessage): Promise<void> => {
         this.context.actionHandler.showAiConfig();
-    };
-
-    private handleShowServiceStatus = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        this.context.actionHandler.showServiceStatus();
     };
 
     private handleShowStruggleDetection = async (_message: WebviewToExtensionMessage): Promise<void> => {

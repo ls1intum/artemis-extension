@@ -17,7 +17,6 @@ import { AppStateManager } from './appStateManager';
 import { AuthCommandModule } from './commands/authCommands';
 import { BuildLogCommands } from './commands/buildLogCommands';
 import { ExerciseLifecycleCommands } from './commands/exerciseLifecycleCommands';
-import { HealthCommandModule } from './commands/healthCommands';
 import { IrisCommandModule } from './commands/irisCommands';
 import { mergeRecordingHandlers } from './commands/mergeCommandHandlers';
 import { NavigationCommandModule } from './commands/navigationCommands';
@@ -95,7 +94,6 @@ export class WebViewMessageHandler {
             new RepositoryCloneCommands(context),
             new RepositorySubmitCommands(context),
             new IrisCommandModule(context),
-            new HealthCommandModule(context),
             new UtilityCommandModule(context),
             new TestResultsTrackingCommandModule(context),
             new ProblemStatementTrackingCommandModule(context),
