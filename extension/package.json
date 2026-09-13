@@ -411,19 +411,19 @@
     "esbuild-visualizer": "0.7.0",
     "eslint": "10.8.1",
     "eslint-plugin-simple-import-sort": "13.0.0",
-    "happy-dom": "20.8.9",
+    "happy-dom": "20.14.5",
     "husky": "9.1.7",
     "knip": "5.88.1",
     "lint-staged": "16.4.0",
     "mocha-junit-reporter": "2.2.1",
     "npm-run-all2": "8.0.4",
-    "sinon": "21.0.3",
-    "tsc-alias": "1.8.17",
-    "tsx": "4.23.11",
+    "sinon": "21.1.2",
+    "tsc-alias": "1.9.5",
+    "tsx": "4.23.13",
     "typescript": "5.9.3",
     "typescript-plugin-css-modules": "5.2.0",
     "vitest": "4.1.11",
-    "vscode-extension-tester": "8.22.0"
+    "vscode-extension-tester": "8.26.1"
   },
   "dependencies": {
     "@stomp/stompjs": "7.3.0",
@@ -436,7 +436,7 @@
     "shiki": "3.23.0",
     "streamdown": "2.5.0",
     "use-stick-to-bottom": "1.1.6",
-    "ws": "8.21.0",
+    "ws": "8.21.3",
     "zustand": "5.0.14"
   }
 }
