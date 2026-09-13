@@ -71,11 +71,6 @@
         "icon": "$(plug)"
       },
       {
-        "command": "artemis.showStruggleScore",
-        "title": "Artemis: Show Struggle Detection Score (Debug)",
-        "icon": "$(graph)"
-      },
-      {
         "command": "artemis.openRecordingsFolder",
         "title": "Artemis: Open Recordings Folder",
         "icon": "$(folder-opened)"
@@ -144,6 +139,10 @@
         {
           "command": "artemis.openRecordingsFolder",
           "when": "iris.recorder.active"
+        },
+        {
+          "command": "artemis.showTheiaEnvironment",
+          "when": "iris:theia"
         }
       ]
     },
@@ -195,7 +194,11 @@
         },
         "artemis.iris.proactiveCodeEgress": {
           "type": "string",
-          "enum": ["ask", "enabled", "disabled"],
+          "enum": [
+            "ask",
+            "enabled",
+            "disabled"
+          ],
           "enumDescriptions": [
             "Ask once whether to enable proactive help (local struggle detection plus code reading when it triggers)",
             "Enable proactive help: local typing/pause analysis runs during programming exercises, and Iris may read your current code when the detector triggers",
