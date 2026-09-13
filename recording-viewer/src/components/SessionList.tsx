@@ -30,8 +30,9 @@ export function SessionList({ onSelectSession, liveIds, readOnly }: Props) {
     const [renaming, setRenaming] = useState<string | null>(null);
     const [renameValue, setRenameValue] = useState('');
 
+    // `loading` starts true and this is the only caller (the mount effect below),
+    // so there is no state to flip on entry.
     const loadSessions = useCallback(() => {
-        setLoading(true);
         fetch('/api/recordings')
             .then(res => res.json())
             .then(d => { setData(d); setLoading(false); })
