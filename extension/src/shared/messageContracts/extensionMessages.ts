@@ -224,7 +224,6 @@ export const ExtensionMsg = {
     CourseDetailInit: 'courseDetailInit',
     ExerciseDetailInit: 'exerciseDetailInit',
     RecommendedExtensionsInit: 'recommendedExtensionsInit',
-    AiConfigInit: 'aiConfigInit',
     StruggleDetectionInit: 'struggleDetectionInit',
     StruggleLiveBackfill: 'struggleLiveBackfill',
     StruggleLiveTick: 'struggleLiveTick',
@@ -379,12 +378,6 @@ interface ExtensionMsgPayloads {
                 optional?: boolean;
                 isInstalled: boolean;
             }>;
-        }>;
-    };
-    aiConfigInit: {
-        aiExtensions: Array<{
-            id: string; name: string; publisher: string; version: string;
-            description: string; isInstalled: boolean; provider: string; providerColor: string;
         }>;
     };
     struggleDetectionInit: {

@@ -7,7 +7,6 @@ import HeartPulse from 'lucide-react/dist/esm/icons/heart-pulse';
 import LogOut from 'lucide-react/dist/esm/icons/log-out';
 import Puzzle from 'lucide-react/dist/esm/icons/puzzle';
 import Settings from 'lucide-react/dist/esm/icons/settings';
-import Sparkles from 'lucide-react/dist/esm/icons/sparkles';
 import SquareArrowOutUpRight from 'lucide-react/dist/esm/icons/square-arrow-out-up-right';
 import { useState } from 'react';
 
@@ -76,10 +75,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
 
     const handleOpenSettings = () => {
         postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
-    };
-
-    const handleShowAiConfig = () => {
-        postCommand(vscodeApi, 'showAiConfig');
     };
 
     const handleShowRecommendedExtensions = () => {
@@ -276,9 +271,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                     </Button>
                     <Button variant="ghost" fullWidth onClick={handleOpenSettings} icon={<Settings size={16} />}>
                         Open Settings
-                    </Button>
-                    <Button variant="ghost" fullWidth onClick={handleShowAiConfig} icon={<Sparkles size={16} />}>
-                        AI Checker
                     </Button>
                     <Button variant="ghost" fullWidth onClick={handleShowRecommendedExtensions} icon={<Puzzle size={16} />}>
                         Recommended Extensions

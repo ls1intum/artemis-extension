@@ -17,8 +17,9 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Artemis 9.9 or newer is now required.** Artemis removed the endpoint that returned a single course together with its exercises, scores and participations, and it will not be part of Artemis 10. Everything the extension loaded through it now comes from the endpoints that replaced it, which Artemis added in 9.9 (checked against the 9.7, 9.8 and 9.9 tags). Against an older server the course list, the course detail and workspace detection will not work. The extension now warns after sign-in when the server is older, instead of leaving you with an empty course list.
 - **Archived courses show less.** The course detail of an archived course no longer has a description, a student count or an instructor group. The archive list Artemis serves does not carry them, and the endpoint that used to supply them is gone. The header now carries an "Archived" badge so the thinner view reads as deliberate rather than as a failed load. Title, semester, ID and the exercise list are unchanged.
 - **Reloading a course detail is cheaper.** The reload button fetches only the course's exercises instead of the whole course payload, and keeps everything else as it was. Nothing you can see changes except that the wait is shorter.
-- **The Service Status page and the health panel under the login error are gone.** Their API row read the aggregate health endpoint, which answers 503 when any single component is down, so working servers were reported as unavailable. Connection and Iris problems are reported by the status bar and the chat instead.
+- **The Service Status page and the health panel under the login error are gone.** Their API row reported working servers as unavailable. Connection and Iris problems now show up in the status bar and the chat.
 - **A mistyped server address now says so**, instead of failing with "404 Not Found" and an HTML error page in the banner.
+- **The AI Checker page is gone.** It matched your extensions against a list of AI extension ids frozen since October 2025, and showed what VS Code's own Extensions view already shows.
 
 ### Fixed
 

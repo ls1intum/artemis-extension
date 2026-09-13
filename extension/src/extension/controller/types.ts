@@ -11,7 +11,6 @@ export interface WebViewActionHandler {
     showCourseList(): Promise<void>;
     showDashboard(userInfo: UserInfo): Promise<void>;
     navigateToStartPage(userInfo: UserInfo): Promise<void>;
-    showAiConfig(): void;
     showStruggleDetection(): void;
     showRecommendedExtensions(): void;
     showGitCredentials(): void;

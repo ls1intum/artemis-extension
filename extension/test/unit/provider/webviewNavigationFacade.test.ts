@@ -52,7 +52,6 @@ suite('WebviewNavigationFacade', () => {
             showCourseList: sinon.SinonStub;
             showCourseDetail: sinon.SinonStub;
             showExerciseDetail: sinon.SinonStub;
-            showAiConfig: sinon.SinonStub;
             showStruggleDetection: sinon.SinonStub;
             showRecommendedExtensions: sinon.SinonStub;
             showGitCredentials: sinon.SinonStub;
@@ -108,7 +107,6 @@ suite('WebviewNavigationFacade', () => {
                 showCourseList: sandbox.stub(),
                 showCourseDetail: sandbox.stub(),
                 showExerciseDetail: sandbox.stub(),
-                showAiConfig: sandbox.stub(),
                 showStruggleDetection: sandbox.stub(),
                 showRecommendedExtensions: sandbox.stub(),
                 showGitCredentials: sandbox.stub(),
@@ -457,7 +455,6 @@ suite('WebviewNavigationFacade', () => {
             showCourseList: sandbox.stub(),
             showCourseDetail: sandbox.stub(),
             showExerciseDetail: sandbox.stub(),
-            showAiConfig: sandbox.stub(),
             showStruggleDetection: sandbox.stub(),
             showRecommendedExtensions: sandbox.stub(),
             showGitCredentials: sandbox.stub(),
@@ -504,7 +501,6 @@ suite('WebviewNavigationFacade', () => {
             showCourseList: sandbox.stub(),
             showCourseDetail: sandbox.stub(),
             showExerciseDetail: sandbox.stub(),
-            showAiConfig: sandbox.stub(),
             showStruggleDetection: sandbox.stub(),
             showRecommendedExtensions: sandbox.stub(),
             showGitCredentials: sandbox.stub(),
@@ -566,7 +562,6 @@ suite('WebviewNavigationFacade', () => {
                 showCourseList: sandbox.stub(),
                 showCourseDetail: sandbox.stub(),
                 showExerciseDetail: sandbox.stub(),
-                showAiConfig: sandbox.stub(),
                 showStruggleDetection: sandbox.stub(),
                 showRecommendedExtensions: sandbox.stub(),
                 showGitCredentials: sandbox.stub(),
@@ -684,16 +679,6 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.calledOnce(stubs.appStateManager.showCourseList);
     });
 
-    test('showAiConfig: delegates to appStateManager.showAiConfig and renders', () => {
-        const { deps, stubs } = buildDeps();
-        const facade = new WebviewNavigationFacade(deps);
-
-        facade.showAiConfig();
-
-        sinon.assert.calledOnce(stubs.appStateManager.showAiConfig);
-        sinon.assert.called(stubs.render);
-    });
-
     test('showStruggleDetection: delegates and renders in developer mode', () => {
         getConfiguration.returns({
             get: <T>(key: string, fallback?: T): T | undefined => (key === 'developerMode' ? (true as unknown as T) : fallback),
@@ -796,7 +781,6 @@ suite('WebviewNavigationFacade', () => {
             showCourseList: sandbox.stub(),
             showCourseDetail: sandbox.stub(),
             showExerciseDetail: sandbox.stub(),
-            showAiConfig: sandbox.stub(),
             showStruggleDetection: sandbox.stub(),
             showRecommendedExtensions: sandbox.stub(),
             showGitCredentials: sandbox.stub(),

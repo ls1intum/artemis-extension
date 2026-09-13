@@ -7,7 +7,6 @@ import { StruggleDetectionView } from '@struggleView';
 
 import styles from './App.module.css';
 import { NudgeBanner } from './components/NudgeBanner';
-import { AiConfigView } from './views/AiConfig';
 import { CourseDetailView } from './views/CourseDetail';
 import { CourseListView } from './views/CourseList';
 import { DashboardView } from './views/Dashboard';
@@ -50,8 +49,6 @@ export function App({ vscodeApi }: AppProps) {
 				return <ExerciseDetailView vscodeApi={vscodeApi} />;
 			case 'irisChat':
 				return <IrisChatView vscodeApi={vscodeApi} />;
-			case 'aiConfig':
-				return <AiConfigView vscodeApi={vscodeApi} />;
 			case 'struggleDetection':
 				return __IRIS_TELEMETRY__
 					? <StruggleDetectionView vscodeApi={vscodeApi} />

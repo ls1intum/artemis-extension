@@ -48,7 +48,6 @@ export class ViewInitDataService {
             case 'course-list':            return this.sendCourseListInit();
             case 'course-detail':          return this.sendCourseDetailInit();
             case 'exercise-detail':        return this.sendExerciseDetailInit();
-            case 'ai-config':              return this.sendAiConfigInit();
             case 'struggle-detection':     return this.sendStruggleDetectionInit();
             case 'recommended-extensions': return this.sendRecommendedExtensionsInit();
             case 'git-credentials':        return this.sendGitCredentialsInit();
@@ -323,11 +322,6 @@ export class ViewInitDataService {
             }
             this._postMessage(msg);
         });
-    }
-
-    public sendAiConfigInit(): void {
-        const aiExtensions = this._appStateManager.aiExtensions || [];
-        this._postMessage({ type: ExtensionMsg.AiConfigInit, aiExtensions });
     }
 
     /**
