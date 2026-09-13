@@ -19,6 +19,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Reloading a course detail is cheaper.** The reload button fetches only the course's exercises instead of the whole course payload, and keeps everything else as it was. Nothing you can see changes except that the wait is shorter.
 - **The Service Status page and the health panel under the login error are gone.** Their API row read the aggregate health endpoint, which answers 503 when any single component is down, so working servers were reported as unavailable. Connection and Iris problems are reported by the status bar and the chat instead.
 - **A mistyped server address now says so**, instead of failing with "404 Not Found" and an HTML error page in the banner.
+- **The AI Checker page is gone.** It matched your extensions against a list of AI extension ids frozen since October 2025, and showed what VS Code's own Extensions view already shows.
 
 ### Fixed
 
