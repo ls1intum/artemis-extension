@@ -19,7 +19,6 @@ const RECORDER_COMMANDS = new Set(['artemis.replaySession', 'artemis.openRecordi
 // dropping them advertises a palette entry with no handler behind it. Kept honest by
 // "openvsx: contributes no command whose only registration site is dropped from the bundle".
 const STRUGGLE_COMMANDS = new Set([
-    'artemis.showStruggleScore',
     'artemis.forceStruggleIntervention',
     'artemis.toggleStruggleWarmupSkip',
 ]);

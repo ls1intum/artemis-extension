@@ -20,6 +20,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **The Service Status page and the health panel under the login error are gone.** Their API row reported working servers as unavailable. Connection and Iris problems now show up in the status bar and the chat.
 - **A mistyped server address now says so**, instead of failing with "404 Not Found" and an HTML error page in the banner.
 - **The AI Checker page is gone.** It matched your extensions against a list of AI extension ids frozen since October 2025, and showed what VS Code's own Extensions view already shows.
+- **The Git Credentials page no longer promises to handle your password.** It sets the author name and email on your commits; Git's own credential helper does the rest, which the page already said further down.
 
 ### Fixed
 
@@ -28,6 +29,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 ### Internal
 
 - **Login errors are classified by HTTP status instead of by matching the message text**, and the login-options lookup goes through the same classifier as the password submit.
+- **Two diagnostic commands left the command palette.** The struggle-score modal is gone, since the developer Struggle Detection page shows the same score with more around it, and the Theia environment report now appears only in Theia, where its output is not all "missing".
 
 - **Settings audit (#465):** The two settings above were found by checking every entry in the manifest against the code behind it. A test now pins both halves of that: each contributed setting is still named somewhere in `src`, and each packaged build contributes only settings whose feature it actually bundles. The second half is the one with teeth: dropping a feature from a build without dropping its setting fails CI instead of leaving an inert switch in the student's Settings UI. The first is a floor, since a setting can still be mentioned by a listener after the code that read it is gone.
 
