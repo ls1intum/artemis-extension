@@ -5,5 +5,14 @@
   ],
   "baseBranches": [
     "dev"
+  ],
+  "packageRules": [
+    {
+      "description": "@types/vscode is the compile-time floor, not a dependency. It is held at engines.vscode (1.93.0) on purpose: the typings are what stops code from calling an API that a supported VS Code does not have, and .vscode-test.mjs reads the same engines field to run the host tests against exactly that build. Raising the typings alone would leave the runtime requirement at 1.93 while the compiler accepted newer APIs, so the break would reach users rather than CI. Raise it together with engines.vscode, deliberately, in a pull request that says which VS Code versions are being dropped.",
+      "matchPackageNames": [
+        "@types/vscode"
+      ],
+      "enabled": false
+    }
   ]
 }
