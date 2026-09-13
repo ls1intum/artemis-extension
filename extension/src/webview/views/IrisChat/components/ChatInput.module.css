@@ -2,7 +2,7 @@
     display: flex;
     align-items: flex-end;
     gap: 8px;
-    padding: 12px var(--chat-gutter);
+    padding: 12px 16px;
 }
 
 .textarea {

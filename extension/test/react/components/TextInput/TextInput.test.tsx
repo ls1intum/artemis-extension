@@ -147,9 +147,9 @@ describe('TextInput', () => {
 	});
 
 	it('generates an id that survives a re-render, and links the label to it', () => {
-		// This is what useId buys over a random id: a random one is regenerated on
-		// every render, so htmlFor points somewhere new each time even though
-		// nothing about the field has changed.
+		// The point of useId over the previous Math.random(): the id used to be
+		// regenerated on every render, so htmlFor pointed somewhere new each
+		// time even though nothing about the field had changed.
 		const { rerender } = render(<TextInput value="" onChange={vi.fn()} label="Generated" />);
 		const firstId = screen.getByLabelText('Generated').id;
 		expect(firstId).not.toBe('');
@@ -161,11 +161,7 @@ describe('TextInput', () => {
 	});
 
 	it('treats an empty id as no id rather than rendering one', () => {
-		// Through a variable, not an `id=""` literal: the behaviour under test is what the
-		// component does with an empty id, and the literal alone reads to a static analyser as a
-		// malformed attribute rather than as the input it is.
-		const emptyId = '';
-		render(<TextInput value="" onChange={vi.fn()} label="Empty" id={emptyId} error="Required" />);
+		render(<TextInput value="" onChange={vi.fn()} label="Empty" id="" error="Required" />);
 		const input = screen.getByLabelText('Empty');
 
 		expect(input.id).not.toBe('');

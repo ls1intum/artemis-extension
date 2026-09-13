@@ -1,0 +1,29 @@
+{
+    "id": "long-thinking-no-struggle",
+    "name": "Long Thinking Period - No Errors",
+    "description": "Student takes long pauses (60s) between saves but code is error-free. 8 clean saves. All snapshots have hasErrors=false → all pairs score 0 → EQ=0.0.",
+    "difficulty": "edge-case",
+    "tags": ["edge-case", "no-struggle", "thinking", "long-pause"],
+    "expectedOutcome": {
+        "shouldDetectStruggle": false,
+        "expectedEQ": { "min": 0.0, "max": 0.0 },
+        "expectedAction": "none"
+    },
+    "events": [
+        { "type": "save", "timestamp": 0, "file": "BinarySearch.java" },
+        { "type": "wait", "duration": 60000 },
+        { "type": "save", "timestamp": 60000, "file": "BinarySearch.java" },
+        { "type": "wait", "duration": 60000 },
+        { "type": "save", "timestamp": 120000, "file": "BinarySearch.java" },
+        { "type": "wait", "duration": 60000 },
+        { "type": "save", "timestamp": 180000, "file": "BinarySearch.java" },
+        { "type": "wait", "duration": 60000 },
+        { "type": "save", "timestamp": 240000, "file": "BinarySearch.java" },
+        { "type": "wait", "duration": 60000 },
+        { "type": "save", "timestamp": 300000, "file": "BinarySearch.java" },
+        { "type": "wait", "duration": 60000 },
+        { "type": "save", "timestamp": 360000, "file": "BinarySearch.java" },
+        { "type": "wait", "duration": 60000 },
+        { "type": "save", "timestamp": 420000, "file": "BinarySearch.java" }
+    ]
+}

@@ -6,7 +6,6 @@ import { WebviewMsgType } from '@shared/messageContracts';
 import { StruggleDetectionView } from '@struggleView';
 
 import styles from './App.module.css';
-import { NudgeBanner } from './components/NudgeBanner';
 import { AiConfigView } from './views/AiConfig';
 import { CourseDetailView } from './views/CourseDetail';
 import { CourseListView } from './views/CourseList';
@@ -67,10 +66,5 @@ export function App({ vscodeApi }: AppProps) {
 	// IrisChat is fullscreen (100vh), so it gets no wrapper padding.
 	if (viewName === 'irisChat') {return view;}
 
-	return (
-		<div className={styles.viewWrapper}>
-			{view}
-			<NudgeBanner vscodeApi={vscodeApi} />
-		</div>
-	);
+	return <div className={styles.viewWrapper}>{view}</div>;
 }

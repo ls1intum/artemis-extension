@@ -204,7 +204,7 @@ suite('Artemis API Service Test Suite', () => {
     test('should get archived courses', async () => {
         const mockCourses = [{ id: 2, title: 'Archived Course' }];
         global.fetch = async (url: any) => {
-            assert.ok(url.includes('/api/course/courses/for-archive'));
+            assert.ok(url.includes('/api/core/courses/for-archive'));
             return {
                 ok: true,
                 status: 200,
@@ -219,7 +219,7 @@ suite('Artemis API Service Test Suite', () => {
     test('should get courses for dashboard', async () => {
         const mockDashboard = { courses: [] };
         global.fetch = async (url: any) => {
-            assert.ok(url.includes('/api/course/courses/for-dashboard'));
+            assert.ok(url.includes('/api/core/courses/for-dashboard'));
             return {
                 ok: true,
                 status: 200,
@@ -305,20 +305,20 @@ suite('Artemis API Service Test Suite', () => {
         );
     });
 
-    test('should get the exercises of one course for the overview', async () => {
+    test('should get single course for dashboard', async () => {
         const courseId = 1;
+        const mockCourseData = { course: { id: 1, title: 'Course 1', exercises: [] } };
         global.fetch = async (url: any) => {
-            assert.ok(url.includes(`/api/course/courses/${courseId}/exercises-for-overview`));
+            assert.ok(url.includes(`/api/core/courses/${courseId}/for-dashboard`));
             return {
                 ok: true,
                 status: 200,
-                json: async () => ({ exercises: [{ id: 10, title: 'Exercise 10', type: 'programming' }] }),
+                json: async () => mockCourseData,
             } as any;
         };
 
-        const exercises = await apiService.getCourseExercisesForOverview(courseId);
-        assert.strictEqual(exercises.length, 1);
-        assert.strictEqual(exercises[0].id, 10);
+        const courseData = await apiService.getCourseForDashboard(courseId);
+        assert.deepStrictEqual(courseData, mockCourseData);
     });
 
     test('should get build logs', async () => {
@@ -359,7 +359,7 @@ suite('Artemis API Service Test Suite', () => {
         const participationId = 1;
         const mockToken = 'vcs-token';
         global.fetch = async (url: any, options: any) => {
-            assert.ok(url.includes('/api/account/participation-vcs-access-token'));
+            assert.ok(url.includes('/api/core/account/participation-vcs-access-token'));
             assert.strictEqual(options.method, 'GET');
             return {
                 ok: true,
@@ -376,7 +376,7 @@ suite('Artemis API Service Test Suite', () => {
         const participationId = 1;
         const mockToken = 'new-vcs-token';
         global.fetch = async (url: any, options: any) => {
-            assert.ok(url.includes('/api/account/participation-vcs-access-token'));
+            assert.ok(url.includes('/api/core/account/participation-vcs-access-token'));
             assert.strictEqual(options.method, 'PUT');
             return {
                 ok: true,
@@ -495,120 +495,6 @@ suite('Artemis API Service Test Suite', () => {
         } finally {
             clock.restore();
         }
-    });
-
-    /**
-     * `authenticate()` maps a failed login to a message the student reads, and it
-     * does so with its OWN error-body parser: the field priority here is
-     * `title || message || detail || error`, where `makeRequest()` uses
-     * `message || detail || title || error`. Both orders are reachable with the
-     * same body, so the two parsers cannot be folded into one without changing
-     * what a login failure says. Pinned per branch, because none of this was
-     * covered and every branch is a sentence a user sees.
-     */
-    suite('authenticate error mapping', () => {
-        const respondWith = (status: number, body: string, statusText?: string): void => {
-            global.fetch = (async () => ({
-                ok: false,
-                status,
-                statusText,
-                text: async () => body,
-            })) as any;
-        };
-
-        const messageOf = async (): Promise<string> => {
-            try {
-                await apiService.authenticate('user', 'pass');
-            } catch (error) {
-                return (error as Error).message;
-            }
-            throw new Error('authenticate resolved where a rejection was expected');
-        };
-
-        test('400/401 throw the server message verbatim', async () => {
-            respondWith(401, JSON.stringify({ title: 'Bad credentials' }));
-            assert.strictEqual(await messageOf(), 'Bad credentials');
-
-            respondWith(400, JSON.stringify({ title: 'Captcha required' }));
-            assert.strictEqual(await messageOf(), 'Captcha required');
-        });
-
-        test('400/401 fall back to the generic wording on an empty body', async () => {
-            // Nothing to show the student, and the raw status would tell them
-            // nothing either.
-            respondWith(401, '');
-            assert.strictEqual(await messageOf(), 'Invalid username or password.');
-        });
-
-        test('400/401 hide the bean-validation message behind the generic wording', async () => {
-            // Artemis answers a malformed login body with a Spring validation
-            // string. It names request fields, not anything the student did, so
-            // it is deliberately replaced rather than shown.
-            respondWith(400, JSON.stringify({ title: 'Method argument not valid' }));
-            assert.strictEqual(await messageOf(), 'Invalid username or password.');
-
-            respondWith(400, 'Validation failed: METHOD ARGUMENT NOT VALID for object');
-            assert.strictEqual(await messageOf(), 'Invalid username or password.');
-        });
-
-        test('403 prefers the server message and falls back to the account wording', async () => {
-            respondWith(403, JSON.stringify({ title: 'Account locked' }));
-            assert.strictEqual(await messageOf(), 'Account locked');
-
-            respondWith(403, '');
-            assert.strictEqual(await messageOf(), 'Account is not activated or access is forbidden.');
-        });
-
-        test('403 with a parseable body carrying none of the four fields throws the raw JSON', async () => {
-            // Counter-intuitive and easy to "fix" by accident: `{}` parses, so
-            // `parsedMessage` keeps the trimmed raw text and stays truthy, which
-            // means the account-forbidden fallback is NOT reached. Asserted on
-            // 403 specifically: on a status outside 400/401/403 the same body is
-            // appended as detail instead of becoming the whole message.
-            respondWith(403, '{}');
-            assert.strictEqual(await messageOf(), '{}');
-        });
-
-        test('any other status is reported as status, statusText and detail', async () => {
-            respondWith(500, JSON.stringify({ title: 'Database down' }), 'Internal Server Error');
-            assert.strictEqual(await messageOf(), '500 Internal Server Error - Database down');
-        });
-
-        test('another status with no statusText uses the generic one', async () => {
-            respondWith(502, '', '');
-            assert.strictEqual(await messageOf(), '502 Unexpected error');
-        });
-
-        test('another status omits the detail when it only repeats statusText', async () => {
-            // Otherwise the student reads "503 Service Unavailable - Service
-            // Unavailable".
-            respondWith(503, JSON.stringify({ title: 'Service Unavailable' }), 'Service Unavailable');
-            assert.strictEqual(await messageOf(), '503 Service Unavailable');
-        });
-
-        test('the error-field priority is title, then message, then detail, then error', async () => {
-            // All four present at once, so this fails under `makeRequest()`'s
-            // order (`message` first). This is the assertion that makes the two
-            // parsers provably separate implementations.
-            respondWith(401, JSON.stringify({
-                message: 'from message',
-                detail: 'from detail',
-                title: 'from title',
-                error: 'from error',
-            }));
-            assert.strictEqual(await messageOf(), 'from title');
-
-            respondWith(401, JSON.stringify({ detail: 'from detail', error: 'from error' }));
-            assert.strictEqual(await messageOf(), 'from detail');
-
-            respondWith(401, JSON.stringify({ error: 'from error' }));
-            assert.strictEqual(await messageOf(), 'from error');
-        });
-
-        test('a non-JSON body is shown as its trimmed raw text', async () => {
-            respondWith(401, '  Server refused the login  ');
-            assert.strictEqual(await messageOf(), 'Server refused the login');
-        });
     });
 
     test('should check Iris health', async () => {
@@ -1054,7 +940,7 @@ suite('Artemis API Service Test Suite', () => {
             { id: 2, entityId: 123, mode: 'PROGRAMMING_EXERCISE_CHAT', creationDate: '2026-05-13T01:00:00Z' },
         ];
         global.fetch = async (url: any, options: any) => {
-            assert.ok(url.includes(`/api/iris/chat/courses/${courseId}/sessions/overview`));
+            assert.ok(url.includes(`/api/iris/chat/${courseId}/sessions/overview`));
             assert.ok(!options?.method || options.method === 'GET');
             return { ok: true, status: 200, json: async () => rawSummaries } as any;
         };
@@ -1296,114 +1182,6 @@ suite('Artemis API Service Test Suite', () => {
         } finally {
             clock.restore();
         }
-    });
-
-    test('logoutFromServer stays best-effort when the server URL itself cannot be resolved', async () => {
-        // The URL is resolved from VS Code configuration, which can throw. That
-        // resolution has to stay inside logout's swallow: callers clear the local
-        // credential only AFTER this await, so a throw here would leave the user
-        // signed in locally with no way out. Regression guard for the extraction
-        // of postLogout, which moved the try boundary.
-        let fetched = false;
-        global.fetch = (async () => { fetched = true; return { ok: true } as any; }) as any;
-
-        const throwing = new (class extends ArtemisApiService {
-            protected getServerUrl(): string {
-                throw new Error('no workspace configuration available');
-            }
-        })(authManager);
-
-        await throwing.logoutFromServer();
-        assert.strictEqual(fetched, false, 'no request is made when the URL cannot be resolved');
-    });
-
-    test('logoutFromServer makes no request at all when nothing is signed in', async () => {
-        let fetched = false;
-        global.fetch = (async () => { fetched = true; return { ok: true } as any; }) as any;
-        authManager.getAuthHeaders = async () => ({});
-
-        await apiService.logoutFromServer();
-        assert.strictEqual(fetched, false, 'with no credential there is nothing to tell the server');
-    });
-
-    test('logoutFromServer swallows a non-OK response as readily as a thrown one', async () => {
-        // Both branches end the same way for the caller; only the log differs.
-        global.fetch = (async () => ({ ok: false, status: 503 })) as any;
-        await apiService.logoutFromServer();
-
-        global.fetch = (async () => ({ ok: true, status: 200 })) as any;
-        await apiService.logoutFromServer();
-    });
-
-    test('exchangeCodeForToken maps a 401 to the same expired-code message as a 404', async () => {
-        // The 401 arm was described but never exercised, and it is the one a
-        // replayed code actually hits.
-        global.fetch = (async () => ({ ok: false, status: 401, text: async () => '' })) as any;
-
-        await assert.rejects(
-            () => apiService.exchangeCodeForToken('replayed-code', 'verifier-12345678901234567890123456789012345'),
-            /login code has expired or is invalid/,
-        );
-    });
-
-    test('authenticate puts rememberMe on the wire, defaulting to false', async () => {
-        // The default lives on the service method; the free function behind it
-        // takes the flag as required, so the default has exactly one home.
-        const sent: unknown[] = [];
-        global.fetch = (async (_url: any, options: any) => {
-            sent.push(JSON.parse(options.body));
-            return {
-                ok: true,
-                status: 200,
-                headers: { get: () => 'jwt=t; Path=/' },
-            } as any;
-        }) as any;
-
-        await apiService.authenticate('user', 'pass');
-        await apiService.authenticate('user', 'pass', true);
-
-        assert.deepStrictEqual(
-            sent.map((b) => (b as { rememberMe: boolean }).rememberMe),
-            [false, true],
-        );
-    });
-
-    // The 202 body is what distinguishes a deliberate course-off from an in-flight
-    // single-flight skip from a missing endpoint (404, degrade to the lamp). These guard
-    // the actual JSON parsing in postStruggleIntervention, which the orchestrator test cannot see (it stubs the result).
-    const struggleBody = { struggleSignal: {}, uncommittedFiles: {} } as any;
-
-    test('postStruggleIntervention: 202 {accepted:false, courseDisabled:true} → course-off', async () => {
-        global.fetch = async (url: any) => {
-            assert.ok(url.includes('/api/iris/chat/exercises/42/struggle-intervention'));
-            return { ok: true, status: 202, json: async () => ({ accepted: false, courseDisabled: true, exerciseId: 42 }) } as any;
-        };
-        assert.strictEqual(await apiService.postStruggleIntervention(42, struggleBody), 'course-off');
-    });
-
-    test('postStruggleIntervention: 202 in-flight {accepted:false, courseDisabled:false} → accepted (NOT course-off)', async () => {
-        global.fetch = async () => ({ ok: true, status: 202, json: async () => ({ accepted: false, courseDisabled: false, exerciseId: 42 }) } as any);
-        assert.strictEqual(await apiService.postStruggleIntervention(42, struggleBody), 'accepted');
-    });
-
-    test('postStruggleIntervention: 202 in-flight with courseDisabled ABSENT → accepted', async () => {
-        global.fetch = async () => ({ ok: true, status: 202, json: async () => ({ accepted: false, exerciseId: 42 }) } as any);
-        assert.strictEqual(await apiService.postStruggleIntervention(42, struggleBody), 'accepted');
-    });
-
-    test('postStruggleIntervention: 202 {accepted:true} → accepted', async () => {
-        global.fetch = async () => ({ ok: true, status: 202, json: async () => ({ accepted: true, courseDisabled: false, exerciseId: 42, jobId: 'tok' }) } as any);
-        assert.strictEqual(await apiService.postStruggleIntervention(42, struggleBody), 'accepted');
-    });
-
-    test('postStruggleIntervention: 404 → unavailable (feature missing → lamp)', async () => {
-        global.fetch = async () => ({ ok: false, status: 404, statusText: 'Not Found' } as any);
-        assert.strictEqual(await apiService.postStruggleIntervention(42, struggleBody), 'unavailable');
-    });
-
-    test('postStruggleIntervention: 500 → failed (silent)', async () => {
-        global.fetch = async () => ({ ok: false, status: 500, statusText: 'Internal Server Error' } as any);
-        assert.strictEqual(await apiService.postStruggleIntervention(42, struggleBody), 'failed');
     });
 
    test('should exchange code and codeVerifier for JWT token via POST', async () => {

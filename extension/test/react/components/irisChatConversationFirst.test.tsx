@@ -1562,7 +1562,7 @@ describe('IrisChatView transcript keying', () => {
     });
 });
 
-describe('IrisChatView actions that read the conversation model', () => {
+describe('IrisChatView actions that used to read the old model', () => {
     const activeState = {
         exercises: [],
         courses: [{ id: 42, title: 'Introduction to Computer Science' }],

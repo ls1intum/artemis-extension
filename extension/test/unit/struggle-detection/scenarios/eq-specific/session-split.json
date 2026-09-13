@@ -1,0 +1,32 @@
+{
+    "id": "eq-session-split",
+    "name": "Session Split",
+    "description": "8 saves with errors, but a >30 minute gap in the middle splits the session. First 4 saves (3 pairs, all 11/11) then 31min gap clears snapshots. Next 4 saves (3 pairs, all 11/11). After split, only 3 pairs -> confidence=low -> struggle NOT detected.",
+    "difficulty": "obvious",
+    "tags": ["eq-specific", "session-split", "inactivity"],
+    "expectedOutcome": {
+        "shouldDetectStruggle": false,
+        "expectedEQ": { "min": 0.9, "max": 1.0 },
+        "expectedAction": "none"
+    },
+    "events": [
+        { "type": "diagnostic", "timestamp": 0, "action": "add", "diagnostics": [{ "file": "Main.java", "line": 5, "severity": "error", "code": "compiler.err.unreachable.stmt", "message": "unreachable statement" }] },
+        { "type": "save", "timestamp": 100, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 6100, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 12100, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 18100, "file": "Main.java" },
+
+        { "type": "wait", "duration": 1860000 },
+
+        { "type": "save", "timestamp": 1878100, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 1884100, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 1890100, "file": "Main.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 1896100, "file": "Main.java" }
+    ]
+}

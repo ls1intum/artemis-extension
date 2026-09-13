@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { CSSProperties, ReactNode, useState } from 'react';
+import { CSSProperties, ReactNode } from 'react';
 
 import styles from './Container.module.css';
 
@@ -16,8 +16,6 @@ interface ContainerProps {
   listMode?: boolean;
   id?: string;
   testId?: string;
-  collapsible?: boolean;
-  defaultCollapsed?: boolean;
 }
 
 export function Container({
@@ -33,10 +31,7 @@ export function Container({
   listMode = false,
   id,
   testId,
-  collapsible,
-  defaultCollapsed,
 }: ContainerProps) {
-  const [collapsed, setCollapsed] = useState(defaultCollapsed ?? false);
   const containerClasses = clsx(
     styles.container,
     styles[`container${variant.charAt(0).toUpperCase()}${variant.slice(1)}`],
@@ -66,26 +61,9 @@ export function Container({
       style={Object.keys(inlineStyles).length > 0 ? inlineStyles : undefined}
       data-testid={testId}
     >
-      {header && (
-        <div className={styles.containerHeader}>
-          {collapsible ? (
-            <button
-              type="button"
-              className={styles.containerHeaderButton}
-              onClick={() => setCollapsed(c => !c)}
-              aria-expanded={!collapsed}
-            >
-              <span className={styles.containerChevron} aria-hidden>{collapsed ? '▸' : '▾'}</span>
-              {header}
-            </button>
-          ) : header}
-        </div>
-      )}
+      {header && <div className={styles.containerHeader}>{header}</div>}
       {toolbar && <div className={styles.containerToolbar}>{toolbar}</div>}
-      <div
-        className={clsx(styles.containerBody, collapsible && collapsed && styles.containerBodyCollapsed)}
-        data-collapsed={collapsible ? collapsed : undefined}
-      >{children}</div>
+      <div className={styles.containerBody}>{children}</div>
       {footer && <div className={styles.containerFooter}>{footer}</div>}
     </div>
   );

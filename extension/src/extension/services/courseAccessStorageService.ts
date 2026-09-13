@@ -122,14 +122,3 @@ export class CourseAccessStorageService {
         return copy;
     }
 }
-
-/**
- * Normalized `<serverKey>::<principal>` segment shared by globalState-scoped
- * services. The scope arrives already normalized from the session coordinator,
- * so this only joins it; it stays a function so a future scope shape has one
- * place to change.
- */
-export function normalizeScopeSegment(scope: CourseAccessScope): string | null {
-    if (!scope.serverKey || !scope.principal) { return null; }
-    return `${scope.serverKey}::${scope.principal}`;
-}

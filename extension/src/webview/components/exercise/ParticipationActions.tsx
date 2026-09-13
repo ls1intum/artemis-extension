@@ -32,6 +32,7 @@ interface ParticipationActionsProps {
   participationStatus: ParticipationStatusType;
   canSubmit?: boolean;
   workspaceStatus?: WorkspaceStatus;
+  workspaceMessage?: string;
   hasUnsavedChanges?: boolean;
   showCommitMessageInput?: boolean;
   commitMessage?: string;
@@ -66,6 +67,7 @@ export function ParticipationActions({
   participationStatus,
   canSubmit = false,
   workspaceStatus = 'checking',
+  workspaceMessage,
   hasUnsavedChanges = false,
   showCommitMessageInput = false,
   commitMessage = '',
@@ -112,11 +114,16 @@ export function ParticipationActions({
 
   const renderParticipationInfo = () => {
     if (isProgramming) {
-      if (hasParticipation) { return null; }
       return (
         <div className={styles.participationInfo}>
-          <div className={styles.participationStatus}>Not Participating Yet</div>
-          <div className={styles.participationMessage}>You have not started this exercise yet.</div>
+          <div className={styles.participationStatus}>
+            {hasParticipation ? 'Repository Ready' : 'Not Participating Yet'}
+          </div>
+          <div className={styles.participationMessage}>
+            {hasParticipation
+              ? 'You have already started this exercise.'
+              : 'You have not started this exercise yet.'}
+          </div>
         </div>
       );
     } else {
@@ -132,32 +139,6 @@ export function ParticipationActions({
     }
   };
 
-  const WORKSPACE_HINT_TEXT: Record<WorkspaceStatus, string> = {
-    clean: 'Up to date',
-    dirty: 'Uncommitted changes ready to submit',
-    disconnected: 'Repository not in your workspace',
-    'wrong-repo': 'Repository not in your workspace',
-    checking: 'Checking workspace…',
-  };
-
-  const renderWorkspaceHint = () => (
-    <div className={styles.workspaceHint} data-state={workspaceStatus}>
-      <span className={styles.workspaceHintDot} />
-      <span>{WORKSPACE_HINT_TEXT[workspaceStatus]}</span>
-    </div>
-  );
-
-  const renderAutoSaveWarning = () => (
-    <div className={styles.autoSaveWarning}>
-      <AlertTriangle size={14} />
-      <span className={styles.autoSaveWarningText}>
-        <strong>Unsaved files.</strong> Save before submitting.{' '}
-        <Button variant="link" onClick={onConfigureAutoSave}>Configure auto-save</Button>
-      </span>
-    </div>
-  );
-
-  // Practice mode indicator
   const renderPracticeModeIndicator = () => {
     if (!isPracticeMode) {return null;}
     return (
@@ -167,7 +148,19 @@ export function ParticipationActions({
     );
   };
 
-  // Cloned repository notice
+  const renderWorkspaceStatus = () => {
+    if (!isProgramming || !hasParticipation) {return null;}
+
+    const statusMessage = workspaceMessage || getDefaultWorkspaceMessage(workspaceStatus);
+
+    return (
+      <div className={clsx(styles.changesStatus)} data-state={workspaceStatus}>
+        <span className={styles.changesStatusIndicator} />
+        <span>{statusMessage}</span>
+      </div>
+    );
+  };
+
   const renderClonedNotice = () => {
     if (!showClonedNotice) {return null;}
     return (
@@ -180,20 +173,31 @@ export function ParticipationActions({
     );
   };
 
-  // Submit button group
+  const renderUnsavedChangesBanner = () => {
+    if (!hasUnsavedChanges) {return null;}
+    return (
+      <div className={styles.unsavedChangesBanner}>
+        <AlertTriangle size={14} />
+        <span className={styles.unsavedChangesText}>
+          <strong>Unsaved changes detected.</strong> Please save your files before submitting.{' '}
+          <Button variant="link" onClick={onConfigureAutoSave}>
+            Configure auto-save
+          </Button>
+        </span>
+      </div>
+    );
+  };
+
   const renderSubmitButtonGroup = () => {
-    const disabled = workspaceStatus !== 'dirty';
+    const isWorkspaceConnected = workspaceStatus === 'clean' || workspaceStatus === 'dirty';
+    if (!isProgramming || !hasParticipation || !canSubmit || !isWorkspaceConnected) {return null;}
+    const noChanges = workspaceStatus === 'clean';
     return (
       <div className={styles.submitButtonGroup}>
-        <Button variant="primary" onClick={onSubmit} fullWidth disabled={disabled}>
+        <Button variant="primary" onClick={onSubmit} fullWidth disabled={noChanges}>
           Submit
         </Button>
-        <button
-          className={styles.uploadMessageBtn}
-          onClick={onToggleCommitMessage}
-          disabled={disabled}
-          aria-label="Add a commit message"
-        >
+        <button className={styles.uploadMessageBtn} onClick={onToggleCommitMessage} disabled={noChanges}>
           <Mail size={14} />
         </button>
       </div>
@@ -248,21 +252,32 @@ export function ParticipationActions({
       );
     }
 
-    // Participated - the redesigned card.
     const isWorkspaceConnected = workspaceStatus === 'clean' || workspaceStatus === 'dirty';
-    const showClone = workspaceStatus === 'disconnected' || workspaceStatus === 'wrong-repo';
-    const showSubmit = !showClone && canSubmit;
-    const showAutoSaveWarning = hasUnsavedChanges && isWorkspaceConnected;
 
     return (
       <div className={clsx(styles.participationActions, className)}>
         {renderPracticeModeIndicator()}
-
-        <div className={styles.cardHeader}>
-          <span className={styles.cardTitle}>Repository Ready</span>
-          <div className={styles.headerMore} ref={moreMenuRef}>
+        {renderWorkspaceStatus()}
+        {renderClonedNotice()}
+        {renderUnsavedChangesBanner()}
+        {renderSubmitButtonGroup()}
+        {renderCommitMessageInput()}
+        <div className={styles.actionButtonRow}>
+          {!isWorkspaceConnected && (
+            isManagedEnvironment ? (
+              // EduIDE: cloning is meaningless, so offer the web exercise instead.
+              <Button variant="primary" onClick={onOpenInBrowser} fullWidth>
+                Open in Artemis
+              </Button>
+            ) : (
+              <Button variant="primary" onClick={onClone} fullWidth>
+                Clone Repository
+              </Button>
+            )
+          )}
+          <div className={styles.moreMenu} ref={moreMenuRef}>
             <Button variant="link" onClick={() => setIsDropdownOpen(prev => !prev)}>
-              More ▾
+              More options ▾
             </Button>
             {isDropdownOpen && (
               <div className={styles.moreDropdown}>
@@ -347,28 +362,6 @@ export function ParticipationActions({
             )}
           </div>
         </div>
-
-        {showAutoSaveWarning ? renderAutoSaveWarning() : renderWorkspaceHint()}
-        {renderClonedNotice()}
-
-        {showClone && (
-          isManagedEnvironment ? (
-            <Button variant="primary" onClick={onOpenInBrowser} fullWidth>
-              Open in Artemis
-            </Button>
-          ) : (
-            <Button variant="primary" onClick={onClone} fullWidth>
-              Clone Repository
-            </Button>
-          )
-        )}
-
-        {showSubmit && (
-          <>
-            {renderSubmitButtonGroup()}
-            {renderCommitMessageInput()}
-          </>
-        )}
       </div>
     );
   };
@@ -394,4 +387,20 @@ export function ParticipationActions({
       {renderNonProgrammingActions()}
     </>
   );
+}
+
+function getDefaultWorkspaceMessage(status: WorkspaceStatus): string {
+  switch (status) {
+    case 'clean':
+      return 'Workspace is up to date';
+    case 'dirty':
+      return 'Uncommitted changes detected';
+    case 'disconnected':
+      return 'Repository not found in workspace';
+    case 'wrong-repo':
+      return 'Wrong repository open';
+    case 'checking':
+    default:
+      return 'Checking workspace status...';
+  }
 }

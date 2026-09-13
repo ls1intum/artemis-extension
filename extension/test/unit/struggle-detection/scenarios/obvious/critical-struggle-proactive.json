@@ -1,0 +1,32 @@
+{
+    "id": "critical-struggle-proactive",
+    "name": "Critical Struggle - Proactive Intervention",
+    "description": "Pattern producing EQ >= 0.60. 8 snapshots: [err, err, err, err, clean, err, err, err]. Pairs: 4 same-error + 1 mixed-error + 2 zero = 5 scoring pairs out of 7 → EQ=5/7≈0.714.",
+    "difficulty": "obvious",
+    "tags": ["proactive-threshold", "critical-struggle", "eq-high"],
+    "expectedOutcome": {
+        "shouldDetectStruggle": true,
+        "expectedEQ": { "min": 0.60, "max": 0.80 },
+        "expectedAction": "proactive"
+    },
+    "events": [
+        { "type": "diagnostic", "timestamp": 0, "action": "add", "diagnostics": [{ "file": "ComplexClass.java", "line": 1, "severity": "error", "code": "compiler.err.abstract", "message": "ComplexClass is not abstract and does not override abstract method" }] },
+        { "type": "save", "timestamp": 100, "file": "ComplexClass.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 6100, "file": "ComplexClass.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 12100, "file": "ComplexClass.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 18100, "file": "ComplexClass.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 24000, "action": "clear" },
+        { "type": "save", "timestamp": 24100, "file": "ComplexClass.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "diagnostic", "timestamp": 30000, "action": "add", "diagnostics": [{ "file": "ComplexClass.java", "line": 1, "severity": "error", "code": "compiler.err.abstract", "message": "ComplexClass is not abstract and does not override abstract method" }] },
+        { "type": "save", "timestamp": 30100, "file": "ComplexClass.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 36100, "file": "ComplexClass.java" },
+        { "type": "wait", "duration": 6000 },
+        { "type": "save", "timestamp": 42100, "file": "ComplexClass.java" }
+    ]
+}
