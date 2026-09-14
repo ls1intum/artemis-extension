@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ActivityBar, By, SideBarView, until, WebDriver, WebviewView, Workbench } from 'vscode-extension-tester';
+import { ActivityBar, By, EditorView, SideBarView, until, WebDriver, WebviewView, Workbench } from 'vscode-extension-tester';
 
 // Resolve to the source tree screenshots dir (not the out/ compiled dir)
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
@@ -17,6 +17,15 @@ const AXE_SOURCE = fs.readFileSync(
  * Returns the SideBarView once it is visible.
  */
 export async function openArtemisView(): Promise<SideBarView> {
+	// VS Code opens its own "Setup VS Code" walkthrough on a fresh test profile even with
+	// `workbench.startupEditor: none` and `walkthroughs.openOnInstall: false`. That walkthrough
+	// is itself a webview, and `WebviewView.switchToFrame()` then binds to it instead of the
+	// sidebar, so every selector below times out while a screenshot shows the view rendered.
+	try {
+		await new EditorView().closeAllEditors();
+	} catch {
+		// Nothing open, which is the state we wanted anyway.
+	}
 	const activityBar = new ActivityBar();
 	const control = await activityBar.getViewControl('Artemis');
 	if (!control) {
