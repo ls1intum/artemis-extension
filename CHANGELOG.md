@@ -4,7 +4,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-09-12
+## [1.0.0] - 2026-09-14
 
 ### Changed
 
