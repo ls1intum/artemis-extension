@@ -14,12 +14,15 @@
     "src/**/*.{ts,tsx}",
     "test/**/*.{ts,tsx}"
   ],
+  "ignoreExportsUsedInFile": {
+    "interface": true,
+    "type": true
+  },
   "ignoreDependencies": [
     "@types/vscode",
     "@types/katex",
     "@vscode/test-electron",
     "axe-core",
     "mocha-junit-reporter"
-  ],
-  "ignoreBinaries": ["vsce"]
+  ]
 }

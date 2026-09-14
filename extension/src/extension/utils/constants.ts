@@ -14,7 +14,6 @@ export const CONFIG = {
             AUTHENTICATE: '/api/core/public/authenticate',
             LOGOUT: '/api/core/public/logout',
             RENDER_PROBLEM_STATEMENT: '/api/exercise/problem-statement/render',
-            MANAGEMENT_HEALTH: '/management/health',
             MANAGEMENT_INFO: '/management/info',
         },
         // Backstop against a server that accepts the connection but never responds.
@@ -37,10 +36,9 @@ export const VSCODE_CONFIG = {
     START_PAGE_KEY: 'startPage',
     SHOW_START_PAGE_SUGGESTION_KEY: 'showStartPageSuggestion',
     DATA_COLLECTION_CONSENT_KEY: 'dataCollectionConsent',
-    STRUGGLE_DETECTION: {
-        SECTION: 'artemis.struggleDetection',
-        ENABLED_KEY: 'enabled',
-        SHOW_INTERVENTIONS_KEY: 'showInterventions',
+    IRIS: {
+        SECTION: 'artemis.iris',
+        PROACTIVE_EGRESS_KEY: 'proactiveCodeEgress',
     },
 } as const;
 

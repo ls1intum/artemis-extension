@@ -10,7 +10,6 @@ import {
     createGitCredentialsPayload,
     createIrisInitPayload,
     createRecommendedExtensionsPayload,
-    createServiceStatusPayload,
 } from '@test/react/fixtures';
 import { useChatStore } from '@webview/stores/useChatStore';
 import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
@@ -24,7 +23,6 @@ import { ExerciseDetailView } from '@webview/views/ExerciseDetail/ExerciseDetail
 import { GitCredentialsView } from '@webview/views/GitCredentials/GitCredentialsView';
 import { IrisChatView } from '@webview/views/IrisChat/IrisChatView';
 import { RecommendedExtensionsView } from '@webview/views/RecommendedExtensions/RecommendedExtensionsView';
-import { ServiceStatusView } from '@webview/views/ServiceStatus/ServiceStatusView';
 
 /**
  * Store hydration flow integration tests.
@@ -56,21 +54,6 @@ describe('gitIdentityInfo hydrates GitCredentialsView local state', () => {
 
         expect((screen.getByDisplayValue('Alice Example') as HTMLInputElement).value).toBe('Alice Example');
         expect((screen.getByDisplayValue('alice@tum.de') as HTMLInputElement).value).toBe('alice@tum.de');
-    });
-});
-
-describe('serviceStatusInit hydrates ServiceStatusView local state', () => {
-    it('renders server URL after init message', async () => {
-        const mockApi = createMockVsCodeApi();
-        render(<ServiceStatusView vscodeApi={mockApi} />);
-
-        await act(async () => {
-            dispatchExtensionMessage(
-                createServiceStatusPayload({ serverUrl: 'https://artemis.test.example' }),
-            );
-        });
-
-        expect(screen.getByDisplayValue('https://artemis.test.example')).toBeInTheDocument();
     });
 });
 
@@ -136,6 +119,8 @@ describe('dashboardInit hydrates useDashboardStore', () => {
         expect(state.recentCourses.length).toBeGreaterThan(0);
         expect(state.recentCourses[0].courseData.course.id).toBe(42);
         expect(state.isLoading).toBe(false);
+        // hideDeveloperTools hydrates from the payload (fail-closed default is true → init sets false).
+        expect(state.hideDeveloperTools).toBe(false);
     });
 });
 

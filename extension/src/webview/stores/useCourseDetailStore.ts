@@ -39,6 +39,11 @@ function filterExercises(exercises: ExerciseDetail[], searchTerm: string): Exerc
     });
 }
 
+/** Due date as epoch ms; a missing one sorts as 0, so undated exercises lead the ascending order. */
+function dueTime(exercise: ExerciseDetail): number {
+    return exercise.dueDate ? new Date(exercise.dueDate).getTime() : 0;
+}
+
 function sortExercises(exercises: ExerciseDetail[], sortBy: string): ExerciseDetail[] {
     const sorted = [...exercises];
 
@@ -52,17 +57,9 @@ function sortExercises(exercises: ExerciseDetail[], sortBy: string): ExerciseDet
         case 'title-desc':
             return sorted.sort((a, b) => (b.title || '').localeCompare(a.title || ''));
         case 'due-asc':
-            return sorted.sort((a, b) => {
-                const aDate = a.dueDate ? new Date(a.dueDate).getTime() : 0;
-                const bDate = b.dueDate ? new Date(b.dueDate).getTime() : 0;
-                return aDate - bDate;
-            });
+            return sorted.sort((a, b) => dueTime(a) - dueTime(b));
         case 'due-desc':
-            return sorted.sort((a, b) => {
-                const aDate = a.dueDate ? new Date(a.dueDate).getTime() : 0;
-                const bDate = b.dueDate ? new Date(b.dueDate).getTime() : 0;
-                return bDate - aDate;
-            });
+            return sorted.sort((a, b) => dueTime(b) - dueTime(a));
         case 'points-asc':
             return sorted.sort((a, b) => (a.maxPoints ?? 0) - (b.maxPoints ?? 0));
         case 'points-desc':

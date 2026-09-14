@@ -270,11 +270,16 @@ suite('SessionIdentityCoordinator', () => {
         /** Drains the retry the transient branch just armed, then its lookup. */
         async function runPendingRetry(): Promise<void> {
             await clock.nextAsync();
-            // `_attemptResolve` awaits `hasAuthToken` and `getCurrentUser`, so
-            // its outcome lands two microtask turns after the timer fires.
-            await Promise.resolve();
-            await Promise.resolve();
-            await Promise.resolve();
+            // `_attemptResolve` awaits `hasAuthToken` and `getCurrentUser`, so its
+            // outcome lands some microtask turns after the timer fires. Yield one
+            // REAL macrotask rather than draining a fixed number of turns: the
+            // event loop empties the whole microtask queue before running an
+            // immediate, so this settles the chain however deep it is. Counting
+            // turns instead made this suite flaky - under load the chain needed
+            // one more turn than the count and the retry had not landed yet.
+            // `setImmediate` is safe to rely on: the fake clock above only takes
+            // over `setTimeout`/`clearTimeout`.
+            await new Promise<void>(resolve => setImmediate(resolve));
         }
 
         test('a transient failure recovers on its own once the server answers again', async () => {

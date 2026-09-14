@@ -24,7 +24,6 @@ import {
 } from '@extension/services/workspace';
 import type { ExerciseDetailsResponse } from '@extension/types';
 import {
-    AI_EXTENSIONS_BLOCKLIST,
     getRecommendedExtensionsByCategory,
     VSCODE_CONFIG,
 } from '@extension/utils';
@@ -47,6 +46,11 @@ export interface WebviewNavigationFacadeDeps {
     sendInitData: () => void;
     backgroundRenderProblemStatement: () => void;
     getServerUrl: () => string;
+    /** Started once per server after sign-in. Fire and forget; see navigateToStartPage. */
+    checkServerVersion: (serverUrl: string) => void;
+    /** Open the developer struggle view in its own editor tab. Supplied by the provider (which owns the
+     *  struggle coordinator behind the @telemetry seam); absent in the clean build. */
+    openStruggleFullscreen?: () => void;
 }
 
 /**
@@ -58,6 +62,15 @@ export interface WebviewNavigationFacadeDeps {
  * (rendering HTML, posting messages, scheduling SSR) are exposed as callbacks
  * via `WebviewNavigationFacadeDeps`.
  */
+/** VS Code's extension list keyed by lowercased id, so a recommendation lookup is O(1). */
+function indexInstalledExtensions(): Map<string, vscode.Extension<unknown>> {
+    const installed = new Map<string, vscode.Extension<unknown>>();
+    for (const ext of vscode.extensions.all) {
+        installed.set(ext.id.toLowerCase(), ext);
+    }
+    return installed;
+}
+
 export class WebviewNavigationFacade implements WebViewActionHandler {
     constructor(private readonly deps: WebviewNavigationFacadeDeps) { }
 
@@ -152,6 +165,11 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
     }
 
     public async navigateToStartPage(userInfo: UserInfo): Promise<void> {
+        // Fire and forget, before the switch, so every branch below is covered by
+        // one call site. Deliberately not awaited: the sign-in handover is not
+        // allowed to wait on a diagnostic, nor to fail because one did.
+        this.deps.checkServerVersion(this.deps.getServerUrl());
+
         // Everything `resolve()` returns was fetched under THIS session, so
         // the epoch that guards writing it back has to be read before the
         // request, not after the answer.
@@ -210,40 +228,8 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         this.postServerUrl();
     }
 
-    public showAiConfig(): void {
-        const installedExtensions = new Map<string, vscode.Extension<unknown>>();
-        for (const ext of vscode.extensions.all) {
-            installedExtensions.set(ext.id.toLowerCase(), ext);
-        }
-
-        const aiExtensions = Object.entries(AI_EXTENSIONS_BLOCKLIST)
-            .flatMap(([providerName, providerData]) => {
-                return providerData.extensions.map(blocklistExt => {
-                    const installedExt = installedExtensions.get(blocklistExt.id.toLowerCase());
-                    const packageJson = (installedExt?.packageJSON ?? {}) as { publisher?: string; version?: string };
-
-                    return {
-                        id: blocklistExt.id,
-                        name: blocklistExt.name,
-                        publisher: packageJson.publisher ?? 'Not installed',
-                        version: packageJson.version ?? '-',
-                        description: blocklistExt.description,
-                        isInstalled: installedExt !== undefined,
-                        provider: providerName,
-                        providerColor: providerData.color
-                    };
-                });
-            });
-
-        this.deps.appStateManager.showAiConfig(aiExtensions);
-        this.deps.render();
-    }
-
     public showRecommendedExtensions(): void {
-        const installedExtensions = new Map<string, vscode.Extension<unknown>>();
-        for (const ext of vscode.extensions.all) {
-            installedExtensions.set(ext.id.toLowerCase(), ext);
-        }
+        const installedExtensions = indexInstalledExtensions();
 
         const recommendedCategories = getRecommendedExtensionsByCategory().map(category => ({
             ...category,
@@ -263,12 +249,14 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         this.deps.render();
     }
 
-    public showServiceStatus(): void {
-        this.deps.appStateManager.showServiceStatus();
-        this.deps.render();
-    }
-
     public showStruggleDetection(): void {
+        // Developer-only page: block navigation entirely when developer mode is off, so the route
+        // cannot be reached via the command/action path (the dashboard button is also hidden, but
+        // this is the primary gate). The view itself shows a "developer mode only" backstop.
+        if (!vscode.workspace.getConfiguration('artemis').get<boolean>('developerMode', false)) {
+            logger.warn('showStruggleDetection ignored: developer mode is off (developer-only view)', LogCategory.VIEW);
+            return;
+        }
         this.deps.appStateManager.showStruggleDetection();
         this.deps.render();
     }
@@ -302,6 +290,24 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
 
     public async openCourseFullscreen(courseData: CourseDetailData): Promise<void> {
         this.deps.fullscreenPanelManager.openCourseFullscreen(courseData);
+    }
+
+    public async openStruggleFullscreen(): Promise<void> {
+        // Developer-only page (mirrors showStruggleDetection): block the editor-tab pop-out when
+        // developer mode is off, so a stale/replayed command — or toggling dev mode off while the
+        // page is already open — cannot open the standalone struggle panel.
+        if (!vscode.workspace.getConfiguration('artemis').get<boolean>('developerMode', false)) {
+            logger.warn('openStruggleFullscreen ignored: developer mode is off (developer-only view)', LogCategory.VIEW);
+            return;
+        }
+        if (!this.deps.openStruggleFullscreen) {
+            // Absent by design in the clean (no-engine) build, where the button is never rendered.
+            // If it ever fires there (or a full-build wiring regression drops the opener), surface it
+            // instead of silently doing nothing.
+            logger.warn('openStruggleFullscreen invoked but no opener is wired (struggle detection unavailable in this build).', LogCategory.VIEW);
+            return;
+        }
+        this.deps.openStruggleFullscreen();
     }
 
     public async openCourseListFullscreen(): Promise<void> {

@@ -337,9 +337,9 @@ suite('AuthManager credential transaction', () => {
         let cancelled = false;
         let concurrentRead: Promise<Record<string, string>> | undefined;
         const originalStore = context.secrets.store.bind(context.secrets);
-        // The read is started (not awaited) from INSIDE the write, right where the un-queued version of
-        // getAuthHeaders() used to be able to see the candidate before the post-write predicate rolled it
-        // back. Awaiting it here would deadlock now that it is queued behind this very operation.
+        // The read is started (not awaited) from INSIDE the write, which is the one moment an un-queued
+        // getAuthHeaders() could see the candidate before the post-write predicate rolls it back. Awaiting
+        // it here would deadlock, because it is queued behind this very operation.
         context.secrets.store = async (key: string, value: string) => {
             await originalStore(key, value);
             concurrentRead = authManager.getAuthHeaders();

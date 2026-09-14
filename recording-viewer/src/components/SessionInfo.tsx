@@ -1,5 +1,5 @@
 import type { LoadedSession, RecordedEvent } from '../types.ts';
-import { ALL_EVENT_TYPES } from '../constants.ts';
+import { ALL_EVENT_TYPES_WITH_LEGACY } from '../constants.ts';
 import { formatDuration, formatTime } from '../utils/format.ts';
 import { orderTypesActiveFirst } from '../utils/timelineLayout.ts';
 import { EventBadge } from './EventBadge.tsx';
@@ -24,7 +24,7 @@ export function SessionInfo({ session, events }: Props) {
     // Always list every event type (0 count included), keeping the curated order
     // but pushing the types with no events to the bottom.
     const orderedTypes = orderTypesActiveFirst(
-        ALL_EVENT_TYPES,
+        ALL_EVENT_TYPES_WITH_LEGACY,
         t => (eventTypeCounts.get(t) ?? 0) > 0,
     );
 

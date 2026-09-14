@@ -10,7 +10,7 @@
 import * as assert from 'assert';
 
 import type { ArtemisApiService } from '@extension/api';
-import { fetchAndEnrichExerciseDetails } from '@extension/controller/exerciseDataLoader';
+import { fetchAndEnrichExerciseDetails, fetchArchivedCourseDetail } from '@extension/controller/exerciseDataLoader';
 import type { ExerciseDetailsResponse, ProgrammingSubmission, ResultSummary } from '@extension/types';
 import { ApiError, MalformedResponseError } from '@extension/types';
 
@@ -384,6 +384,59 @@ suite('fetchAndEnrichExerciseDetails — latest-result feedback attachment', () 
             resultsOf(data).find(r => r.id === 10)?.feedbacks,
             undefined,
             'a failed pending lookup must not enable the fallback',
+        );
+    });
+});
+
+/**
+ * `courses/{id}/for-dashboard` is gone server-side, so the archived detail is
+ * composed from two responses: the archive row for the course metadata and
+ * `exercises-for-overview` for its exercises.
+ */
+suite('fetchArchivedCourseDetail', () => {
+    function makeArchiveApi(overrides: {
+        archived?: unknown[];
+        exercises?: unknown[] | (() => Promise<never>);
+    } = {}): ArtemisApiService {
+        return {
+            getArchivedCourses: async () => overrides.archived ?? [
+                { id: 42, title: 'Old Course', semester: 'WS23/24', color: '#abc' },
+            ],
+            getCourseExercisesForOverview: async () => {
+                const exercises = overrides.exercises ?? [
+                    { id: 7, title: 'Archived Exercise', studentParticipations: [{ id: 1, repositoryUri: 'git://x' }] },
+                ];
+                return typeof exercises === 'function' ? exercises() : exercises;
+            },
+        } as unknown as ArtemisApiService;
+    }
+
+    test('composes the detail from the archive row and the fetched exercises', async () => {
+        const detail = await fetchArchivedCourseDetail(makeArchiveApi(), 42);
+
+        assert.strictEqual(detail.course.id, 42);
+        assert.strictEqual(detail.course.title, 'Old Course');
+        assert.strictEqual(detail.course.semester, 'WS23/24');
+        assert.strictEqual(detail.course.isArchived, true);
+        assert.deepStrictEqual(
+            (detail.course.exercises ?? []).map(e => e.id), [7],
+            'the exercises are the second response, not part of the archive row',
+        );
+    });
+
+    test('rejects when the course is not in the archive list', async () => {
+        await assert.rejects(
+            () => fetchArchivedCourseDetail(makeArchiveApi({ archived: [{ id: 1 }] }), 42),
+            /Archived course 42/,
+        );
+    });
+
+    test('propagates a failing exercise fetch instead of rendering an empty course', async () => {
+        await assert.rejects(
+            () => fetchArchivedCourseDetail(
+                makeArchiveApi({ exercises: () => Promise.reject(new ApiError('server', 500)) }), 42,
+            ),
+            ApiError,
         );
     });
 });

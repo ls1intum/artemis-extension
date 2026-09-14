@@ -2,20 +2,22 @@ import type * as vscode from 'vscode';
 
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import type { ITelemetryManager } from '@extension/services/telemetry';
+import type { SensorHub } from '@extension/services/sensing';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import type { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
+import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 import type { PlatformCapabilities } from '@extension/theia';
 
 /** Everything the full data-collection seam needs to wire consent + recording. */
 export interface DataCollectionDeps {
     context: vscode.ExtensionContext;
     artemisWebsocketService: ArtemisWebsocketService;
-    telemetryManager: ITelemetryManager;
+    struggleCoordinator: IStruggleCoordinator;
     artemisWebviewProvider: ArtemisWebviewProvider;
     chatWebviewProvider: ChatWebviewProvider;
     capabilities?: PlatformCapabilities;
     exerciseRegistry?: ExerciseRegistry;
+    sensorHub: SensorHub;
     workspaceTracker: WorkspaceExerciseTracker;
 }
 

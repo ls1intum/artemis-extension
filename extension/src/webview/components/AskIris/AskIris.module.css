@@ -1,7 +1,38 @@
-.layout {
+/* Chat-off notice, neutral (no warning colour, no accent line). Spaced from .main by Container's flex gap. */
+.notice {
   display: flex;
   align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--theme-border);
+  background: var(--vscode-editorWidget-background, transparent);
+  border-radius: 5px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+.noticeIcon { flex: none; opacity: 0.8; }
+
+/* Top row: Iris logo, chat blurb, Ask button. Wraps because the logo and the
+   Ask button do not shrink; without it the blurb keeps only the leftover width
+   and thins to a couple of words per line in a narrow sidebar. */
+.main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--theme-container-padding);
+}
+
+/* Chat-off: dim the row, leaving the notice sharp. */
+.mainMuted .logo { filter: grayscale(0.6); opacity: 0.7; }
+.mainMuted .title { color: var(--vscode-descriptionForeground); }
+.mainMuted .description { color: var(--vscode-descriptionForeground); opacity: 0.85; }
+
+/* Neutral disabled Ask — higher specificity than the shared .btn:disabled so it reads as a deliberate off-state. */
+.buttonCol .unavailableAsk:disabled {
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  border: 1px solid var(--theme-border);
+  opacity: 1;
 }
 
 .logoCol {
@@ -11,12 +42,13 @@
 }
 
 .textCol {
-  flex: 1;
+  flex: 1 1 160px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   text-align: left;
   gap: 4px;
+  min-width: 0;
 }
 
 .buttonCol {
@@ -26,8 +58,8 @@
 }
 
 .logo {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
   object-fit: contain;
   filter: var(--theme-iris-logo-shadow);
@@ -39,4 +71,107 @@
 
 .description {
   margin: 0;
+}
+
+/* Divider between the chat access above and the proactive control below. */
+.divider {
+  height: 0;
+  border: 0;
+  border-top: 1px solid var(--theme-border);
+  margin: 4px 0;
+}
+
+/* Proactive struggle level control */
+.proactive {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Wraps for the same reason as .main: the segmented control below never
+   shrinks, so the description would otherwise collapse to a few characters
+   per line. */
+.proactiveRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.proactiveText {
+  /* Basis, not just grow: below ~200px of text the control wraps to its own
+     line. min-width keeps a long word from overflowing after the wrap. */
+  flex: 1 1 200px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.proactiveTitle {
+  margin: 0;
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--vscode-foreground);
+}
+
+.proactiveDescription {
+  margin: 0;
+  font-size: 0.9em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.segmented {
+  display: inline-flex;
+  flex-shrink: 0;
+  border: 1px solid var(--vscode-focusBorder);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.segment {
+  cursor: pointer;
+  padding: 5px 16px;
+  border: none;
+  background: transparent;
+  color: var(--vscode-foreground);
+  font: inherit;
+  font-weight: 500;
+}
+
+.segment:not(:last-child) {
+  border-right: 1px solid var(--vscode-focusBorder);
+}
+
+/* Hover feedback so the choices read as interactive, not just static labels. */
+.segment:not([aria-checked='true']):not(:disabled):hover {
+  background: color-mix(in srgb, var(--vscode-focusBorder) 16%, transparent);
+}
+
+.segment[aria-checked='true'] {
+  background: var(--vscode-focusBorder);
+  color: var(--vscode-button-foreground);
+  font-weight: 700;
+}
+
+.segment:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.cardNote {
+  font-size: 0.9em;
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
+.consentLink {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: inherit;
 }

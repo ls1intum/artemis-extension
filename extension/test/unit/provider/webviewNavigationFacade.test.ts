@@ -52,8 +52,6 @@ suite('WebviewNavigationFacade', () => {
             showCourseList: sinon.SinonStub;
             showCourseDetail: sinon.SinonStub;
             showExerciseDetail: sinon.SinonStub;
-            showAiConfig: sinon.SinonStub;
-            showServiceStatus: sinon.SinonStub;
             showStruggleDetection: sinon.SinonStub;
             showRecommendedExtensions: sinon.SinonStub;
             showGitCredentials: sinon.SinonStub;
@@ -95,6 +93,7 @@ suite('WebviewNavigationFacade', () => {
         sendInitData: sinon.SinonStub;
         backgroundRenderProblemStatement: sinon.SinonStub;
         getServerUrl: sinon.SinonStub;
+        checkServerVersion: (serverUrl: string) => void;
     }
 
     function buildDeps(overrides: Partial<DepStubs> = {}): {
@@ -108,8 +107,6 @@ suite('WebviewNavigationFacade', () => {
                 showCourseList: sandbox.stub(),
                 showCourseDetail: sandbox.stub(),
                 showExerciseDetail: sandbox.stub(),
-                showAiConfig: sandbox.stub(),
-                showServiceStatus: sandbox.stub(),
                 showStruggleDetection: sandbox.stub(),
                 showRecommendedExtensions: sandbox.stub(),
                 showGitCredentials: sandbox.stub(),
@@ -151,6 +148,7 @@ suite('WebviewNavigationFacade', () => {
             sendInitData: overrides.sendInitData ?? sandbox.stub(),
             backgroundRenderProblemStatement: overrides.backgroundRenderProblemStatement ?? sandbox.stub(),
             getServerUrl: overrides.getServerUrl ?? sandbox.stub().returns('https://artemis.example/'),
+            checkServerVersion: overrides.checkServerVersion ?? sandbox.stub(),
         };
 
         const deps = {
@@ -167,6 +165,7 @@ suite('WebviewNavigationFacade', () => {
             sendInitData: stubs.sendInitData,
             backgroundRenderProblemStatement: stubs.backgroundRenderProblemStatement,
             getServerUrl: stubs.getServerUrl,
+            checkServerVersion: stubs.checkServerVersion,
         } as unknown as WebviewNavigationFacadeDeps;
 
         return { deps, stubs };
@@ -205,6 +204,42 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.calledOnce(stubs.appStateManager.showLogin);
     });
 
+    const enableDeveloperMode = () => getConfiguration.returns({
+        get: <T>(key: string, fallback?: T): T | undefined => (key === 'developerMode' ? (true as unknown as T) : fallback),
+        update: sandbox.stub().resolves(undefined),
+    } as unknown as vscode.WorkspaceConfiguration);
+
+    test('openStruggleFullscreen: delegates to the injected opener in developer mode', async () => {
+        enableDeveloperMode();
+        const { deps } = buildDeps();
+        const opener = sandbox.stub();
+        deps.openStruggleFullscreen = opener;
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.openStruggleFullscreen();
+
+        sinon.assert.calledOnce(opener);
+    });
+
+    test('openStruggleFullscreen: does NOT open when developer mode is off (developer-only page)', async () => {
+        const { deps } = buildDeps();   // default getConfiguration stub → developerMode false
+        const opener = sandbox.stub();
+        deps.openStruggleFullscreen = opener;
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.openStruggleFullscreen();
+
+        sinon.assert.notCalled(opener);
+    });
+
+    test('openStruggleFullscreen: no-op (no throw) when no opener is injected (clean build), in developer mode', async () => {
+        enableDeveloperMode();
+        const { deps } = buildDeps();
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.openStruggleFullscreen();   // must not throw
+    });
+
     test('showLogin: invokes render callback', () => {
         const { deps, stubs } = buildDeps();
         const facade = new WebviewNavigationFacade(deps);
@@ -212,6 +247,26 @@ suite('WebviewNavigationFacade', () => {
         facade.showLogin();
 
         sinon.assert.calledOnce(stubs.render);
+    });
+
+    test('navigateToStartPage starts the version check and does not wait for it', async () => {
+        const checked: string[] = [];
+        const { deps } = buildDeps({
+            getServerUrl: sandbox.stub().returns('https://artemis.tum.de'),
+            checkServerVersion: (url: string) => {
+                checked.push(url);
+                // Never settles. If navigateToStartPage is ever changed to await
+                // this call, the test times out instead of quietly passing. A
+                // callback returning undefined would NOT catch that: `await
+                // undefined` resolves immediately.
+                return new Promise<void>(() => { /* deliberately pending */ });
+            },
+        } as Partial<DepStubs>);
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.navigateToStartPage({ username: 'u', serverUrl: 'https://artemis.tum.de', user: {} as never });
+
+        assert.deepStrictEqual(checked, ['https://artemis.tum.de']);
     });
 
     test('showLogin: posts SetServerUrl message with getServerUrl value', () => {
@@ -400,8 +455,6 @@ suite('WebviewNavigationFacade', () => {
             showCourseList: sandbox.stub(),
             showCourseDetail: sandbox.stub(),
             showExerciseDetail: sandbox.stub(),
-            showAiConfig: sandbox.stub(),
-            showServiceStatus: sandbox.stub(),
             showStruggleDetection: sandbox.stub(),
             showRecommendedExtensions: sandbox.stub(),
             showGitCredentials: sandbox.stub(),
@@ -448,8 +501,6 @@ suite('WebviewNavigationFacade', () => {
             showCourseList: sandbox.stub(),
             showCourseDetail: sandbox.stub(),
             showExerciseDetail: sandbox.stub(),
-            showAiConfig: sandbox.stub(),
-            showServiceStatus: sandbox.stub(),
             showStruggleDetection: sandbox.stub(),
             showRecommendedExtensions: sandbox.stub(),
             showGitCredentials: sandbox.stub(),
@@ -511,8 +562,6 @@ suite('WebviewNavigationFacade', () => {
                 showCourseList: sandbox.stub(),
                 showCourseDetail: sandbox.stub(),
                 showExerciseDetail: sandbox.stub(),
-                showAiConfig: sandbox.stub(),
-                showServiceStatus: sandbox.stub(),
                 showStruggleDetection: sandbox.stub(),
                 showRecommendedExtensions: sandbox.stub(),
                 showGitCredentials: sandbox.stub(),
@@ -630,27 +679,11 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.calledOnce(stubs.appStateManager.showCourseList);
     });
 
-    test('showAiConfig: delegates to appStateManager.showAiConfig and renders', () => {
-        const { deps, stubs } = buildDeps();
-        const facade = new WebviewNavigationFacade(deps);
-
-        facade.showAiConfig();
-
-        sinon.assert.calledOnce(stubs.appStateManager.showAiConfig);
-        sinon.assert.called(stubs.render);
-    });
-
-    test('showServiceStatus: delegates to appStateManager.showServiceStatus and renders', () => {
-        const { deps, stubs } = buildDeps();
-        const facade = new WebviewNavigationFacade(deps);
-
-        facade.showServiceStatus();
-
-        sinon.assert.calledOnce(stubs.appStateManager.showServiceStatus);
-        sinon.assert.called(stubs.render);
-    });
-
-    test('showStruggleDetection: delegates and renders', () => {
+    test('showStruggleDetection: delegates and renders in developer mode', () => {
+        getConfiguration.returns({
+            get: <T>(key: string, fallback?: T): T | undefined => (key === 'developerMode' ? (true as unknown as T) : fallback),
+            update: sandbox.stub().resolves(undefined),
+        } as unknown as vscode.WorkspaceConfiguration);
         const { deps, stubs } = buildDeps();
         const facade = new WebviewNavigationFacade(deps);
 
@@ -658,6 +691,17 @@ suite('WebviewNavigationFacade', () => {
 
         sinon.assert.calledOnce(stubs.appStateManager.showStruggleDetection);
         sinon.assert.called(stubs.render);
+    });
+
+    test('showStruggleDetection: does NOT navigate when developer mode is off (developer-only page)', () => {
+        // Default getConfiguration stub returns the fallback (false) for developerMode.
+        const { deps, stubs } = buildDeps();
+        const facade = new WebviewNavigationFacade(deps);
+
+        facade.showStruggleDetection();
+
+        sinon.assert.notCalled(stubs.appStateManager.showStruggleDetection);
+        sinon.assert.notCalled(stubs.render);
     });
 
     test('showRecommendedExtensions: delegates and renders', () => {
@@ -737,8 +781,6 @@ suite('WebviewNavigationFacade', () => {
             showCourseList: sandbox.stub(),
             showCourseDetail: sandbox.stub(),
             showExerciseDetail: sandbox.stub(),
-            showAiConfig: sandbox.stub(),
-            showServiceStatus: sandbox.stub(),
             showStruggleDetection: sandbox.stub(),
             showRecommendedExtensions: sandbox.stub(),
             showGitCredentials: sandbox.stub(),

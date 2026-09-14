@@ -7,10 +7,10 @@ import { isWebviewMessage } from '@shared/messageContracts/typeGuards';
 
 import type { WebViewMessageHandler } from '@extension/controller/webViewMessageHandler';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import { collectExerciseSources, detectWorkspaceExercise, detectWorkspaceForRepoUris } from '@extension/services/workspace/workspaceDetectionService';
-import { getTheiaEnvironment } from '@extension/theia/theiaEnvironment';
 import type { ExerciseDetailsResponse } from '@extension/types';
 
+import type { ViewInitDataService } from './viewInitDataService';
+import type { WebviewBroadcaster } from './webviewBroadcaster';
 import { getReactWebviewHtml } from './webviewHtml';
 
 export class FullscreenPanelManager {
@@ -18,6 +18,12 @@ export class FullscreenPanelManager {
         private readonly _extensionUri: vscode.Uri,
         private readonly _extensionContext: vscode.ExtensionContext,
         private readonly _getMessageHandler: () => WebViewMessageHandler,
+        // Lazy: the init service is constructed after this manager. Shared with the
+        // sidebar so both transports build identical exercise/course init payloads.
+        private readonly _getViewInitData: () => ViewInitDataService,
+        // Every panel registers its transport here so global pushes (consent,
+        // .noai, SSR) reach it without the panel re-subscribing on its own.
+        private readonly _broadcaster: WebviewBroadcaster,
     ) {}
 
     public openExerciseFullscreen(exerciseData: ExerciseDetailsResponse): void {
@@ -26,37 +32,12 @@ export class FullscreenPanelManager {
             viewType: 'artemis.exerciseFullscreen',
             title: `Exercise: ${exerciseTitle}`,
             viewName: 'exerciseDetail',
+            // Same shared builder the sidebar uses (repoStatus, dev-tools gating, and the
+            // cached SSR). onReady also fires on RequestInit; rebuilding each time is fine.
+            // Consent/.noai/SSR live updates arrive via the broadcaster (registered in
+            // _openFullscreenPanel), so this panel needs no listeners of its own.
             onReady: (postSafe) => {
-                const isManagedEnvironment = getTheiaEnvironment().isManagedEnvironment;
-                const repoUris = (exerciseData.exercise?.studentParticipations ?? [])
-                    .map(p => p.repositoryUri)
-                    .filter((uri): uri is string => !!uri);
-
-                if (repoUris.length > 0) {
-                    detectWorkspaceForRepoUris(repoUris).then((repoStatus) => {
-                        postSafe({
-                            type: ExtensionMsg.ExerciseDetailInit,
-                            exerciseData,
-                            hideDeveloperTools: false,
-                            isManagedEnvironment,
-                            repoStatus,
-                        });
-                    }).catch(() => {
-                        postSafe({
-                            type: ExtensionMsg.ExerciseDetailInit,
-                            exerciseData,
-                            hideDeveloperTools: false,
-                            isManagedEnvironment,
-                        });
-                    });
-                } else {
-                    postSafe({
-                        type: ExtensionMsg.ExerciseDetailInit,
-                        exerciseData,
-                        hideDeveloperTools: false,
-                        isManagedEnvironment,
-                    });
-                }
+                void this._getViewInitData().buildExerciseDetailInit(exerciseData).then(({ msg }) => postSafe(msg));
             },
         });
     }
@@ -83,29 +64,35 @@ export class FullscreenPanelManager {
             title: `Course: ${courseTitle}`,
             viewName: 'courseDetail',
             onReady: (postSafe) => {
-                const config = vscode.workspace.getConfiguration('artemis');
-                const developerMode = config.get<boolean>('developerMode', false);
-                const sources = collectExerciseSources([{
-                    course: courseData.course,
-                    exercises: courseData.course.exercises,
-                }]);
-
-                detectWorkspaceExercise(sources).then((detectedExercise) => {
-                    postSafe({
-                        type: ExtensionMsg.CourseDetailInit,
-                        courseData: courseData,
-                        workspaceExerciseId: detectedExercise?.id ?? null,
-                        hideDeveloperTools: !developerMode,
-                    });
-                }).catch(() => {
-                    postSafe({
-                        type: ExtensionMsg.CourseDetailInit,
-                        courseData: courseData,
-                        workspaceExerciseId: null,
-                        hideDeveloperTools: !developerMode,
-                    });
-                });
+                void this._getViewInitData().buildCourseDetailInit(courseData).then(postSafe);
             },
+        });
+    }
+
+    /**
+     * Open the developer struggle view in its own editor tab (which the user can then move to a
+     * separate window via VS Code's native "Move Editor into New Window"). Kept struggle-agnostic:
+     * the caller supplies `buildInit` (the snapshot payload) and `subscribeRefresh` (re-send when
+     * the engine state changes — ticks AND session start/end), so the always-bundled manager never
+     * imports services/struggle and the clean build stays leak-free. The subscription is torn down
+     * when the panel closes.
+     */
+    public openStruggleFullscreen(
+        buildInit: () => ExtensionToWebviewMessage,
+        subscribeRefresh: (refresh: () => void) => vscode.Disposable,
+        onPanelDispose?: (postSafe: (msg: ExtensionToWebviewMessage) => void) => void,
+    ): void {
+        let refreshSub: vscode.Disposable | undefined;
+        this._openFullscreenPanel({
+            viewType: 'artemis.struggleFullscreen',
+            title: 'Struggle Detection',
+            viewName: 'struggleDetection',
+            onReady: (postSafe) => {
+                postSafe(buildInit());
+                // onReady can fire again on a RequestInit; only wire the refresh subscription once.
+                if (!refreshSub) { refreshSub = subscribeRefresh(() => postSafe(buildInit())); }
+            },
+            onDispose: (postSafe) => { refreshSub?.dispose(); refreshSub = undefined; onPanelDispose?.(postSafe); },
         });
     }
 
@@ -114,6 +101,7 @@ export class FullscreenPanelManager {
         title: string;
         viewName: string;
         onReady: (postSafe: (msg: ExtensionToWebviewMessage) => void) => void;
+        onDispose?: (postSafe: (msg: ExtensionToWebviewMessage) => void) => void;
     }): void {
         const panel = vscode.window.createWebviewPanel(
             options.viewType,
@@ -142,6 +130,11 @@ export class FullscreenPanelManager {
                 pendingMessages.push(msg);
             }
         };
+
+        // Register this panel's transport once (at creation, NOT in onReady which
+        // re-fires on RequestInit) so global pushes reach it; postSafe buffers
+        // anything that arrives before the webview signals Ready.
+        const sinkRegistration = this._broadcaster.addSink(postSafe);
 
         const messageListener = panel.webview.onDidReceiveMessage(async (message: unknown) => {
             if (disposed) { return; }
@@ -174,17 +167,16 @@ export class FullscreenPanelManager {
             }
 
             if (message.type === 'command') {
-                this._getMessageHandler().handleMessageWithSender(
-                    message,
-                    (resp: ExtensionToWebviewMessage) => postSafe(resp)
-                );
+                this._getMessageHandler().handleMessageWithSender(message, postSafe, () => !disposed);
             }
         });
 
         panel.onDidDispose(() => {
             disposed = true;
             pendingMessages = [];
+            sinkRegistration.dispose();
             messageListener.dispose();
+            options.onDispose?.(postSafe);
         });
 
         this._extensionContext.subscriptions.push(panel);

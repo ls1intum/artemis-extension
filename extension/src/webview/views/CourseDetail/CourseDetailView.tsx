@@ -183,6 +183,9 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
                 subtitle={course.description}
             >
                 <div className={styles.courseStats}>
+                    {/* The archive list carries no description, student count or instructor group,
+                        so those rows are simply absent here. The badge says why. */}
+                    {course.isArchived && <Badge variant="muted">Archived</Badge>}
                     {course.semester && <Badge variant="muted">{course.semester}</Badge>}
                     <span className={styles.statItem}>
                         {course.exercises?.length || 0} exercises

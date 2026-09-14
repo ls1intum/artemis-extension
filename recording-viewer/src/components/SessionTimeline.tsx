@@ -10,12 +10,30 @@ import {
     ReferenceLine,
     Dot,
 } from 'recharts';
-import type { Annotation, RecordedEvent, EqSnapshotEvent, ReplayEqSnapshot } from '../types.ts';
+import type { Annotation, RecordedEvent, ReplayEqSnapshot } from '../types.ts';
 import { STRUGGLE_LABELS } from '../types.ts';
 import { formatOffset } from '../utils/format.ts';
 import { raterLaneColor } from '../utils/raterColor.ts';
 import { EventBadge } from './EventBadge.tsx';
 import { SessionChartOverlay } from './SessionChartOverlay';
+
+/**
+ * The EQ engine (and its `eqSnapshot` recording event) was retired from the
+ * canonical schema ("remove all Error Quotient (EQ) code for struggle engine
+ * v3") and is no longer part of `RecordedEvent`. Old recordings on disk still
+ * contain `eqSnapshot` rows (the loader casts raw JSON as `RecordedEvent`,
+ * see `parseSession.ts`), and this chart is the primary place that data is
+ * visualized, so the shape is kept here, locally, purely for legacy display —
+ * it deliberately does not re-join the synced schema.
+ */
+interface LegacyEqSnapshotEvent {
+    type: 'eqSnapshot';
+    timestamp: number;
+    eq: number;
+    confidence: 'sufficient' | 'insufficient';
+    source: 'save' | 'build' | 'trigger';
+    triggerType?: string;
+}
 
 interface ResearcherLane {
     raterId: string;
@@ -155,7 +173,8 @@ const SessionLineChart = memo(function SessionLineChart({
     annotations,
     xDomain,
 }: LineChartProps) {
-    const eqEvents = events.filter((e): e is EqSnapshotEvent => e.type === 'eqSnapshot');
+    const eqEvents = (events as unknown as (RecordedEvent | LegacyEqSnapshotEvent)[])
+        .filter((e): e is LegacyEqSnapshotEvent => e.type === 'eqSnapshot');
     const hasReplay = replayEq && replayEq.length > 0;
 
     const mergedMap = new Map<number, ChartPoint>();
@@ -285,7 +304,8 @@ const SessionLineChart = memo(function SessionLineChart({
 
 
 export function SessionTimeline({ events, sessionStartTime, replayEq, annotations = [], researcherLanes, xDomain: externalXDomain, zoomedRange, videoTimeRef }: Props) {
-    const eqEvents = events.filter((e): e is EqSnapshotEvent => e.type === 'eqSnapshot');
+    const eqEvents = (events as unknown as (RecordedEvent | LegacyEqSnapshotEvent)[])
+        .filter((e): e is LegacyEqSnapshotEvent => e.type === 'eqSnapshot');
     const hasReplay = replayEq && replayEq.length > 0;
     const hasLanes = !!researcherLanes && researcherLanes.length > 0;
 

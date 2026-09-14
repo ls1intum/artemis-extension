@@ -67,6 +67,23 @@ describe('CourseDetailView', () => {
 		});
 	});
 
+	it('marks an archived course as archived in the header', async () => {
+		// An archived course is served by the archive list, which carries no description, student
+		// count or instructor group. Those rows simply vanish from the header, so the badge is what
+		// tells the student the header is thinner by nature rather than by a failed load.
+		const mockApi = createMockVsCodeApi();
+		render(<CourseDetailView vscodeApi={mockApi} />);
+
+		dispatchExtensionMessage({
+			type: 'courseDetailInit',
+			courseData: makeCourseDetailData({ title: 'Old Course', id: 8, isArchived: true }),
+		});
+
+		await waitFor(() => {
+			expect(screen.getByText('Archived')).toBeInTheDocument();
+		});
+	});
+
 	it('renders exercise list within course', async () => {
 		const mockApi = createMockVsCodeApi();
 		render(<CourseDetailView vscodeApi={mockApi} />);

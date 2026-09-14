@@ -390,22 +390,27 @@ suite('detectWorkspaceExerciseForRepository: archive path records the catalog', 
     teardown(() => { sandbox.restore(); catalog.dispose(); });
 
     /**
-     * An archived course whose one exercise matches `url`, as
-     * `getCourseForDashboard` returns it. The participation carries the
-     * repository URI, not just the bare exercise field: that is the shape the
+     * The one exercise of an archived course matching `url`, as
+     * `getCourseExercisesForOverview` returns it. Only the participation
+     * carries the repository URI: the `exercises-for-overview` projection has
+     * no exercise-level `repositoryUri`, and that participation is what the
      * catalog projection turns into a registry entry.
      */
+    function archivedExercisesMatching(url: string): ExerciseDetail[] {
+        return [{
+            id: 5,
+            title: 'Archived Exercise',
+            studentParticipations: [{ id: 1, repositoryUri: url }],
+        }];
+    }
+
+    /** The same course as the catalog stores it, for the dashboard branch. */
     function archivedEntryMatching(url: string): CourseDashboardEntry {
         return {
             course: {
                 id: 77,
                 title: 'Archived Course',
-                exercises: [{
-                    id: 5,
-                    title: 'Archived Exercise',
-                    repositoryUri: url,
-                    studentParticipations: [{ id: 1, repositoryUri: url }],
-                }],
+                exercises: archivedExercisesMatching(url),
             },
         };
     }
@@ -413,8 +418,8 @@ suite('detectWorkspaceExerciseForRepository: archive path records the catalog', 
     test('an archived course found for the workspace is recorded in the catalog', async () => {
         catalog.resetTo(3);
         const api = {
-            getArchivedCourses: sandbox.stub().resolves([{ id: 77 }]),
-            getCourseForDashboard: sandbox.stub().resolves(archivedEntryMatching('https://git/ws')),
+            getArchivedCourses: sandbox.stub().resolves([{ id: 77, title: 'Archived Course' }]),
+            getCourseExercisesForOverview: sandbox.stub().resolves(archivedExercisesMatching('https://git/ws')),
         };
 
         const outcome = await detectWorkspaceExerciseForRepository(
@@ -438,11 +443,11 @@ suite('detectWorkspaceExerciseForRepository: archive path records the catalog', 
     // function returns.
     test('an archived course found under a superseded epoch reaches neither layer', async () => {
         const api = {
-            getArchivedCourses: sandbox.stub().resolves([{ id: 77 }]),
-            getCourseForDashboard: sandbox.stub().callsFake(async () => {
+            getArchivedCourses: sandbox.stub().resolves([{ id: 77, title: 'Archived Course' }]),
+            getCourseExercisesForOverview: sandbox.stub().callsFake(async () => {
                 // The student logs out while the archive probe is open.
                 catalog.resetTo(catalog.currentEpoch + 1);
-                return archivedEntryMatching('https://git/ws');
+                return archivedExercisesMatching('https://git/ws');
             }),
         };
 

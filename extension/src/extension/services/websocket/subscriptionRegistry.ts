@@ -74,13 +74,22 @@ export class SubscriptionRegistry {
         );
     }
 
+    /**
+     * Subscribes to one Iris session's topic. The session id travels back to the caller with every
+     * frame, so a listener shared across sessions can tell where a frame came from. Everything else
+     * (replacing an existing subscription, swallowing a malformed frame, the stale-safe unsubscribe)
+     * is {@link subscribeToTopic}; the topic already names both Iris and the session, so the log
+     * lines it writes lose nothing.
+     */
     public subscribeToIrisSession(id: number, onMessage: (m: unknown, sourceSessionId: number) => void): () => void {
+        return this.subscribeToTopic(WEBSOCKET_TOPICS.irisSession(id), (data) => onMessage(data, id));
+    }
+
+    public subscribeToTopic(topic: string, onMessage: (data: unknown) => void): () => void {
         if (!this._client) {
             this._deps.log('Cannot subscribe: not connected');
             throw new Error('WebSocket not connected');
         }
-
-        const topic = WEBSOCKET_TOPICS.irisSession(id);
 
         if (this._subscriptions.has(topic)) {
             this._deps.log(`Replacing existing subscription for ${topic}`);
@@ -92,17 +101,17 @@ export class SubscriptionRegistry {
         const subscription = this._client.subscribe(topic, (message: IMessage) => {
             try {
                 const data: unknown = JSON.parse(message.body);
-                this._deps.log(`Received Iris message for session ${id}`);
-                onMessage(data, id);
+                this._deps.log(`Received message on ${topic}`);
+                onMessage(data);
             } catch (error) {
                 const stack = error instanceof Error ? error.stack : String(error);
-                this._deps.log(`Error processing Iris message: ${stack}`);
-                logger.error('Full error processing Iris message', LogCategory.WEBSOCKET, error as Error);
+                this._deps.log(`Error processing message on ${topic}: ${stack}`);
+                logger.error(`Full error processing message on ${topic}`, LogCategory.WEBSOCKET, error as Error);
             }
         });
 
         this._subscriptions.set(topic, subscription);
-        this._deps.log(`✅ Subscribed to Iris session: ${topic}`);
+        this._deps.log(`✅ Subscribed to topic: ${topic}`);
 
         const capturedSub = subscription;
         return () => {

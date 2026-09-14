@@ -101,20 +101,8 @@ function OverviewBody({ testCases }: { testCases: TestCase[] }) {
                     <div className={styles.empty}>No test results available.</div>
                 ) : (
                     <>
-                        {failed.length > 0 && (
-                            <Section label="Failed" count={failed.length} variant="failed">
-                                {failed.map((tc, i) => (
-                                    <TestResultItem key={`fail-${i}`} testCase={tc} />
-                                ))}
-                            </Section>
-                        )}
-                        {passed.length > 0 && (
-                            <Section label="Passed" count={passed.length} variant="passed">
-                                {passed.map((tc, i) => (
-                                    <TestResultItem key={`pass-${i}`} testCase={tc} />
-                                ))}
-                            </Section>
-                        )}
+                        {failed.length > 0 && <CaseSection label="Failed" variant="failed" cases={failed} />}
+                        {passed.length > 0 && <CaseSection label="Passed" variant="passed" cases={passed} />}
                     </>
                 )}
             </div>
@@ -151,11 +139,7 @@ function TaskBody({ state }: { state: TaskTestState }) {
                 <>
                     <Summary passedCount={n} total={n} />
                     <div className={styles.testList}>
-                        <Section label="Passed" count={n} variant="passed">
-                            {state.passed.map((tc, i) => (
-                                <TestResultItem key={`pass-${i}`} testCase={tc} />
-                            ))}
-                        </Section>
+                        <CaseSection label="Passed" variant="passed" cases={state.passed} />
                     </div>
                 </>
             );
@@ -167,18 +151,8 @@ function TaskBody({ state }: { state: TaskTestState }) {
                 <>
                     {matched > 0 && <Summary passedCount={state.passed.length} total={matched} />}
                     <div className={styles.testList}>
-                        <Section label="Failed" count={state.failed.length} variant="failed">
-                            {state.failed.map((tc, i) => (
-                                <TestResultItem key={`fail-${i}`} testCase={tc} />
-                            ))}
-                        </Section>
-                        {state.passed.length > 0 && (
-                            <Section label="Passed" count={state.passed.length} variant="passed">
-                                {state.passed.map((tc, i) => (
-                                    <TestResultItem key={`pass-${i}`} testCase={tc} />
-                                ))}
-                            </Section>
-                        )}
+                        <CaseSection label="Failed" variant="failed" cases={state.failed} />
+                        {state.passed.length > 0 && <CaseSection label="Passed" variant="passed" cases={state.passed} />}
                         {state.notExecutedIds.length > 0 && (
                             <NotExecutedNote count={state.notExecutedIds.length} />
                         )}
@@ -197,11 +171,7 @@ function TaskBody({ state }: { state: TaskTestState }) {
                 <>
                     <Summary passedCount={passedCount} total={passedCount + notRunCount} />
                     <div className={styles.testList}>
-                        <Section label="Passed" count={passedCount} variant="passed">
-                            {state.passed.map((tc, i) => (
-                                <TestResultItem key={`pass-${i}`} testCase={tc} />
-                            ))}
-                        </Section>
+                        <CaseSection label="Passed" variant="passed" cases={state.passed} />
                         {notRunCount > 0 && <NotExecutedNote count={notRunCount} />}
                     </div>
                 </>
@@ -235,6 +205,17 @@ function Summary({ passedCount, total }: { passedCount: number; total: number })
                 />
             </div>
         </div>
+    );
+}
+
+/** A labelled group of test cases; the only thing ever put inside a {@link Section}. */
+function CaseSection({ label, variant, cases }: { label: string; variant: 'passed' | 'failed'; cases: TestCase[] }) {
+    return (
+        <Section label={label} count={cases.length} variant={variant}>
+            {cases.map((tc, i) => (
+                <TestResultItem key={`${variant}-${i}`} testCase={tc} />
+            ))}
+        </Section>
     );
 }
 

@@ -1,7 +1,7 @@
-import type { EventType } from '../types';
+import type { DisplayEventType } from '../constants';
 
 interface RecordingInfoItem {
-    badge: EventType;
+    badge: DisplayEventType;
     label: string;
     desc: string;
 }
@@ -12,8 +12,12 @@ interface RecordingInfoCategory {
 }
 
 /** Content of the "What do we record?" panel. The badge of every item is a real
- *  EventType (compile-checked); recordingInfo.test.ts asserts the full set stays
- *  in sync with ALL_EVENT_TYPES so this panel cannot silently go stale. */
+ *  DisplayEventType (compile-checked): the live schema's EventType, plus the
+ *  three eqSnapshot/eqEngineState/intervention types retired from the schema
+ *  by the EQ-engine removal but still present in study-era recordings (see
+ *  constants.ts's LEGACY_EVENT_TYPES doc). recordingInfo.test.ts asserts the
+ *  full set stays in sync with ALL_EVENT_TYPES_WITH_LEGACY so this panel
+ *  cannot silently go stale in either direction. */
 export const RECORDING_INFO_CATEGORIES: RecordingInfoCategory[] = [
     {
         title: 'Editor Activity',
@@ -82,11 +86,13 @@ export const RECORDING_INFO_CATEGORIES: RecordingInfoCategory[] = [
     {
         title: 'Struggle Detection',
         items: [
-            { badge: 'eqSnapshot', label: 'EqSnapshot', desc: 'EQ score (0–1) + confidence (sufficient/insufficient)' },
-            { badge: 'eqEngineState', label: 'EqEngineState', desc: 'Full EQ engine state (snapshots, pairs, confidence)' },
-            { badge: 'intervention', label: 'Intervention', desc: 'Shown/accepted/dismissed interventions with level and EQ context' },
-            { badge: 'configurationSnapshot', label: 'ConfigurationSnapshot', desc: 'Provenance: struggle-detection + intervention settings captured at session start (used to classify control vs treatment runs)' },
-            { badge: 'configurationChange', label: 'ConfigurationChange', desc: 'Provenance: struggle-detection or intervention setting flipped mid-session (only changed keys are recorded)' },
+            { badge: 'struggleScore', label: 'StruggleScore', desc: 'Engine per-tick score sample (every 10 s): the two-feature typing/gap activations (study-era rows also carry the since-removed severity score S and the per-boundary bonus features)' },
+            { badge: 'alert', label: 'Alert', desc: 'Engine emitted alert: urgency, boundary types, primary boundary, delivery path (armed/e6), warmup/grace flags and threshold' },
+            { badge: 'eqSnapshot', label: 'EqSnapshot', desc: 'Study-era only (EQ engine retired): EQ score (0–1) + confidence (sufficient/insufficient)' },
+            { badge: 'eqEngineState', label: 'EqEngineState', desc: 'Study-era only (EQ engine retired): full EQ engine state (snapshots, pairs, confidence)' },
+            { badge: 'intervention', label: 'Intervention', desc: 'Study-era only (EQ engine retired): shown/accepted/dismissed interventions with level and EQ context' },
+            { badge: 'configurationSnapshot', label: 'ConfigurationSnapshot', desc: 'Provenance: legacy settings snapshot; since #352 both flags are pinned true (settings removed), older recordings carry real values' },
+            { badge: 'configurationChange', label: 'ConfigurationChange', desc: 'Provenance (legacy recordings only): a struggle-detection setting flipped mid-session; not produced since #352' },
         ],
     },
     {
@@ -100,6 +106,6 @@ export const RECORDING_INFO_CATEGORIES: RecordingInfoCategory[] = [
     },
 ];
 
-/** Flat list of every badge shown in the panel, used to guard against drift
- *  from the recorder's ALL_EVENT_TYPES (see recordingInfo.test.ts). */
-export const RECORDING_INFO_BADGES: EventType[] = RECORDING_INFO_CATEGORIES.flatMap(c => c.items.map(i => i.badge));
+/** Flat list of every badge shown in the panel — used to guard against drift
+ *  from the recorder's ALL_EVENT_TYPES_WITH_LEGACY (see recordingInfo.test.ts). */
+export const RECORDING_INFO_BADGES: DisplayEventType[] = RECORDING_INFO_CATEGORIES.flatMap(c => c.items.map(i => i.badge));

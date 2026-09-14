@@ -22,7 +22,8 @@ export enum LogCategory {
     BUILD = 'Build',
     TEST = 'Test',
     CONFIG = 'Config',
-    VIEW = 'View'
+    VIEW = 'View',
+    STRUGGLE = 'Struggle'
 }
 
 interface LoggingConfig {
@@ -189,10 +190,6 @@ class LoggingService {
 
     public fileMonitorError(message: string, ...args: unknown[]): void {
         this.output(LogLevel.ERROR, `📁 ${message}`, LogCategory.FILE_MONITOR, ...args);
-    }
-
-    public telemetry(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.INFO, message, LogCategory.TELEMETRY, ...args);
     }
 
     public session(message: string, ...args: unknown[]): void {
