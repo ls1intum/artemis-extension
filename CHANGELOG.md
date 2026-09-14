@@ -4,7 +4,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-09-12
+## [1.0.0] - 2026-09-14
 
 ### Changed
 
@@ -20,6 +20,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **The Service Status page and the health panel under the login error are gone.** Their API row reported working servers as unavailable. Connection and Iris problems now show up in the status bar and the chat.
 - **A mistyped server address now says so**, instead of failing with "404 Not Found" and an HTML error page in the banner.
 - **The AI Checker page is gone.** It matched your extensions against a list of AI extension ids frozen since October 2025, and showed what VS Code's own Extensions view already shows.
+- **The Recommended Extensions page is gone.** It listed four Java extensions typed into the source once and marked each as installed or not; its button opened the same Extensions view you can open yourself. A hand-maintained list of four ids goes out of date without anything failing, and nothing on the page knew which exercise you had open.
 - **The Git Credentials page no longer promises to handle your password.** It sets the author name and email on your commits; Git's own credential helper does the rest, which the page already said further down.
 
 ### Fixed

@@ -7,9 +7,8 @@ import type {
     ExerciseDetailsResponse,
 } from '@extension/types';
 import type { ArtemisUser } from '@extension/types';
-import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '@extension/utils/recommendedExtensions';
 
-export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials';
+export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'struggle-detection' | 'git-credentials';
 
 export interface UserInfo {
     username: string;
@@ -36,7 +35,6 @@ export class AppStateManager {
     private _archivedCoursesData?: ArchivedCourse[];
     private _archiveCheckComplete = true;
     private _payload: NavigationPayload = { kind: 'none' };
-    private _recommendedExtensions?: RecommendedExtensionCategory[];
     private _serverRenderedPS: RenderedProblemStatementPayload | null = null;
     private _workspaceMode: { exerciseId: number; isPractice: boolean; ticket: number } | undefined;
     private _workspaceModeProbe = 0;
@@ -147,10 +145,6 @@ export class AppStateManager {
         this._serverRenderedPS = value;
     }
 
-    get recommendedExtensions(): RecommendedExtensionCategory[] | undefined {
-        return this._recommendedExtensions;
-    }
-
     get archiveCheckComplete(): boolean {
         return this._archiveCheckComplete;
     }
@@ -179,7 +173,6 @@ export class AppStateManager {
         this._courseCatalog?.clear();
         this._archivedCoursesData = undefined;
         this._payload = { kind: 'none' };
-        this._recommendedExtensions = undefined;
         // Or the next session's exercise with the same id inherits a mode nobody detected for it.
         this._workspaceMode = undefined;
         this._workspaceModeFloor = this._workspaceModeProbe;
@@ -224,18 +217,6 @@ export class AppStateManager {
 
     public showStruggleDetection(): void {
         this._setCurrentState('struggle-detection');
-    }
-
-    public showRecommendedExtensions(recommendedExtensions?: RecommendedExtensionCategory[]): void {
-        if (recommendedExtensions) {
-            this._recommendedExtensions = recommendedExtensions.map(category => ({
-                ...category,
-                extensions: category.extensions.map(extension => ({ ...extension }))
-            }));
-        } else {
-            this._recommendedExtensions = getRecommendedExtensionsByCategory();
-        }
-        this._setCurrentState('recommended-extensions');
     }
 
     public showGitCredentials(): void {

@@ -63,7 +63,6 @@ export const WebviewCmd = {
     OpenBugReport: 'openBugReport',
     OpenInEditor: 'openInEditor',
     CopyToClipboard: 'copyToClipboard',
-    SearchMarketplace: 'searchMarketplace',
 
     // Git
     SaveGitIdentity: 'saveGitIdentity',
@@ -72,7 +71,6 @@ export const WebviewCmd = {
     OpenRecordingsFolder: 'openRecordingsFolder',
 
     // Views
-    ShowRecommendedExtensions: 'showRecommendedExtensions',
     ShowGitCredentials: 'showGitCredentials',
     ShowStruggleDetection: 'showStruggleDetection',
     StruggleLiveSubscribe: 'struggleLiveSubscribe',
@@ -186,7 +184,6 @@ interface WebviewCmdPayloads {
     openBugReport: undefined;
     openInEditor: { data: Record<string, unknown> | string; language?: string };
     copyToClipboard: { text: string };
-    searchMarketplace: { extensionId: string };
 
     // Recording
     openRecordingsFolder: undefined;
@@ -194,7 +191,6 @@ interface WebviewCmdPayloads {
     // Git
     saveGitIdentity: { name: string; email: string };
     // Views
-    showRecommendedExtensions: undefined;
     showGitCredentials: undefined;
     showStruggleDetection: undefined;
     struggleLiveSubscribe: undefined;
@@ -321,7 +317,6 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.AskIrisAboutExercise,
     WebviewCmd.OpenInEditor,
     WebviewCmd.CopyToClipboard,
-    WebviewCmd.SearchMarketplace,
     WebviewCmd.OpenSettings,
     WebviewCmd.SaveGitIdentity,
     WebviewCmd.SendMessage,
