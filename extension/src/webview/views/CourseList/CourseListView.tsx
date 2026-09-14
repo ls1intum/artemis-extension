@@ -260,6 +260,7 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
                             return (
                                 <ListItem
                                     key={`active-${course.id}-${index}`}
+                                    testId={`course-entry-${course.id}`}
                                     onClick={() => handleViewCourseDetails(courseData)}
                                     className={styles.courseItem}
                                 >
@@ -315,6 +316,7 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
                             return (
                                 <ListItem
                                     key={`archived-${course.id}-${index}`}
+                                    testId={`course-entry-${course.id}`}
                                     onClick={() => handleViewArchivedCourse(course.id)}
                                     className={styles.courseItem}
                                 >

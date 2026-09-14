@@ -20,6 +20,20 @@ const COURSE_WITHOUT_IRIS = Number(process.env.ARTEMIS_DISABLED_COURSE_ID ?? 902
 const DIALOG = '[role="dialog"]';
 const COURSE_OPENER = 'button[class*="courseButton"]';
 
+/** Whether the Artemis under test has the Iris module, read from its own report. */
+async function serverRunsIris(): Promise<boolean> {
+	const base = process.env.ARTEMIS_URL ?? 'http://localhost:8080';
+	try {
+		const response = await fetch(`${base}/management/info`);
+		const info = (await response.json()) as { activeProfiles?: string[]; activeModuleFeatures?: string[] };
+		return (info.activeModuleFeatures ?? []).includes('iris') || (info.activeProfiles ?? []).includes('iris');
+	} catch {
+		// Unreachable server is not this suite's business to diagnose; the login
+		// below will fail loudly enough.
+		return true;
+	}
+}
+
 describe('Iris chat popovers', function () {
 	let driver: WebDriver;
 
@@ -93,6 +107,16 @@ describe('Iris chat popovers', function () {
 			return;
 		}
 		const { username, password } = credentials;
+
+		// Second documented prerequisite: the server has to run Iris. Without the
+		// profile there is no conversation to open, so every assertion below would
+		// fail on the environment rather than on the extension. This is the same
+		// check the extension itself makes (`isIrisProfileActive`).
+		if (!(await serverRunsIris())) {
+			console.log('Iris chat popovers: the server does not run Iris; skipping');
+			this.skip();
+			return;
+		}
 
 		driver = VSBrowser.instance.driver;
 		await VSBrowser.instance.waitForWorkbench();

@@ -5,6 +5,7 @@ import { By, VSBrowser, WebDriver } from 'vscode-extension-tester';
 import {
     getCredentials,
     openArtemisView,
+    openFirstCourse,
     performLogin,
     safeLogoutAndCleanup,
     switchBackFromWebview,
@@ -53,22 +54,15 @@ describe('CourseDetail View UI Tests', function () {
 
 		// CSS module classes are hashed, so only element types and XPath text
 		// selectors are usable here.
-		const courseElement = await driver
-			.findElement(
-				By.xpath(
-					"//button[contains(@class,'course')] | //div[contains(@class,'card')]//button | //a[.//span] | //button[.//h3] | //button[.//h2]",
-				),
-			)
-			.catch(() => null);
+		const courseOpened = await openFirstCourse(driver);
 
-		if (!courseElement) {
+		if (!courseOpened) {
 			console.log('CourseDetail smoke: No courses available for CourseDetail smoke test');
 			await takeScreenshot(driver, 'course-detail-smoke-no-courses');
 			this.skip();
 			return;
 		}
 
-		await courseElement.click();
 
 		const container = await driver
 			.wait(

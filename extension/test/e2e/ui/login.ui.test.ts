@@ -1,9 +1,11 @@
 // Covers E2EV-01: Login view smoke test
 import * as assert from 'assert';
-import { VSBrowser, WebDriver } from 'vscode-extension-tester';
+import { By, VSBrowser, WebDriver } from 'vscode-extension-tester';
 
 import {
+    getCredentials,
     openArtemisView,
+    submitUsername,
     switchBackFromWebview,
     switchToWebviewFrame,
     takeScreenshot,
@@ -43,14 +45,21 @@ describe('Login View UI Tests', function () {
 		const form = await waitForElement(driver, 'form');
 		assert.ok(form, 'Login form should be present');
 
+		// Stage 0 only. The password field does not exist yet and must not: which
+		// credential this account needs is the server's answer to Continue, not an
+		// assumption the form is allowed to make.
 		const usernameInput = await waitForElement(driver, '#username');
 		assert.ok(usernameInput, 'Username input should be present');
 
-		const passwordInput = await waitForElement(driver, '#password');
-		assert.ok(passwordInput, 'Password input should be present');
+		const continueButton = await waitForElement(driver, '[data-testid="login-next"]');
+		assert.ok(continueButton, 'Continue button should be present');
 
-		const submitButton = await waitForElement(driver, 'button[type="submit"]');
-		assert.ok(submitButton, 'Submit button should be present');
+		const passwordFields = await driver.findElements(By.css('#password'));
+		assert.strictEqual(passwordFields.length, 0, 'Password field should not be shown before Continue');
+
+		// And the line that says which Artemis this is about to sign in to (#496).
+		const serverLine = await waitForElement(driver, '[data-testid="login-server"]');
+		assert.ok((await serverLine.getText()).length > 0, 'Server line should name the server');
 	});
 
 	it('should accept input in form fields', async function () {
@@ -60,9 +69,13 @@ describe('Login View UI Tests', function () {
 
 		const usernameInput = await waitForElement(driver, '#username');
 		await usernameInput.clear();
-		await usernameInput.sendKeys('testuser');
+		await usernameInput.sendKeys(getCredentials().username);
 		const usernameValue = await usernameInput.getAttribute('value');
-		assert.strictEqual(usernameValue, 'testuser', 'Username field should accept input');
+		assert.strictEqual(usernameValue, getCredentials().username, 'Username field should accept input');
+
+		// Stage 1 needs a username the server actually knows, because the field it
+		// renders depends on what `login-options` answers for that account.
+		await submitUsername(driver, getCredentials().username);
 
 		const passwordInput = await waitForElement(driver, '#password');
 		await passwordInput.clear();
