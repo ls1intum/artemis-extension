@@ -4,21 +4,24 @@
  */
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorMessage } from '@webview/components/ErrorMessage/ErrorMessage';
 
 class ErrorBoundary extends React.Component<
     { children: React.ReactNode; fallback?: React.ReactNode },
-    { hasError: boolean; error: Error | null }
+    { hasError: boolean }
 > {
     constructor(props: { children: React.ReactNode; fallback?: React.ReactNode }) {
         super(props);
-        this.state = { hasError: false, error: null };
+        this.state = { hasError: false };
     }
 
-    static getDerivedStateFromError(error: Error) {
-        return { hasError: true, error };
+    // The thrown error itself is not kept: the fallback below is fixed text, so
+    // storing it would be state nothing reads.
+    static getDerivedStateFromError() {
+        return { hasError: true };
     }
 
     render() {
@@ -32,8 +35,6 @@ class ErrorBoundary extends React.Component<
         return this.props.children;
     }
 }
-
-import React from 'react';
 
 function ThrowingComponent({ shouldThrow }: { shouldThrow: boolean }) {
     if (shouldThrow) {
