@@ -51,7 +51,9 @@ suite('ServerVersionNotifier', () => {
         assert.ok(/9\.9\.0/.test(warnings[0]), warnings[0]);
         // Named, not "this server": a slow probe can land after the user has
         // switched servers, and an unnamed warning would then be about the wrong one.
-        assert.ok(warnings[0].includes('artemis.example.edu'), warnings[0]);
+        // Compared as the leading token rather than with `includes`, which reads to
+        // code scanning like a host check on a URL and is flagged as one.
+        assert.strictEqual(warnings[0].split(' ')[0], 'https://artemis.example.edu', warnings[0]);
     });
 
     test('a second check for the same server stays quiet', async () => {
