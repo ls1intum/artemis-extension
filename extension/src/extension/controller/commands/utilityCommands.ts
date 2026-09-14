@@ -53,7 +53,6 @@ export class UtilityCommandModule {
             [WebviewCmd.OpenBugReport]: this.handleOpenBugReport,
             [WebviewCmd.OpenInEditor]: this.handleOpenInEditor,
             [WebviewCmd.CopyToClipboard]: this.handleCopyToClipboard,
-            [WebviewCmd.SearchMarketplace]: this.handleSearchMarketplace,
             [WebviewCmd.OpenFile]: this.handleOpenFile,
             [WebviewCmd.FreshSsrPreview]: this.handleFreshSsrPreview,
         };
@@ -140,18 +139,6 @@ export class UtilityCommandModule {
         } catch (error: unknown) {
             logger.error('Failed to copy to clipboard:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage(`Failed to copy to clipboard: ${extractErrorMessage(error)}`);
-        }
-    };
-
-    private handleSearchMarketplace = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'searchMarketplace'>>(message);
-            if (payload.extensionId) {
-                await vscode.commands.executeCommand('workbench.extensions.search', `@id:${payload.extensionId}`);
-            }
-        } catch (error: unknown) {
-            logger.error('Failed to search marketplace:', LogCategory.VIEW, error);
-            vscode.window.showErrorMessage(`Failed to search marketplace: ${extractErrorMessage(error)}`);
         }
     };
 

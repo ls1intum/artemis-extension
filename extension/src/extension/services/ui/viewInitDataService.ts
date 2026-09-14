@@ -49,7 +49,6 @@ export class ViewInitDataService {
             case 'course-detail':          return this.sendCourseDetailInit();
             case 'exercise-detail':        return this.sendExerciseDetailInit();
             case 'struggle-detection':     return this.sendStruggleDetectionInit();
-            case 'recommended-extensions': return this.sendRecommendedExtensionsInit();
             case 'git-credentials':        return this.sendGitCredentialsInit();
             case 'login':                  return this.sendLoginInit();
         }
@@ -346,18 +345,6 @@ export class ViewInitDataService {
 
     public sendStruggleDetectionInit(): void {
         this._postMessage(this.buildStruggleDetectionInit());
-    }
-
-    public sendRecommendedExtensionsInit(): void {
-        const categories = this._appStateManager.recommendedExtensions || [];
-        const mappedCategories = categories.map(category => ({
-            ...category,
-            extensions: category.extensions.map(ext => ({
-                ...ext,
-                isInstalled: ext.isInstalled ?? false
-            }))
-        }));
-        this._postMessage({ type: ExtensionMsg.RecommendedExtensionsInit, categories: mappedCategories });
     }
 
     public sendGitCredentialsInit(): void {

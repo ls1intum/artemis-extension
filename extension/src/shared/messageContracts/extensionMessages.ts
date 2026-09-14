@@ -223,7 +223,6 @@ export const ExtensionMsg = {
     CourseListInit: 'courseListInit',
     CourseDetailInit: 'courseDetailInit',
     ExerciseDetailInit: 'exerciseDetailInit',
-    RecommendedExtensionsInit: 'recommendedExtensionsInit',
     StruggleDetectionInit: 'struggleDetectionInit',
     StruggleLiveBackfill: 'struggleLiveBackfill',
     StruggleLiveTick: 'struggleLiveTick',
@@ -362,23 +361,6 @@ interface ExtensionMsgPayloads {
         serverRenderedProblemStatement?: RenderedProblemStatementPayload;
         /** EduIDE (managed Theia): hide clone affordances, show "Open in Artemis". */
         isManagedEnvironment?: boolean;
-    };
-    recommendedExtensionsInit: {
-        categories: Array<{
-            id: string;
-            name: string;
-            description: string;
-            extensions: Array<{
-                id: string;
-                name: string;
-                publisher: string;
-                version?: string;
-                description: string;
-                reason: string;
-                optional?: boolean;
-                isInstalled: boolean;
-            }>;
-        }>;
     };
     struggleDetectionInit: {
         /** v3 decision signal (S_base): the value the Urgency card renders and thresholds against θ. */
