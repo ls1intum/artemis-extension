@@ -5,7 +5,6 @@ import GitBranch from 'lucide-react/dist/esm/icons/git-branch';
 import GraduationCap from 'lucide-react/dist/esm/icons/graduation-cap';
 import HeartPulse from 'lucide-react/dist/esm/icons/heart-pulse';
 import LogOut from 'lucide-react/dist/esm/icons/log-out';
-import Puzzle from 'lucide-react/dist/esm/icons/puzzle';
 import Settings from 'lucide-react/dist/esm/icons/settings';
 import SquareArrowOutUpRight from 'lucide-react/dist/esm/icons/square-arrow-out-up-right';
 import { useState } from 'react';
@@ -75,10 +74,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
 
     const handleOpenSettings = () => {
         postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
-    };
-
-    const handleShowRecommendedExtensions = () => {
-        postCommand(vscodeApi, 'showRecommendedExtensions');
     };
 
     const handleShowGitCredentials = () => {
@@ -271,9 +266,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                     </Button>
                     <Button variant="ghost" fullWidth onClick={handleOpenSettings} icon={<Settings size={16} />}>
                         Open Settings
-                    </Button>
-                    <Button variant="ghost" fullWidth onClick={handleShowRecommendedExtensions} icon={<Puzzle size={16} />}>
-                        Recommended Extensions
                     </Button>
                     <Button variant="ghost" fullWidth onClick={handleOpenWebsite} icon={<ExternalLink size={16} />}>
                         Open Artemis in browser

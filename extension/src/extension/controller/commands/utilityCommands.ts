@@ -48,16 +48,26 @@ export class UtilityCommandModule {
     public getHandlers(): CommandMap {
         return {
             [WebviewCmd.OpenSettings]: this.handleOpenSettings,
+            [WebviewCmd.SetServerUrl]: this.handleSetServerUrl,
             [WebviewCmd.ReloadWindow]: this.handleReloadWindow,
             [WebviewCmd.OpenWebsite]: this.handleOpenWebsite,
             [WebviewCmd.OpenBugReport]: this.handleOpenBugReport,
             [WebviewCmd.OpenInEditor]: this.handleOpenInEditor,
             [WebviewCmd.CopyToClipboard]: this.handleCopyToClipboard,
-            [WebviewCmd.SearchMarketplace]: this.handleSearchMarketplace,
             [WebviewCmd.OpenFile]: this.handleOpenFile,
             [WebviewCmd.FreshSsrPreview]: this.handleFreshSsrPreview,
         };
     }
+
+    /** The login screen's server line. Hands over to the command that owns the server list. */
+    private handleSetServerUrl = async (_message: WebviewToExtensionMessage): Promise<void> => {
+        try {
+            await vscode.commands.executeCommand('artemis.setServerUrl');
+        } catch (error: unknown) {
+            logger.error('Failed to open the server picker:', LogCategory.VIEW, error);
+            vscode.window.showErrorMessage(`Failed to open the server picker: ${extractErrorMessage(error)}`);
+        }
+    };
 
     private handleOpenSettings = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
@@ -140,18 +150,6 @@ export class UtilityCommandModule {
         } catch (error: unknown) {
             logger.error('Failed to copy to clipboard:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage(`Failed to copy to clipboard: ${extractErrorMessage(error)}`);
-        }
-    };
-
-    private handleSearchMarketplace = async (message: WebviewToExtensionMessage): Promise<void> => {
-        try {
-            const payload = getPayload<WebCmd<'searchMarketplace'>>(message);
-            if (payload.extensionId) {
-                await vscode.commands.executeCommand('workbench.extensions.search', `@id:${payload.extensionId}`);
-            }
-        } catch (error: unknown) {
-            logger.error('Failed to search marketplace:', LogCategory.VIEW, error);
-            vscode.window.showErrorMessage(`Failed to search marketplace: ${extractErrorMessage(error)}`);
         }
     };
 

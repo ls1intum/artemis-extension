@@ -19,7 +19,6 @@ import {
     createDashboardPayload,
     createExerciseDetailPayload,
     createGitCredentialsPayload,
-    createRecommendedExtensionsPayload,
 } from '@test/react/fixtures';
 
 describe('Bridge Contracts', () => {
@@ -140,37 +139,6 @@ describe('Bridge Contracts', () => {
             });
             expect(payload.exerciseData.exercise?.id).toBe(55);
             expect(payload.hideDeveloperTools).toBe(true);
-        });
-    });
-
-    describe('recommended-extensions (recommendedExtensionsInit)', () => {
-        it('has type discriminant "recommendedExtensionsInit"', () => {
-            const payload = createRecommendedExtensionsPayload();
-            expect(payload.type).toBe('recommendedExtensionsInit');
-        });
-
-        it('passes isExtensionMessage() type guard', () => {
-            const payload = createRecommendedExtensionsPayload();
-            expect(isExtensionMessage(payload)).toBe(true);
-        });
-
-        it('payload.categories is an array', () => {
-            const payload = createRecommendedExtensionsPayload();
-            expect(Array.isArray(payload.categories)).toBe(true);
-        });
-
-        it('custom categories flow through via overrides', () => {
-            const customCategories = [
-                {
-                    id: 'java',
-                    name: 'Java',
-                    description: 'Java dev tools',
-                    extensions: [],
-                },
-            ];
-            const payload = createRecommendedExtensionsPayload({ categories: customCategories });
-            expect(payload.categories).toHaveLength(1);
-            expect(payload.categories[0].id).toBe('java');
         });
     });
 

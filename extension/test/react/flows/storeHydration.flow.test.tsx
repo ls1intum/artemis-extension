@@ -9,7 +9,6 @@ import {
     createExerciseDetailPayload,
     createGitCredentialsPayload,
     createIrisInitPayload,
-    createRecommendedExtensionsPayload,
 } from '@test/react/fixtures';
 import { useChatStore } from '@webview/stores/useChatStore';
 import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
@@ -22,7 +21,6 @@ import { DashboardView } from '@webview/views/Dashboard/DashboardView';
 import { ExerciseDetailView } from '@webview/views/ExerciseDetail/ExerciseDetailView';
 import { GitCredentialsView } from '@webview/views/GitCredentials/GitCredentialsView';
 import { IrisChatView } from '@webview/views/IrisChat/IrisChatView';
-import { RecommendedExtensionsView } from '@webview/views/RecommendedExtensions/RecommendedExtensionsView';
 
 /**
  * Store hydration flow integration tests.
@@ -54,40 +52,6 @@ describe('gitIdentityInfo hydrates GitCredentialsView local state', () => {
 
         expect((screen.getByDisplayValue('Alice Example') as HTMLInputElement).value).toBe('Alice Example');
         expect((screen.getByDisplayValue('alice@tum.de') as HTMLInputElement).value).toBe('alice@tum.de');
-    });
-});
-
-describe('recommendedExtensionsInit hydrates RecommendedExtensionsView local state', () => {
-    it('renders extension category name after init message', async () => {
-        const mockApi = createMockVsCodeApi();
-        render(<RecommendedExtensionsView vscodeApi={mockApi} />);
-
-        await act(async () => {
-            dispatchExtensionMessage(
-                createRecommendedExtensionsPayload({
-                    categories: [
-                        {
-                            id: 'git-tools',
-                            name: 'Git Tools',
-                            description: 'Extensions for better Git workflows',
-                            extensions: [
-                                {
-                                    id: 'eamodio.gitlens',
-                                    name: 'GitLens',
-                                    publisher: 'GitKraken',
-                                    description: 'Git supercharged',
-                                    reason: 'See who changed code and when',
-                                    isInstalled: false,
-                                },
-                            ],
-                        },
-                    ],
-                }),
-            );
-        });
-
-        expect(screen.getAllByText('Git Tools').length).toBeGreaterThan(0);
-        expect(screen.getByText('GitLens')).toBeInTheDocument();
     });
 });
 

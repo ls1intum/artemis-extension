@@ -1,13 +1,16 @@
+import Pencil from 'lucide-react/dist/esm/icons/pencil';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 
 import type { AttemptId } from '@shared/messageContracts';
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+import { serverDisplayName } from '@shared/utils/serverDisplayName';
 
 import { Button } from '@webview/components/Button';
 import { Container } from '@webview/components/Container';
 import { StatusMessage } from '@webview/components/StatusMessage';
 import { TextInput } from '@webview/components/TextInput';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
+import { readInjectedUri } from '@webview/utils/injectedUri';
 
 import styles from './LoginView.module.css';
 import type { LoginPersistedState, LoginViewProps } from './types';
@@ -104,6 +107,8 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
     };
 
     const [serverUrl, setServerUrl] = useState('');
+    // Set from the same message as the URL: whether this environment lets it be changed.
+    const [serverLocked, setServerLocked] = useState(false);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -362,6 +367,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
 
             case ExtensionMsg.SetServerUrl: {
                 setServerUrl(msg.serverUrl ?? '');
+                setServerLocked(msg.locked);
                 break;
             }
 
@@ -496,17 +502,62 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
         postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
     };
 
+    const handleChangeServer = () => {
+        postCommand(vscodeApi, 'setServerUrl');
+    };
+
+    // The last line of the page, outside the card: which Artemis this signs in to.
+    // Quiet by design, because it only matters when it is not the one you expected.
+    const serverName = serverDisplayName(serverUrl);
+    const renderServerFooter = () => {
+        if (!serverName) { return false; }
+        const body = (
+            <>
+                <span className={styles.serverFooterLabel}>Server:</span>
+                <span className={styles.serverFooterName} title={serverUrl}>{serverName}</span>
+            </>
+        );
+        // Managed Theia/EduIDE: the server comes from the environment and any write to the
+        // setting is reverted, so the line states it and offers nothing.
+        return serverLocked ? (
+            <p className={styles.serverFooter} data-testid="login-server">{body}</p>
+        ) : (
+            <button
+                type="button"
+                className={styles.serverFooter}
+                onClick={handleChangeServer}
+                data-testid="login-server"
+                aria-label={`Change the Artemis server, currently ${serverName}`}
+            >
+                {body}
+                <Pencil size={12} aria-hidden="true" />
+            </button>
+        );
+    };
+
+    // Drawn by both returns below. The logo is decorative: the heading under it already
+    // says Artemis, so an alt text would only repeat it to a screen reader.
+    const renderHeader = (withSubtitle: boolean) => (
+        <div style={{ marginBottom: '32px', textAlign: 'center' }}>
+            <img src={readInjectedUri('logoUri')} alt="" className={styles.loginLogo} />
+            <h1 style={{ color: 'var(--vscode-foreground)', fontSize: '24px', marginBottom: '8px' }}>
+                Artemis Login
+            </h1>
+            {withSubtitle && (
+                <p style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '14px', margin: 0 }}>
+                    VS Code Extension for the Artemis Learning Platform
+                </p>
+            )}
+        </div>
+    );
+
     if (handoverFailure) {
         // Deliberately not the login form. The credential is committed and valid, so any affordance
         // that reads as "authenticate again" would be false. A reload rebuilds the host state that
         // failed, from a credential that is still there.
         return (
             <div className={styles.loginView}>
-                <div style={{ marginBottom: '32px', textAlign: 'center' }}>
-                    <h1 style={{ color: 'var(--vscode-foreground)', fontSize: '24px', marginBottom: '8px' }}>
-                        Artemis Login
-                    </h1>
-                </div>
+                {renderHeader(false)}
                 <Container>
                     <StatusMessage message={handoverFailure.error} type="error" data-testid="login-status" />
                     <div style={{ marginTop: '16px' }}>
@@ -521,20 +572,14 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                         </Button>
                     </div>
                 </Container>
+                {renderServerFooter()}
             </div>
         );
     }
 
     return (
         <div className={styles.loginView}>
-            <div style={{ marginBottom: '32px', textAlign: 'center' }}>
-                <h1 style={{ color: 'var(--vscode-foreground)', fontSize: '24px', marginBottom: '8px' }}>
-                    Artemis Login
-                </h1>
-                <p style={{ color: 'var(--vscode-descriptionForeground)', fontSize: '14px', margin: 0 }}>
-                    VS Code Extension for the Artemis Learning Platform
-                </p>
-            </div>
+            {renderHeader(true)}
 
             {progress && (
                 <div
@@ -583,7 +628,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                         </div>
                         <div style={{ fontSize: '13px', opacity: 0.8 }}>
                             {stage === 0
-                                ? 'Enter your TUM username to continue'
+                                ? 'Enter your username to continue'
                                 : `Logging in as ${username}`}
                         </div>
                     </div>
@@ -595,7 +640,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                             id="username"
                             label="Username"
                             type="text"
-                            placeholder="Enter your TUM username"
+                            placeholder="Enter your username"
                             value={username}
                             onChange={setUsername}
                             disabled={isSubmitting || isCheckingOptions}
@@ -750,6 +795,7 @@ export function LoginView({ vscodeApi }: LoginViewProps) {
                     </div>
                 </form>
             </Container>
+            {renderServerFooter()}
         </div>
     );
 }

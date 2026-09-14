@@ -12,7 +12,6 @@ export interface WebViewActionHandler {
     showDashboard(userInfo: UserInfo): Promise<void>;
     navigateToStartPage(userInfo: UserInfo): Promise<void>;
     showStruggleDetection(): void;
-    showRecommendedExtensions(): void;
     showGitCredentials(): void;
     openJsonInEditor(data: unknown): Promise<void>;
     openExerciseDetails(exerciseId: number): Promise<void>;

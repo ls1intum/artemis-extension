@@ -8,7 +8,7 @@ import { LogCategory, logger } from '@extension/services/loggingService';
 import type { IProviderRegistry } from '@extension/services/ui';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import { getTheiaEnvironment, KNOWN_BRIDGE_KEYS, probeDataBridge } from '@extension/theia';
-import { extractErrorMessage, normalizeRelativePath, VSCODE_CONFIG } from '@extension/utils';
+import { extractErrorMessage, normalizeRelativePath, resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
 
 function registerLoginCommand(): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.login', () => {
@@ -412,7 +412,6 @@ const KNOWN_SERVERS: ReadonlyArray<{ label: string; url: string }> = [
     { label: 'Test Server 4 (artemis-test4.artemis.cit.tum.de)',    url: 'https://artemis-test4.artemis.cit.tum.de' },
     { label: 'Test Server 5 (artemis-test5.artemis.cit.tum.de)',    url: 'https://artemis-test5.artemis.cit.tum.de' },
     { label: 'Test Server 6 (artemis-test6.artemis.cit.tum.de)',    url: 'https://artemis-test6.artemis.cit.tum.de' },
-    { label: 'Test Server 9 (artemis-test9.artemis.cit.tum.de)',    url: 'https://artemis-test9.artemis.cit.tum.de' },
     { label: 'Local Development (localhost:8080)',                   url: 'http://localhost:8080' },
 ];
 
@@ -483,7 +482,11 @@ function registerSetDefaultClonePathCommand(): vscode.Disposable {
 function registerSetServerUrlCommand(): vscode.Disposable {
     return vscode.commands.registerCommand('artemis.setServerUrl', async () => {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        const currentUrl = config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY, '');
+        // What the extension actually talks to, not what the setting happens to hold. An
+        // unset setting resolves to production, and the login page names it, so a picker
+        // reading the raw value would open with nothing marked and disagree with the
+        // screen it was opened from.
+        const currentUrl = resolveServerUrl();
         const hasCustomCurrent = currentUrl.length > 0 && !KNOWN_SERVERS.some(s => s.url === currentUrl);
 
         const items: vscode.QuickPickItem[] = [];

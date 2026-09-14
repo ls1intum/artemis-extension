@@ -4,9 +4,17 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-09-12
+## [1.0.0] - 2026-09-14
+
+### Added
+
+- **The login page names the Artemis server you are signing in to**, in a line at the bottom of the page, and the pencil next to it opens the list of servers. Until now the extension knew the server and never said it, so signing in against the wrong instance looked like bad credentials or an empty course list. Picking a different server updates the line immediately. Where VS Code shows a title for the Artemis view, the server also appears next to it. In a managed environment, where the server comes from the environment and cannot be changed, the line states it and offers no pencil.
 
 ### Changed
+
+- **The username field no longer says "TUM".** The server it asks for the account of is not always TUM's.
+
+- **Test Server 9 is gone from the server picker.** The list of known servers stops at Test Server 6. A server URL already configured to it keeps working; it is treated as a custom server, it just no longer appears in the list.
 
 - **Proactive help is not offered yet.** The extension no longer asks after login whether to turn proactive help on. The Artemis side of it is not released, so accepting would have been followed by nothing at all, with no way to tell why. Local struggle detection stays off in that state and sends nothing. Switching it on by hand in Settings still works and is equally quiet against a server that cannot answer. The question comes back in the release that follows the Artemis one.
 
@@ -20,6 +28,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **The Service Status page and the health panel under the login error are gone.** Their API row reported working servers as unavailable. Connection and Iris problems now show up in the status bar and the chat.
 - **A mistyped server address now says so**, instead of failing with "404 Not Found" and an HTML error page in the banner.
 - **The AI Checker page is gone.** It matched your extensions against a list of AI extension ids frozen since October 2025, and showed what VS Code's own Extensions view already shows.
+- **The Recommended Extensions page is gone.** It listed four Java extensions typed into the source once and marked each as installed or not; its button opened the same Extensions view you can open yourself. A hand-maintained list of four ids goes out of date without anything failing, and nothing on the page knew which exercise you had open.
 - **The Git Credentials page no longer promises to handle your password.** It sets the author name and email on your commits; Git's own credential helper does the rest, which the page already said further down.
 
 ### Fixed

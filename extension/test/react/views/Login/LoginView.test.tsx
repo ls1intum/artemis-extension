@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+import { isWebviewMessage } from '@shared/messageContracts';
+
 import { createMockVsCodeApi, dispatchExtensionMessage } from '@test/react/__helpers__/vscodeApi';
 import { LoginView } from '@webview/views/Login/LoginView';
 
@@ -748,5 +750,87 @@ describe('LoginView - progress indicator and ownership', () => {
         fireEvent.submit(screen.getByTestId('login-form'));
 
         expect(postMessage.mock.calls.length).toBe(before);
+    });
+});
+
+describe('LoginView - the server it signs in to (#496)', () => {
+    const showServer = (serverUrl: string, locked = false) =>
+        dispatchExtensionMessage({ type: 'setServerUrl', serverUrl, locked } as never);
+
+    it('shows nothing until the host says which server this is', () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+
+        expect(screen.queryByTestId('login-server')).not.toBeInTheDocument();
+    });
+
+    it('names the server as its host, at the bottom of the page', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+
+        act(() => { showServer('https://artemis.tum.de'); });
+
+        const footer = await screen.findByTestId('login-server');
+        expect(footer).toHaveTextContent('artemis.tum.de');
+        // Outside the login card, which is what "at the bottom of the page" means here.
+        expect(footer.closest('form')).toBeNull();
+    });
+
+    it('keeps port and path, so a local instance is not mistaken for production', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+
+        act(() => { showServer('http://localhost:8080/artemis'); });
+
+        expect(await screen.findByTestId('login-server')).toHaveTextContent('localhost:8080/artemis');
+    });
+
+    it('opens the server picker when pressed, rather than the settings page', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        act(() => { showServer('https://artemis.tum.de'); });
+
+        fireEvent.click(await screen.findByTestId('login-server'));
+
+        const postMessage = mockApi.postMessage as ReturnType<typeof vi.fn>;
+        const posted = postMessage.mock.calls
+            .map(([msg]) => msg as { command?: string })
+            .filter((msg) => msg.command === 'setServerUrl');
+        expect(posted).toHaveLength(1);
+        // Not just "it was posted": the host drops any command message the guard rejects, and a
+        // payload-less command that is listed as payload-required is rejected there, silently. The
+        // button looked wired for exactly as long as nothing checked this.
+        expect(isWebviewMessage(posted[0])).toBe(true);
+    });
+
+    it('states the server without offering to change it where the environment owns it', async () => {
+        // Managed Theia/EduIDE: the setting is reverted on write, so a pencil here would
+        // promise something the next warning takes back.
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+
+        act(() => { showServer('https://artemis.tum.de', true); });
+
+        const footer = await screen.findByTestId('login-server');
+        expect(footer).toHaveTextContent('artemis.tum.de');
+        expect(footer.tagName).not.toBe('BUTTON');
+        expect(footer.querySelector('svg')).toBeNull();
+    });
+
+    it('names the server on the handover failure screen too', async () => {
+        const mockApi = createMockVsCodeApi();
+        render(<LoginView vscodeApi={mockApi} />);
+        act(() => { showServer('https://artemis.tum.de'); });
+
+        act(() => {
+            dispatchExtensionMessage({
+                type: 'loginHandoverFailedInit',
+                error: 'Could not load your courses',
+                generation: 3,
+            } as never);
+        });
+
+        expect(await screen.findByTestId('login-reload')).toBeInTheDocument();
+        expect(screen.getByTestId('login-server')).toHaveTextContent('artemis.tum.de');
     });
 });

@@ -23,3 +23,12 @@ export function resolveServerUrl(): string {
     const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
     return config.get<string>(VSCODE_CONFIG.SERVER_URL_KEY) || CONFIG.ARTEMIS_SERVER_URL_DEFAULT;
 }
+
+/**
+ * Whether the server is dictated by the environment rather than chosen by the user.
+ * In a managed Theia/EduIDE session the URL comes from `ARTEMIS_URL` and `extension.ts`
+ * reverts any write to the setting, so anything that offers to change it would be lying.
+ */
+export function isServerUrlLocked(): boolean {
+    return getTheiaEnvironment().isManagedEnvironment;
+}

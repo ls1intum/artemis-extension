@@ -171,50 +171,6 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 			await assertNoAxeViolations('git-credentials', driver);
 		});
 
-		it('RecommendedExtensions view should have zero axe violations', async function () {
-			this.timeout(30000);
-
-			await openArtemisView();
-			await switchToWebviewFrame(driver);
-
-			try {
-				await waitForElement(driver, 'h1', 10000);
-			} catch {
-				await takeScreenshot(driver, 'a11y-skip-recommended-extensions');
-				this.skip();
-				return;
-			}
-
-			try {
-				const extensionsBtn = await driver.wait(
-					until.elementLocated(By.xpath("//button[.//span[contains(text(),'Extension')]]")),
-					8000,
-				);
-				await extensionsBtn.click();
-				await driver.sleep(2000);
-			} catch {
-				await takeScreenshot(driver, 'a11y-skip-recommended-extensions');
-				this.skip();
-				return;
-			}
-
-			// Accept any list or heading as evidence of mount.
-			try {
-				await driver.wait(
-					() =>
-						driver
-							.findElement(By.xpath('//ul | //ol | //h1 | //h2 | //section | //main'))
-							.then((el) => el)
-							.catch(() => null),
-					8000,
-				);
-			} catch {
-				// Accept loading state.
-			}
-
-			await assertNoAxeViolations('recommended-extensions', driver);
-		});
-
 		it('CourseDetail view should have zero axe violations', async function () {
 			this.timeout(45000);
 
