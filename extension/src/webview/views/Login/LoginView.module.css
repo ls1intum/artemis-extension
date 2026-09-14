@@ -1,9 +1,72 @@
+.serverFooter {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    /* `auto` on top, so it sits at the bottom edge of the view instead of just
+       below the card. `.loginView` is the flex column that gives it the room. */
+    margin: auto auto 0;
+    padding: 4px 6px;
+    max-width: 100%;
+    box-sizing: border-box;
+    background: none;
+    border: none;
+    color: var(--vscode-descriptionForeground);
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 11px;
+}
+
+.serverFooterLabel {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-family: var(--theme-font-family, sans-serif);
+    flex: none;
+}
+
+/* The sidebar is narrow and a custom host with a path can be long. It gives way
+   before the label and the pencil, which are what make the line readable at all. */
+.serverFooterName {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Only the button form is an affordance. Where the environment owns the server the
+   line is a `<p>`, and hover or a pointer there would promise an action it has not got. */
+/* The pencil keeps its size while the host above gives way. */
+.serverFooter svg {
+    flex: none;
+}
+
+button.serverFooter {
+    cursor: pointer;
+}
+
+button.serverFooter:hover {
+    color: var(--vscode-foreground);
+}
+
+.loginLogo {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 12px;
+    display: block;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
 .loginView {
     display: flex;
     flex-direction: column;
     gap: var(--theme-view-gap);
     max-width: 600px;
     margin: 0 auto;
+    /* Full height so the server line can be pushed to the bottom edge. `App` wraps
+       every view in `.viewWrapper`, which insets it by `--theme-view-padding` on all
+       four sides, so a plain 100vh here would make the document taller than the
+       viewport and park the server line just below the fold. */
+    min-height: calc(100vh - 2 * var(--theme-view-padding));
+    box-sizing: border-box;
 }
 
 .loadingIndicator {

@@ -75,3 +75,43 @@ suite('UtilityCommandModule.handleOpenWebsite', () => {
         assert.strictEqual(opened, 'https://artemis.example.com/courses/3/exercises/4');
     });
 });
+
+suite('UtilityCommandModule.handleSetServerUrl', () => {
+    let sandbox: sinon.SinonSandbox;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+    });
+
+    teardown(() => {
+        sandbox.restore();
+    });
+
+    test('hands the login page\'s server line over to the server picker', async () => {
+        // The whole point of the line: the webview owns no server list, it asks the host
+        // for the command that does. Without this the button posts into nothing.
+        const execute = sandbox.stub(vscode.commands, 'executeCommand').resolves(undefined);
+
+        const mod = new UtilityCommandModule({} as CommandContext);
+        await mod.getHandlers()[WebviewCmd.SetServerUrl]({
+            type: 'command',
+            command: WebviewCmd.SetServerUrl,
+        } as never);
+
+        assert.ok(execute.calledOnceWithExactly('artemis.setServerUrl'), 'the picker command, once');
+    });
+
+    test('a failing picker is reported rather than swallowed', async () => {
+        sandbox.stub(vscode.commands, 'executeCommand').rejects(new Error('no such command'));
+        const shown = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined);
+
+        const mod = new UtilityCommandModule({} as CommandContext);
+        await mod.getHandlers()[WebviewCmd.SetServerUrl]({
+            type: 'command',
+            command: WebviewCmd.SetServerUrl,
+        } as never);
+
+        assert.ok(shown.calledOnce);
+        assert.match(shown.firstCall.args[0] as string, /no such command/);
+    });
+});

@@ -78,7 +78,7 @@
       {
         "command": "artemis.setServerUrl",
         "title": "Artemis: Set Server URL",
-        "icon": "$(server)"
+        "icon": "$(edit)"
       },
       {
         "command": "artemis.setDefaultClonePath",

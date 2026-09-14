@@ -223,7 +223,6 @@ export const ExtensionMsg = {
     CourseListInit: 'courseListInit',
     CourseDetailInit: 'courseDetailInit',
     ExerciseDetailInit: 'exerciseDetailInit',
-    RecommendedExtensionsInit: 'recommendedExtensionsInit',
     StruggleDetectionInit: 'struggleDetectionInit',
     StruggleLiveBackfill: 'struggleLiveBackfill',
     StruggleLiveTick: 'struggleLiveTick',
@@ -363,23 +362,6 @@ interface ExtensionMsgPayloads {
         /** EduIDE (managed Theia): hide clone affordances, show "Open in Artemis". */
         isManagedEnvironment?: boolean;
     };
-    recommendedExtensionsInit: {
-        categories: Array<{
-            id: string;
-            name: string;
-            description: string;
-            extensions: Array<{
-                id: string;
-                name: string;
-                publisher: string;
-                version?: string;
-                description: string;
-                reason: string;
-                optional?: boolean;
-                isInstalled: boolean;
-            }>;
-        }>;
-    };
     struggleDetectionInit: {
         /** v3 decision signal (S_base): the value the Urgency card renders and thresholds against θ. */
         urgency: number;
@@ -436,7 +418,11 @@ interface ExtensionMsgPayloads {
      * an Artemis that is no longer coming.
      */
     loginSessionEnded: undefined;
-    setServerUrl: { serverUrl: string };
+    /**
+     * `locked` where the environment dictates the server (managed Theia/EduIDE): the
+     * login page then names it without offering to change it.
+     */
+    setServerUrl: { serverUrl: string; locked: boolean };
     loginOptionsResult: {
         loginMethod: 'PASSWORD' | 'OIDC' | 'SAML2';
         /** Null for password accounts; the view falls back to its own label. */

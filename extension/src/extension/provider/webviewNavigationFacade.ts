@@ -23,10 +23,7 @@ import {
     getWorkspaceRepositoryUrl,
 } from '@extension/services/workspace';
 import type { ExerciseDetailsResponse } from '@extension/types';
-import {
-    getRecommendedExtensionsByCategory,
-    VSCODE_CONFIG,
-} from '@extension/utils';
+import { isServerUrlLocked, VSCODE_CONFIG } from '@extension/utils';
 
 /**
  * Dependencies for `WebviewNavigationFacade`. The callbacks bridge back to the
@@ -62,15 +59,6 @@ export interface WebviewNavigationFacadeDeps {
  * (rendering HTML, posting messages, scheduling SSR) are exposed as callbacks
  * via `WebviewNavigationFacadeDeps`.
  */
-/** VS Code's extension list keyed by lowercased id, so a recommendation lookup is O(1). */
-function indexInstalledExtensions(): Map<string, vscode.Extension<unknown>> {
-    const installed = new Map<string, vscode.Extension<unknown>>();
-    for (const ext of vscode.extensions.all) {
-        installed.set(ext.id.toLowerCase(), ext);
-    }
-    return installed;
-}
-
 export class WebviewNavigationFacade implements WebViewActionHandler {
     constructor(private readonly deps: WebviewNavigationFacadeDeps) { }
 
@@ -228,27 +216,6 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         this.postServerUrl();
     }
 
-    public showRecommendedExtensions(): void {
-        const installedExtensions = indexInstalledExtensions();
-
-        const recommendedCategories = getRecommendedExtensionsByCategory().map(category => ({
-            ...category,
-            extensions: category.extensions.map(extension => {
-                const installedExt = installedExtensions.get(extension.id.toLowerCase());
-                const packageJson = (installedExt?.packageJSON ?? {}) as { version?: string };
-
-                return {
-                    ...extension,
-                    isInstalled: installedExt !== undefined,
-                    version: packageJson.version ?? extension.version
-                };
-            })
-        }));
-
-        this.deps.appStateManager.showRecommendedExtensions(recommendedCategories);
-        this.deps.render();
-    }
-
     public showStruggleDetection(): void {
         // Developer-only page: block navigation entirely when developer mode is off, so the route
         // cannot be reached via the command/action path (the dashboard button is also hidden, but
@@ -368,6 +335,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         this.deps.postMessage({
             type: ExtensionMsg.SetServerUrl,
             serverUrl: serverUrl ?? this.deps.getServerUrl(),
+            locked: isServerUrlLocked(),
         });
     }
 

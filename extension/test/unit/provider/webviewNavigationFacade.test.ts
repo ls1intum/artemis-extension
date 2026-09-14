@@ -53,7 +53,6 @@ suite('WebviewNavigationFacade', () => {
             showCourseDetail: sinon.SinonStub;
             showExerciseDetail: sinon.SinonStub;
             showStruggleDetection: sinon.SinonStub;
-            showRecommendedExtensions: sinon.SinonStub;
             showGitCredentials: sinon.SinonStub;
             seedAuthenticatedSession: sinon.SinonStub;
             injectCourseEntry: sinon.SinonStub;
@@ -108,7 +107,6 @@ suite('WebviewNavigationFacade', () => {
                 showCourseDetail: sandbox.stub(),
                 showExerciseDetail: sandbox.stub(),
                 showStruggleDetection: sandbox.stub(),
-                showRecommendedExtensions: sandbox.stub(),
                 showGitCredentials: sandbox.stub(),
                 seedAuthenticatedSession: sandbox.stub(),
                 injectCourseEntry: sandbox.stub(),
@@ -456,7 +454,6 @@ suite('WebviewNavigationFacade', () => {
             showCourseDetail: sandbox.stub(),
             showExerciseDetail: sandbox.stub(),
             showStruggleDetection: sandbox.stub(),
-            showRecommendedExtensions: sandbox.stub(),
             showGitCredentials: sandbox.stub(),
             seedAuthenticatedSession: sandbox.stub(),
             injectCourseEntry: sandbox.stub(),
@@ -502,7 +499,6 @@ suite('WebviewNavigationFacade', () => {
             showCourseDetail: sandbox.stub(),
             showExerciseDetail: sandbox.stub(),
             showStruggleDetection: sandbox.stub(),
-            showRecommendedExtensions: sandbox.stub(),
             showGitCredentials: sandbox.stub(),
             seedAuthenticatedSession: sandbox.stub(),
             injectCourseEntry: sandbox.stub(),
@@ -563,7 +559,6 @@ suite('WebviewNavigationFacade', () => {
                 showCourseDetail: sandbox.stub(),
                 showExerciseDetail: sandbox.stub(),
                 showStruggleDetection: sandbox.stub(),
-                showRecommendedExtensions: sandbox.stub(),
                 showGitCredentials: sandbox.stub(),
                 seedAuthenticatedSession: sandbox.stub(),
                 injectCourseEntry: sandbox.stub(),
@@ -704,16 +699,6 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.notCalled(stubs.render);
     });
 
-    test('showRecommendedExtensions: delegates and renders', () => {
-        const { deps, stubs } = buildDeps();
-        const facade = new WebviewNavigationFacade(deps);
-
-        facade.showRecommendedExtensions();
-
-        sinon.assert.calledOnce(stubs.appStateManager.showRecommendedExtensions);
-        sinon.assert.called(stubs.render);
-    });
-
     test('showGitCredentials: delegates and renders', () => {
         const { deps, stubs } = buildDeps();
         const facade = new WebviewNavigationFacade(deps);
@@ -782,7 +767,6 @@ suite('WebviewNavigationFacade', () => {
             showCourseDetail: sandbox.stub(),
             showExerciseDetail: sandbox.stub(),
             showStruggleDetection: sandbox.stub(),
-            showRecommendedExtensions: sandbox.stub(),
             showGitCredentials: sandbox.stub(),
             seedAuthenticatedSession: sandbox.stub(),
             injectCourseEntry: sandbox.stub(),

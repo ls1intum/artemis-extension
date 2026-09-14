@@ -17,7 +17,7 @@ import {
 import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 import { getTheiaEnvironment } from '@extension/theia/theiaEnvironment';
 import type { CourseDashboardEntry, ExerciseDetail, ExerciseDetailsResponse } from '@extension/types';
-import { resolveServerUrl } from '@extension/utils';
+import { isServerUrlLocked, resolveServerUrl } from '@extension/utils';
 
 import { selectRecentCourses } from './recentCourseSelector';
 
@@ -49,7 +49,6 @@ export class ViewInitDataService {
             case 'course-detail':          return this.sendCourseDetailInit();
             case 'exercise-detail':        return this.sendExerciseDetailInit();
             case 'struggle-detection':     return this.sendStruggleDetectionInit();
-            case 'recommended-extensions': return this.sendRecommendedExtensionsInit();
             case 'git-credentials':        return this.sendGitCredentialsInit();
             case 'login':                  return this.sendLoginInit();
         }
@@ -348,18 +347,6 @@ export class ViewInitDataService {
         this._postMessage(this.buildStruggleDetectionInit());
     }
 
-    public sendRecommendedExtensionsInit(): void {
-        const categories = this._appStateManager.recommendedExtensions || [];
-        const mappedCategories = categories.map(category => ({
-            ...category,
-            extensions: category.extensions.map(ext => ({
-                ...ext,
-                isInstalled: ext.isInstalled ?? false
-            }))
-        }));
-        this._postMessage({ type: ExtensionMsg.RecommendedExtensionsInit, categories: mappedCategories });
-    }
-
     public sendGitCredentialsInit(): void {
         const gen = this._initGeneration;
         const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
@@ -374,7 +361,7 @@ export class ViewInitDataService {
     }
 
     public sendLoginInit(): void {
-        this._postMessage({ type: ExtensionMsg.SetServerUrl, serverUrl: resolveServerUrl() });
+        this._postMessage({ type: ExtensionMsg.SetServerUrl, serverUrl: resolveServerUrl(), locked: isServerUrlLocked() });
 
         // Replayed rather than only announced live. A live message can be queued while the view is not
         // ready and then thrown away by the next `render()`, which a plain configuration change is
