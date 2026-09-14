@@ -43,12 +43,11 @@ Seamlessly integrate **Artemis: Interactive Learning with Individual Feedback** 
 - **Pro-Active Support**: Receive motivational messages and learning suggestions
 - **Rate Limit Monitoring**: View your API usage and Iris availability status
 
-### 📊 Service Monitoring
+### 📊 Connection Status
 
-- **Health Status**: Monitor Artemis and Iris service availability
-- **WebSocket Status**: Check the real-time connection status
+- **WebSocket Status**: The status bar shows when the real-time connection drops or is reconnecting
+- **Server Compatibility**: A warning on sign-in when the Artemis server is too old for this extension
 - **Rate Limit Information**: Track your API usage quotas
-- **Service Diagnostics**: Troubleshoot connectivity issues
 
 ### 🎨 Customizable Themes
 

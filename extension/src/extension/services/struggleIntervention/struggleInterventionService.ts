@@ -770,7 +770,7 @@ export class StruggleInterventionService implements AlertSink {
         };
     }
 
-    // ---- Outbound, forwarded to EgressController (also the package-internal test seam) ----
+    // ---- Outbound, forwarded to EgressController. The frame port below and the tests both go through here. ----
 
     /** POST a consented follow-up (help_request) for the live DELIVERED episode. Single-flight. */
     _sendHelpRequest(): Promise<void> { return this._egress.sendHelpRequest(); }
@@ -797,15 +797,15 @@ export class StruggleInterventionService implements AlertSink {
             setInFlightMarker: (v) => this._setInFlightMarker(v),
             setOwedConfirmClose: (v) => this._setOwedConfirmClose(v),
             setServerAvailable: (v) => this._setServerAvailable(v),
-            acceptDecide: () => this._egress.acceptDecide(),
-            acceptHelpRequest: () => this._egress.acceptHelpRequest(),
-            clearInFlight: () => this._egress.clearInFlight(),
-            dropStaleRow: (messageId) => this._egress.dropStaleRow(messageId),
+            acceptDecide: () => this._acceptDecide(),
+            acceptHelpRequest: () => this._acceptHelpRequest(),
+            clearInFlight: () => this._clearInFlight(),
+            dropStaleRow: (messageId) => this._dropStaleRow(messageId),
             deliveredEpisodeId: () => this._deliveredEpisodeId(),
             clearEpisodeRuntime: () => this._clearEpisodeRuntime(),
             recordTerminalEpisode: (episode, outcome) => this.recordTerminalEpisode(episode, outcome),
             notifyChanged: () => this.notifySlotDebugChanged(),
-            drainOwed: () => { void this._egress.drainOwed(); },
+            drainOwed: () => { void this._drainOwed(); },
         };
     }
 

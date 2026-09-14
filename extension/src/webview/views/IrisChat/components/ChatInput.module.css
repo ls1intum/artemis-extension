@@ -8,6 +8,12 @@
 .textarea {
     flex: 1;
     resize: none;
+    /* Grows with its content instead of a measuring library. The box is content-box (no global
+       border-box reset), so these bounds are pure text height: one line up to six, then it
+       scrolls. `line-height: 1.5` below is what `lh` resolves to. */
+    field-sizing: content;
+    min-height: 1lh;
+    max-height: 6lh;
     padding: 10px 12px;
     background: var(--vscode-input-background);
     color: var(--vscode-input-foreground);

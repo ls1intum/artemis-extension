@@ -1,4 +1,5 @@
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
+import type { ReactNode } from 'react';
 import { useState } from 'react';
 
 import type { RenderedProblemStatementPayload } from '@shared/messageContracts';
@@ -57,6 +58,16 @@ interface OpenViewState {
 interface OpenTaskViewState extends OpenViewState {
     taskName: string;
     testIds: number[];
+}
+
+/** One cell of the collapsed metadata grid. */
+function InfoItem({ label, children }: { label: string; children: ReactNode }) {
+    return (
+        <div className={styles.infoItem}>
+            <div className={styles.infoLabel}>{label}</div>
+            <div className={styles.infoValue}>{children}</div>
+        </div>
+    );
 }
 
 export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
@@ -503,35 +514,16 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                 </summary>
                 <div className={styles.expandedContent}>
                     <div className={styles.infoGrid}>
-                        <div className={styles.infoItem}>
-                            <div className={styles.infoLabel}>Release Date</div>
-                            <div className={styles.infoValue}>
-                                {releaseDate ? formatDate(releaseDate) : 'N/A'}
-                            </div>
-                        </div>
-                        <div className={styles.infoItem}>
-                            <div className={styles.infoLabel}>Mode</div>
-                            <div className={styles.infoValue}>{mode.charAt(0).toUpperCase() + mode.slice(1).toLowerCase()}</div>
-                        </div>
-                        <div className={styles.infoItem}>
-                            <div className={styles.infoLabel}>Grading</div>
-                            <div className={styles.infoValue}>{includedInScore}</div>
-                        </div>
-                        <div className={styles.infoItem}>
-                            <div className={styles.infoLabel}>Course</div>
-                            <div className={styles.infoValue}>
-                                <span>{courseName}</span>
-                                {semester && (
-                                    <Badge variant="muted">{semester}</Badge>
-                                )}
-                            </div>
-                        </div>
-                        {filePattern && (
-                            <div className={styles.infoItem}>
-                                <div className={styles.infoLabel}>File Formats</div>
-                                <div className={styles.infoValue}>{filePattern}</div>
-                            </div>
-                        )}
+                        <InfoItem label="Release Date">{releaseDate ? formatDate(releaseDate) : 'N/A'}</InfoItem>
+                        <InfoItem label="Mode">{mode.charAt(0).toUpperCase() + mode.slice(1).toLowerCase()}</InfoItem>
+                        <InfoItem label="Grading">{includedInScore}</InfoItem>
+                        <InfoItem label="Course">
+                            <span>{courseName}</span>
+                            {semester && (
+                                <Badge variant="muted">{semester}</Badge>
+                            )}
+                        </InfoItem>
+                        {filePattern && <InfoItem label="File Formats">{filePattern}</InfoItem>}
                     </div>
                 </div>
             </details>

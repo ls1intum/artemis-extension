@@ -203,7 +203,7 @@ export class EgressController {
                 // _inFlightMarker stays set until the websocket reply arrives (onServerAmbient/Active/Silent)
                 return;
             }
-            // #349 Finding 2: token-scoped settlement (mirror _sendHelpRequest ~L1382). If a
+            // #349 Finding 2: token-scoped settlement (mirror _sendHelpRequest). If a
             // revoke->regrant issued a fresh marker while this POST was on the wire, a stale
             // completion must not clear or latch onto the new request's in-flight state. Only the
             // clearing/latching branches are gated; 'accepted' above deliberately keeps the marker.

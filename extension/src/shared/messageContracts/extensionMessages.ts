@@ -216,19 +216,6 @@ export type WebSocketDisplayStatus =
     | 'reconnecting'
     | 'disconnected';
 
-/**
- * One row of the service health panel. Produced by `healthCommands.ts` and
- * rendered by both the Service Status view and the Login health panel, so it
- * lives on the shared contract rather than being re-declared per consumer.
- */
-export interface HealthCheckResult {
-    status: 'online' | 'offline' | 'unknown';
-    message: string;
-    endpoint: string;
-    httpStatus: number | null;
-    response: string | null;
-}
-
 /** All Extension->Webview message types (const object for string-literal compatibility) */
 export const ExtensionMsg = {
     // View initialization
@@ -236,9 +223,7 @@ export const ExtensionMsg = {
     CourseListInit: 'courseListInit',
     CourseDetailInit: 'courseDetailInit',
     ExerciseDetailInit: 'exerciseDetailInit',
-    ServiceStatusInit: 'serviceStatusInit',
     RecommendedExtensionsInit: 'recommendedExtensionsInit',
-    AiConfigInit: 'aiConfigInit',
     StruggleDetectionInit: 'struggleDetectionInit',
     StruggleLiveBackfill: 'struggleLiveBackfill',
     StruggleLiveTick: 'struggleLiveTick',
@@ -300,7 +285,6 @@ export const ExtensionMsg = {
     ShowClonedRepoNotice: 'showClonedRepoNotice',
     GitCredentialsResult: 'gitCredentialsResult',
     GitIdentityInfo: 'gitIdentityInfo',
-    HealthCheckResults: 'healthCheckResults',
 
     // Server-side problem statement rendering
     ProblemStatementRendered: 'problemStatementRendered',
@@ -379,9 +363,6 @@ interface ExtensionMsgPayloads {
         /** EduIDE (managed Theia): hide clone affordances, show "Open in Artemis". */
         isManagedEnvironment?: boolean;
     };
-    serviceStatusInit: {
-        serverUrl?: string;
-    };
     recommendedExtensionsInit: {
         categories: Array<{
             id: string;
@@ -397,12 +378,6 @@ interface ExtensionMsgPayloads {
                 optional?: boolean;
                 isInstalled: boolean;
             }>;
-        }>;
-    };
-    aiConfigInit: {
-        aiExtensions: Array<{
-            id: string; name: string; publisher: string; version: string;
-            description: string; isInstalled: boolean; provider: string; providerColor: string;
         }>;
     };
     struggleDetectionInit: {
@@ -738,9 +713,6 @@ interface ExtensionMsgPayloads {
         message: string;
     };
     gitIdentityInfo: { name: string; email: string };
-    healthCheckResults: {
-        results: Record<string, HealthCheckResult>;
-    };
 
     // Server-side problem statement rendering. Broadcast to every open webview,
     // so it carries the exerciseId it belongs to; each exercise-detail view

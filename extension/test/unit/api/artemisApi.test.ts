@@ -507,11 +507,18 @@ suite('Artemis API Service Test Suite', () => {
      * covered and every branch is a sentence a user sees.
      */
     suite('authenticate error mapping', () => {
-        const respondWith = (status: number, body: string, statusText?: string): void => {
+        const respondWith = (status: number, body: string, statusText?: string, contentType?: string): void => {
             global.fetch = (async () => ({
                 ok: false,
                 status,
                 statusText,
+                // A real Response always has headers. This double did not, which is
+                // why reading a content type off it broke every test in this suite.
+                headers: {
+                    get: (name: string) => (
+                        name.toLowerCase() === 'content-type' ? (contentType ?? null) : null
+                    ),
+                },
                 text: async () => body,
             })) as any;
         };
@@ -524,6 +531,71 @@ suite('Artemis API Service Test Suite', () => {
             }
             throw new Error('authenticate resolved where a rejection was expected');
         };
+
+        test('an HTML error page does not become the error message', async () => {
+            // A wrong server URL answers 404 with a whole HTML document. Appending
+            // that to the message put a web page into a one-line error banner.
+            const html = '<!DOCTYPE html><html><body><h1>404 Not Found</h1></body></html>';
+            respondWith(404, html, 'Not Found', 'text/html; charset=utf-8');
+
+            const message = await messageOf();
+            assert.ok(!/DOCTYPE|<html/i.test(message), `HTML leaked into the message: ${message}`);
+            assert.strictEqual(message, '404 Not Found');
+        });
+
+        test('an HTML error page is caught whatever the case of its content type', async () => {
+            // A server writing TEXT/HTML is unusual and entirely legal. Matching
+            // case-sensitively let the whole document through.
+            respondWith(404, '<!DOCTYPE html><html><body>nope</body></html>', 'Not Found', 'TEXT/HTML');
+
+            assert.strictEqual(await messageOf(), '404 Not Found');
+        });
+
+        test('an xhtml error page is caught too', async () => {
+            respondWith(404, '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"/>', 'Not Found', 'application/xhtml+xml');
+
+            assert.strictEqual(await messageOf(), '404 Not Found');
+        });
+
+        test('a JSON field that is not a string does not become the message', async () => {
+            // `{"title": {...}}` used to reach the user as "[object Object]".
+            respondWith(500, JSON.stringify({ title: { length: 201 } }), 'Server Error', 'application/json');
+
+            const message = await messageOf();
+            assert.ok(!/object Object/.test(message), message);
+        });
+
+        test('an HTML body with no content type at all is still caught', async () => {
+            // A server that declares nothing still sends what it sends.
+            respondWith(500, '<!DOCTYPE html><html><body>gateway error</body></html>', 'Server Error');
+
+            const message = await messageOf();
+            assert.ok(!/DOCTYPE|<html/i.test(message), `HTML leaked into the message: ${message}`);
+        });
+
+        test('an undeclared plain-text body starting with a bracket is not mistaken for HTML', async () => {
+            // The sniff is narrow on purpose: a doctype or an <html> tag, nothing else.
+            respondWith(500, '<login denied by policy>', 'Server Error');
+
+            assert.strictEqual(await messageOf(), '500 Server Error - <login denied by policy>');
+        });
+
+        test('a non-string field does not shadow a usable one behind it', async () => {
+            // Picking the first truthy field and type-checking afterwards threw away
+            // this `message` and fell back to the raw JSON body.
+            respondWith(500, JSON.stringify({ title: {}, message: 'the real reason' }), 'Server Error', 'application/json');
+
+            assert.strictEqual(await messageOf(), '500 Server Error - the real reason');
+        });
+
+        test('a plain-text error still reaches the message, even one starting with a bracket', async () => {
+            // The declared content type decides, not a leading "<". The bracket
+            // heuristic this replaced would have eaten this message, and every
+            // XML error body with it.
+            respondWith(500, '<login denied by policy>', 'Server Error', 'text/plain');
+
+            assert.strictEqual(await messageOf(), '500 Server Error - <login denied by policy>');
+        });
 
         test('400/401 throw the server message verbatim', async () => {
             respondWith(401, JSON.stringify({ title: 'Bad credentials' }));
@@ -1335,14 +1407,16 @@ suite('Artemis API Service Test Suite', () => {
         await apiService.logoutFromServer();
     });
 
-    test('exchangeCodeForToken maps a 401 to the same expired-code message as a 404', async () => {
-        // The 401 arm was described but never exercised, and it is the one a
-        // replayed code actually hits.
+    test('exchangeCodeForToken tells the user to retry only when the code itself was rejected', async () => {
+        // 401 is what the endpoint returns for a code that is spent, wrong, or whose
+        // PKCE verifier does not match. Retrying is the correct advice here, and only here.
         global.fetch = (async () => ({ ok: false, status: 401, text: async () => '' })) as any;
 
         await assert.rejects(
             () => apiService.exchangeCodeForToken('replayed-code', 'verifier-12345678901234567890123456789012345'),
-            /login code has expired or is invalid/,
+            (err: unknown) => err instanceof Error
+                && /login code has expired or is invalid/.test(err.message)
+                && /try logging in again/.test(err.message),
         );
     });
 
@@ -1463,9 +1537,14 @@ suite('Artemis API Service Test Suite', () => {
             text: async () => 'Not Found',
         } as any);
 
+        // A 404 from THIS endpoint means the route is absent, so the server is too old
+        // for the extension's single sign-on. No number of retries can make it appear,
+        // which is why this must not reuse the expired-code message.
         await assert.rejects(
             () => apiService.exchangeCodeForToken('expired-code', 'verifier-12345678901234567890123456789012345'),
-            (err: unknown) => err instanceof Error && err.message.includes('expired or is invalid'),
+            (err: unknown) => err instanceof Error
+                && /too old for single sign-on/.test(err.message)
+                && !/try logging in again/.test(err.message),
         );
     });
 

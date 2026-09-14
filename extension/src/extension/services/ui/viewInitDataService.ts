@@ -48,9 +48,7 @@ export class ViewInitDataService {
             case 'course-list':            return this.sendCourseListInit();
             case 'course-detail':          return this.sendCourseDetailInit();
             case 'exercise-detail':        return this.sendExerciseDetailInit();
-            case 'ai-config':              return this.sendAiConfigInit();
             case 'struggle-detection':     return this.sendStruggleDetectionInit();
-            case 'service-status':         return this.sendServiceStatusInit();
             case 'recommended-extensions': return this.sendRecommendedExtensionsInit();
             case 'git-credentials':        return this.sendGitCredentialsInit();
             case 'login':                  return this.sendLoginInit();
@@ -326,11 +324,6 @@ export class ViewInitDataService {
         });
     }
 
-    public sendAiConfigInit(): void {
-        const aiExtensions = this._appStateManager.aiExtensions || [];
-        this._postMessage({ type: ExtensionMsg.AiConfigInit, aiExtensions });
-    }
-
     /**
      * Build the struggle-detection init payload. `embedded` marks the standalone editor-tab copy
      * (the view then hides its back-link, the live chart, and the pop-out button). Exposed so the
@@ -353,11 +346,6 @@ export class ViewInitDataService {
 
     public sendStruggleDetectionInit(): void {
         this._postMessage(this.buildStruggleDetectionInit());
-    }
-
-    public sendServiceStatusInit(): void {
-        const serverUrl = this._appStateManager.userInfo?.serverUrl;
-        this._postMessage({ type: ExtensionMsg.ServiceStatusInit, serverUrl });
     }
 
     public sendRecommendedExtensionsInit(): void {

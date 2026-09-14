@@ -72,14 +72,11 @@ export const WebviewCmd = {
     OpenRecordingsFolder: 'openRecordingsFolder',
 
     // Views
-    ShowAiConfig: 'showAiConfig',
     ShowRecommendedExtensions: 'showRecommendedExtensions',
-    ShowServiceStatus: 'showServiceStatus',
     ShowGitCredentials: 'showGitCredentials',
     ShowStruggleDetection: 'showStruggleDetection',
     StruggleLiveSubscribe: 'struggleLiveSubscribe',
     StruggleLiveUnsubscribe: 'struggleLiveUnsubscribe',
-    PerformHealthChecks: 'performHealthChecks',
 
     // Iris Chat
     SendMessage: 'sendMessage',
@@ -197,14 +194,11 @@ interface WebviewCmdPayloads {
     // Git
     saveGitIdentity: { name: string; email: string };
     // Views
-    showAiConfig: undefined;
     showRecommendedExtensions: undefined;
-    showServiceStatus: undefined;
     showGitCredentials: undefined;
     showStruggleDetection: undefined;
     struggleLiveSubscribe: undefined;
     struggleLiveUnsubscribe: undefined;
-    performHealthChecks: { serverUrl: string };
 
     // Iris Chat
     /**
@@ -330,7 +324,6 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.SearchMarketplace,
     WebviewCmd.OpenSettings,
     WebviewCmd.SaveGitIdentity,
-    WebviewCmd.PerformHealthChecks,
     WebviewCmd.SendMessage,
     WebviewCmd.MessageFeedback,
     WebviewCmd.MessageProactiveOutcome,

@@ -4,10 +4,9 @@ import * as path from 'path';
 
 import type { ProactiveLevel } from '@shared/messageContracts';
 
-import { InterventionService } from '@extension/services/intervention';
-import { showStruggleScoreDialog } from '@extension/services/intervention/debug/struggleDebug';
 import { anchorRelPath, isAnchorDocument } from '@extension/services/intervention/inlineHint';
 import { InlineHintDecoration } from '@extension/services/intervention/inlineHintDecoration';
+import { InterventionService } from '@extension/services/intervention/interventionService';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { BackoffGate } from '@extension/services/struggle/alerting/backoffGate';
 import { ThrottledAlertSink } from '@extension/services/struggle/alerting/throttledAlertSink';
@@ -431,11 +430,8 @@ export function createLiveEngineFeed(
     return new LiveEngineFeed(coordinator, isDeveloperMode);
 }
 
-/** Registers the struggle-score debug command (full build only). */
+/** Registers the warm-up toggle, the one developer command this seam owns (full build only). */
 export function registerDebugCommands(coordinator: IStruggleCoordinator): vscode.Disposable {
-    const showScore = vscode.commands.registerCommand('artemis.showStruggleScore', async () => {
-        await showStruggleScoreDialog(coordinator.getSnapshot());
-    });
     const toggleWarmup = vscode.commands.registerCommand('artemis.toggleStruggleWarmupSkip', () => {
         const skipped = coordinator.toggleSkipWarmup();
         void vscode.window.showInformationMessage(
@@ -444,5 +440,5 @@ export function registerDebugCommands(coordinator: IStruggleCoordinator): vscode
                 : 'Artemis: struggle warm-up restored to the default (8 min).',
         );
     });
-    return vscode.Disposable.from(showScore, toggleWarmup);
+    return toggleWarmup;
 }

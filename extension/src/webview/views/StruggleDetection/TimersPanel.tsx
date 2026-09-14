@@ -1,9 +1,10 @@
 import type { StruggleDebugSnapshot } from '@shared/messageContracts';
+import { mmss } from '@shared/utils/mmss';
 
 import { Badge, Container } from '@webview/components';
 
 import styles from './TimersPanel.module.css';
-import { mmss, useEngineCountdowns } from './useEngineCountdowns';
+import { useEngineCountdowns } from './useEngineCountdowns';
 
 interface TimersPanelProps {
     debug: StruggleDebugSnapshot;

@@ -1,7 +1,6 @@
 import clsx from 'clsx';
 import Send from 'lucide-react/dist/esm/icons/send';
 import { KeyboardEvent, useId, useState } from 'react';
-import TextareaAutosize from 'react-textarea-autosize';
 
 import styles from './ChatInput.module.css';
 
@@ -101,7 +100,7 @@ export function ChatInput({
 
     return (
         <div className={styles.container}>
-            <TextareaAutosize
+            <textarea
                 className={clsx(styles.textarea, {
                     [styles.disabled]: disabled,
                 })}
@@ -115,8 +114,7 @@ export function ChatInput({
                 }
                 disabled={disabled}
                 aria-describedby={reason ? sendBlockedId : undefined}
-                minRows={1}
-                maxRows={6}
+                rows={1}
                 aria-label="Chat input"
             />
             {reason && (

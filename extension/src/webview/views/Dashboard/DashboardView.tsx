@@ -1,4 +1,3 @@
-import Activity from 'lucide-react/dist/esm/icons/activity';
 import Bug from 'lucide-react/dist/esm/icons/bug';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
 import ExternalLink from 'lucide-react/dist/esm/icons/external-link';
@@ -8,7 +7,6 @@ import HeartPulse from 'lucide-react/dist/esm/icons/heart-pulse';
 import LogOut from 'lucide-react/dist/esm/icons/log-out';
 import Puzzle from 'lucide-react/dist/esm/icons/puzzle';
 import Settings from 'lucide-react/dist/esm/icons/settings';
-import Sparkles from 'lucide-react/dist/esm/icons/sparkles';
 import SquareArrowOutUpRight from 'lucide-react/dist/esm/icons/square-arrow-out-up-right';
 import { useState } from 'react';
 
@@ -79,16 +77,8 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
         postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
     };
 
-    const handleShowAiConfig = () => {
-        postCommand(vscodeApi, 'showAiConfig');
-    };
-
     const handleShowRecommendedExtensions = () => {
         postCommand(vscodeApi, 'showRecommendedExtensions');
-    };
-
-    const handleShowServiceStatus = () => {
-        postCommand(vscodeApi, 'showServiceStatus');
     };
 
     const handleShowGitCredentials = () => {
@@ -282,9 +272,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                     <Button variant="ghost" fullWidth onClick={handleOpenSettings} icon={<Settings size={16} />}>
                         Open Settings
                     </Button>
-                    <Button variant="ghost" fullWidth onClick={handleShowAiConfig} icon={<Sparkles size={16} />}>
-                        AI Checker
-                    </Button>
                     <Button variant="ghost" fullWidth onClick={handleShowRecommendedExtensions} icon={<Puzzle size={16} />}>
                         Recommended Extensions
                     </Button>
@@ -312,9 +299,6 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                             </span>
                         </Button>
                     )}
-                    <Button variant="ghost" fullWidth onClick={handleShowServiceStatus} icon={<Activity size={16} />}>
-                        Service Status
-                    </Button>
                     <Button variant="ghost" fullWidth onClick={handleShowGitCredentials} icon={<GitBranch size={16} />}>
                         Git Credentials
                     </Button>

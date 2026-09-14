@@ -7,7 +7,6 @@ import { StruggleDetectionView } from '@struggleView';
 
 import styles from './App.module.css';
 import { NudgeBanner } from './components/NudgeBanner';
-import { AiConfigView } from './views/AiConfig';
 import { CourseDetailView } from './views/CourseDetail';
 import { CourseListView } from './views/CourseList';
 import { DashboardView } from './views/Dashboard';
@@ -16,7 +15,6 @@ import { GitCredentialsView } from './views/GitCredentials';
 import { IrisChatView } from './views/IrisChat';
 import { LoginView } from './views/Login';
 import { RecommendedExtensionsView } from './views/RecommendedExtensions';
-import { ServiceStatusView } from './views/ServiceStatus';
 
 interface AppProps {
 	vscodeApi: VsCodeApi;
@@ -37,8 +35,6 @@ export function App({ vscodeApi }: AppProps) {
 		switch (viewName) {
 			case 'gitCredentials':
 				return <GitCredentialsView vscodeApi={vscodeApi} />;
-			case 'serviceStatus':
-				return <ServiceStatusView vscodeApi={vscodeApi} />;
 			case 'recommendedExtensions':
 				return <RecommendedExtensionsView vscodeApi={vscodeApi} />;
 			case 'login':
@@ -53,8 +49,6 @@ export function App({ vscodeApi }: AppProps) {
 				return <ExerciseDetailView vscodeApi={vscodeApi} />;
 			case 'irisChat':
 				return <IrisChatView vscodeApi={vscodeApi} />;
-			case 'aiConfig':
-				return <AiConfigView vscodeApi={vscodeApi} />;
 			case 'struggleDetection':
 				return __IRIS_TELEMETRY__
 					? <StruggleDetectionView vscodeApi={vscodeApi} />

@@ -86,8 +86,19 @@ export async function exchangeCodeForToken(
     });
 
     if (!response.ok) {
-        if (response.status === 404 || response.status === 401) {
+        if (response.status === 401) {
             throw new Error('The login code has expired or is invalid. Please try logging in again.');
+        }
+        if (response.status === 404) {
+            // Artemis added this route after 9.9.2, so a released server answers 404 for it
+            // while serving everything else the extension needs. That is a missing route, not
+            // a rejected code, and no number of retries will make it appear. Whether the
+            // account can fall back to a password is the server's decision, not ours, so the
+            // message offers it without promising it.
+            throw new Error(
+                'This Artemis server is too old for single sign-on from the extension. '
+                + 'Use an Artemis username and password, or ask for the server to be updated.',
+            );
         }
         throw new Error(`Server returned status ${response.status} during code exchange.`);
     }
@@ -128,14 +139,34 @@ export async function authenticateWithPassword(
 
     if (!response.ok) {
         const rawError = await response.text();
-        let parsedMessage = rawError.trim();
+        // A body the server labels as HTML is a web server's error page, not an
+        // Artemis message, and pasting a whole document into a one-line banner
+        // helps nobody. Keyed on the declared content type rather than on a
+        // leading "<", which would also eat XML and a legitimate plain-text
+        // message that happens to start with a bracket.
+        const contentType = (response.headers.get('content-type') ?? '').toLowerCase();
+        const declaresHtml = contentType.includes('text/html') || contentType.includes('application/xhtml');
+        // A server that declares nothing still sends what it sends. Sniffing is a
+        // last resort and stays deliberately narrow: only a body that opens with a
+        // doctype or an <html> tag counts, so plain text starting with a bracket
+        // and XML that is not a document are untouched.
+        const looksLikeHtml = contentType === '' && /^\s*(<!doctype\s+html|<html[\s>])/i.test(rawError);
+        const isHtml = declaresHtml || looksLikeHtml;
+        let parsedMessage = isHtml ? '' : rawError.trim();
 
         if (parsedMessage) {
             try {
                 const parsed: unknown = JSON.parse(rawError);
                 if (parsed && typeof parsed === 'object') {
-                    const errorObj = parsed as { title?: string; message?: string; detail?: string; error?: string };
-                    parsedMessage = errorObj.title || errorObj.message || errorObj.detail || errorObj.error || parsedMessage;
+                    const errorObj = parsed as Record<string, unknown>;
+                    // First non-empty STRING among the four, not first truthy value.
+                    // Picking the truthy one first and type-checking afterwards threw
+                    // away a usable `message` whenever `title` happened to be an
+                    // object, and fell back to the raw JSON body instead.
+                    const field = ['title', 'message', 'detail', 'error']
+                        .map(key => errorObj[key])
+                        .find((value): value is string => typeof value === 'string' && value.length > 0);
+                    parsedMessage = field ?? parsedMessage;
                 }
             } catch (parseError) {
                 // Fall back to plain text error message when JSON parsing fails
@@ -144,15 +175,15 @@ export async function authenticateWithPassword(
 
         if (response.status === 400 || response.status === 401) {
             if (!parsedMessage || /method argument not valid/i.test(parsedMessage)) {
-                throw new Error('Invalid username or password.');
+                throw new ApiError('Invalid username or password.', response.status);
             }
-            throw new Error(parsedMessage);
+            throw new ApiError(parsedMessage, response.status);
         } else if (response.status === 403) {
-            throw new Error(parsedMessage || 'Account is not activated or access is forbidden.');
+            throw new ApiError(parsedMessage || 'Account is not activated or access is forbidden.', response.status);
         } else {
             const statusText = response.statusText || 'Unexpected error';
             const detail = parsedMessage && parsedMessage !== statusText ? ` - ${parsedMessage}` : '';
-            throw new Error(`${response.status} ${statusText}${detail}`.trim());
+            throw new ApiError(`${response.status} ${statusText}${detail}`.trim(), response.status);
         }
     }
 

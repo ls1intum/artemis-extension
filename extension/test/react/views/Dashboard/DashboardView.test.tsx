@@ -269,7 +269,7 @@ describe('DashboardView', () => {
 		render(<DashboardView vscodeApi={mockApi} />);
 		dispatchExtensionMessage({ type: 'dashboardInit', courses: [], hideDeveloperTools: true });
 		await waitFor(() => {
-			expect(screen.getByText('Service Status')).toBeInTheDocument();
+			expect(screen.getByText('Git Credentials')).toBeInTheDocument();
 		});
 		expect(screen.queryByText('Struggle Detection')).not.toBeInTheDocument();
 	});

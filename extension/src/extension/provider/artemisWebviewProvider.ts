@@ -12,6 +12,7 @@ import type {
 } from '@shared/messageContracts/webviewCommands';
 
 import { ArtemisApiService } from '@extension/api';
+import { fetchWithTimeout } from '@extension/api/fetchWithTimeout';
 import { AppStateManager } from '@extension/controller/appStateManager';
 import { fetchAndEnrichExerciseDetails } from '@extension/controller/exerciseDataLoader';
 import { getViewHtml } from '@extension/controller/viewRouter';
@@ -25,6 +26,7 @@ import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProactivePreferenceService } from '@extension/services/proactivePreferenceService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
 import type { SubmissionPayload } from '@extension/services/recording/types';
+import { ServerVersionNotifier } from '@extension/services/serverVersionNotifier';
 import { normalizePrincipal, normalizeServerUrl } from '@extension/services/session/identityKeys';
 import type { IProviderRegistry } from '@extension/services/ui';
 import {
@@ -95,6 +97,13 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     private readonly _liveEngineFeed: ILiveEngineFeed;
     private readonly _renderService: ProblemStatementRenderService;
     private readonly _ssrCoordinator: WebviewSSRCoordinator;
+    private readonly _serverVersionNotifier = new ServerVersionNotifier({
+        // `init` comes from the notifier, which is where the "no credentials"
+        // decision is made and tested. Do not add headers here.
+        fetchInfo: (url, init) => fetchWithTimeout(url, init, 8000),
+        showWarning: (message) => { void vscode.window.showWarningMessage(message); },
+    });
+
     private readonly _navigationFacade: WebviewNavigationFacade;
 
     /** Authoritative nudge-banner state, replayed to a freshly-resolved view (see `_bannerNeedsReplay`). */
@@ -250,6 +259,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
             sendInitData: () => this.sendInitData(),
             backgroundRenderProblemStatement: () => void this._ssrCoordinator.scheduleRender(),
             getServerUrl: () => resolveServerUrl(),
+            checkServerVersion: (serverUrl) => this._serverVersionNotifier.check(serverUrl),
             openStruggleFullscreen: () => this._openStruggleFullscreen(),
         });
 

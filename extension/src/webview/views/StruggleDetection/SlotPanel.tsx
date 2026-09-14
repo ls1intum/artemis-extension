@@ -1,14 +1,25 @@
+import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 
 import type { SlotDebugSnapshot, VsCodeApi } from '@shared/messageContracts';
 import { ExtensionMsg, postCommand } from '@shared/messageContracts';
+import { mmss } from '@shared/utils/mmss';
 
 import { Container } from '@webview/components';
 import { useExtensionMessage } from '@webview/hooks/useExtensionMessage';
 
 import styles from './SlotPanel.module.css';
-import { mmss } from './useEngineCountdowns';
 import { useSlotCountdowns } from './useSlotCountdowns';
+
+/** One label/value line. Every field in this panel is one of these. */
+function Row({ label, children }: { label: string; children: ReactNode }) {
+    return (
+        <div className={styles.row}>
+            <span className={styles.label}>{label}</span>
+            <span className={styles.value}>{children}</span>
+        </div>
+    );
+}
 
 /**
  * The "why is it silent" block: session latches, student toggle, and the idle-abandon evidence
@@ -20,22 +31,10 @@ function SuppressionStatus({ snapshot }: { snapshot: SlotDebugSnapshot }) {
     return (
         <div className={styles.group}>
             <div className={styles.groupTitle}>Suppression status</div>
-            <div className={styles.row}>
-                <span className={styles.label}>Evidence gate (idle-abandon)</span>
-                <span className={styles.value}>{snapshot.awaitingEvidence ? 'awaiting fresh evidence' : 'clear'}</span>
-            </div>
-            <div className={styles.row}>
-                <span className={styles.label}>Server</span>
-                <span className={styles.value}>{s.serverAvailable ? 'available' : 'unavailable (local fallback)'}</span>
-            </div>
-            <div className={styles.row}>
-                <span className={styles.label}>Course proactive</span>
-                <span className={styles.value}>{s.courseProactiveOff ? 'latched off' : 'on'}</span>
-            </div>
-            <div className={styles.row}>
-                <span className={styles.label}>Student toggle</span>
-                <span className={styles.value}>{s.studentProactiveOn ? 'on' : 'off'}</span>
-            </div>
+            <Row label="Evidence gate (idle-abandon)">{snapshot.awaitingEvidence ? 'awaiting fresh evidence' : 'clear'}</Row>
+            <Row label="Server">{s.serverAvailable ? 'available' : 'unavailable (local fallback)'}</Row>
+            <Row label="Course proactive">{s.courseProactiveOff ? 'latched off' : 'on'}</Row>
+            <Row label="Student toggle">{s.studentProactiveOn ? 'on' : 'off'}</Row>
         </div>
     );
 }
@@ -69,86 +68,39 @@ function SlotPanelBody({ snapshot }: { snapshot: SlotDebugSnapshot }) {
                 <>
                     <div className={styles.group}>
                         <div className={styles.groupTitle}>Episode</div>
-                        <div className={styles.row}>
-                            <span className={styles.label}>Episode ID</span>
-                            <span className={styles.value}>{snapshot.episodeId ?? 'none'}</span>
-                        </div>
-                        <div className={styles.row}>
-                            <span className={styles.label}>Generation</span>
-                            <span className={styles.value}>{snapshot.generation}</span>
-                        </div>
-                        <div className={styles.row}>
-                            <span className={styles.label}>Episode age</span>
-                            <span className={styles.value}>
-                                {snapshot.episodeAgeMs !== null
-                                    ? mmss(snapshot.episodeAgeMs / 1000, 'floor')
-                                    : <span className={styles.muted}>n/a</span>}
-                            </span>
-                        </div>
-                        <div className={styles.row}>
-                            <span className={styles.label}>Level</span>
-                            <span className={styles.value}>{snapshot.level ?? 'none'}</span>
-                        </div>
-                        <div className={styles.row}>
-                            <span className={styles.label}>Hint count</span>
-                            <span className={styles.value}>{snapshot.hintCount}</span>
-                        </div>
-                        <div className={styles.row}>
-                            <span className={styles.label}>Is new</span>
-                            <span className={styles.value}>{snapshot.isNew ? 'yes' : 'no'}</span>
-                        </div>
-                        <div className={styles.row}>
-                            <span className={styles.label}>In session</span>
-                            <span className={styles.value}>{snapshot.inSession ? 'yes' : 'no'}</span>
-                        </div>
+                        <Row label="Episode ID">{snapshot.episodeId ?? 'none'}</Row>
+                        <Row label="Generation">{snapshot.generation}</Row>
+                        <Row label="Episode age">
+                            {snapshot.episodeAgeMs !== null
+                                ? mmss(snapshot.episodeAgeMs / 1000, 'floor')
+                                : <span className={styles.muted}>n/a</span>}
+                        </Row>
+                        <Row label="Level">{snapshot.level ?? 'none'}</Row>
+                        <Row label="Hint count">{snapshot.hintCount}</Row>
+                        <Row label="Is new">{snapshot.isNew ? 'yes' : 'no'}</Row>
+                        <Row label="In session">{snapshot.inSession ? 'yes' : 'no'}</Row>
                     </div>
 
                     <div className={styles.group}>
                         <div className={styles.groupTitle}>Watchdog</div>
-                        <div className={styles.row}>
-                            <span className={styles.label}>Armed</span>
-                            <span className={styles.value}>{snapshot.watchdog.armed ? 'yes' : 'no'}</span>
-                        </div>
-                        {snapshot.watchdog.armed && (
-                            <div className={styles.row}>
-                                <span className={styles.label}>Idle-free in</span>
-                                <span className={styles.value}>{mmss(staleLeft ?? 0)}</span>
-                            </div>
-                        )}
+                        <Row label="Armed">{snapshot.watchdog.armed ? 'yes' : 'no'}</Row>
+                        {snapshot.watchdog.armed && <Row label="Idle-free in">{mmss(staleLeft ?? 0)}</Row>}
                     </div>
 
                     {snapshot.inFlight !== null && (
                         <div className={styles.group}>
                             <div className={styles.groupTitle}>In-flight request</div>
-                            <div className={styles.row}>
-                                <span className={styles.label}>Intent</span>
-                                <span className={styles.value}>{snapshot.inFlight.intent}</span>
-                            </div>
-                            <div className={styles.row}>
-                                <span className={styles.label}>Local token</span>
-                                <span className={styles.value}>{snapshot.inFlight.localToken}</span>
-                            </div>
-                            <div className={styles.row}>
-                                <span className={styles.label}>Episode:generation</span>
-                                <span className={styles.value}>{snapshot.inFlight.episodeId}:{snapshot.inFlight.generation}</span>
-                            </div>
-                            <div className={styles.row}>
-                                <span className={styles.label}>Request token (first 8)</span>
-                                <span className={styles.value}>{snapshot.inFlight.requestToken.slice(0, 8)}</span>
-                            </div>
+                            <Row label="Intent">{snapshot.inFlight.intent}</Row>
+                            <Row label="Local token">{snapshot.inFlight.localToken}</Row>
+                            <Row label="Episode:generation">{snapshot.inFlight.episodeId}:{snapshot.inFlight.generation}</Row>
+                            <Row label="Request token (first 8)">{snapshot.inFlight.requestToken.slice(0, 8)}</Row>
                         </div>
                     )}
 
                     <div className={styles.group}>
                         <div className={styles.groupTitle}>Owed and pending</div>
-                        <div className={styles.row}>
-                            <span className={styles.label}>Confirm close owed</span>
-                            <span className={styles.value}>{snapshot.owed.confirmClose ? 'yes' : 'no'}</span>
-                        </div>
-                        <div className={styles.row}>
-                            <span className={styles.label}>Pending outcomes</span>
-                            <span className={styles.value}>{snapshot.pendingOutcomes}</span>
-                        </div>
+                        <Row label="Confirm close owed">{snapshot.owed.confirmClose ? 'yes' : 'no'}</Row>
+                        <Row label="Pending outcomes">{snapshot.pendingOutcomes}</Row>
                     </div>
 
                     <SuppressionStatus snapshot={snapshot} />

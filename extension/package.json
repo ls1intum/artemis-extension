@@ -71,11 +71,6 @@
         "icon": "$(plug)"
       },
       {
-        "command": "artemis.showStruggleScore",
-        "title": "Artemis: Show Struggle Detection Score (Debug)",
-        "icon": "$(graph)"
-      },
-      {
         "command": "artemis.openRecordingsFolder",
         "title": "Artemis: Open Recordings Folder",
         "icon": "$(folder-opened)"
@@ -144,6 +139,10 @@
         {
           "command": "artemis.openRecordingsFolder",
           "when": "iris.recorder.active"
+        },
+        {
+          "command": "artemis.showTheiaEnvironment",
+          "when": "iris:theia"
         }
       ]
     },
@@ -195,7 +194,11 @@
         },
         "artemis.iris.proactiveCodeEgress": {
           "type": "string",
-          "enum": ["ask", "enabled", "disabled"],
+          "enum": [
+            "ask",
+            "enabled",
+            "disabled"
+          ],
           "enumDescriptions": [
             "Ask once whether to enable proactive help (local struggle detection plus code reading when it triggers)",
             "Enable proactive help: local typing/pause analysis runs during programming exercises, and Iris may read your current code when the detector triggers",
@@ -398,7 +401,7 @@
     "@typescript-eslint/eslint-plugin": "8.58.0",
     "@typescript-eslint/parser": "8.58.0",
     "@vitejs/plugin-react": "5.2.0",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "4.1.11",
     "@vscode/test-cli": "0.0.15",
     "@vscode/test-electron": "3.1.0",
     "axe-core": "4.13.0",
@@ -408,19 +411,19 @@
     "esbuild-visualizer": "0.7.0",
     "eslint": "10.8.1",
     "eslint-plugin-simple-import-sort": "13.0.0",
-    "happy-dom": "20.8.9",
+    "happy-dom": "20.14.5",
     "husky": "9.1.7",
     "knip": "5.88.1",
     "lint-staged": "16.4.0",
     "mocha-junit-reporter": "2.2.1",
     "npm-run-all2": "8.0.4",
-    "sinon": "21.0.3",
-    "tsc-alias": "1.8.17",
-    "tsx": "4.23.11",
+    "sinon": "21.1.2",
+    "tsc-alias": "1.9.5",
+    "tsx": "4.23.13",
     "typescript": "5.9.3",
     "typescript-plugin-css-modules": "5.2.0",
-    "vitest": "4.1.10",
-    "vscode-extension-tester": "8.22.0"
+    "vitest": "4.1.11",
+    "vscode-extension-tester": "8.26.1"
   },
   "dependencies": {
     "@stomp/stompjs": "7.3.0",
@@ -429,12 +432,11 @@
     "lucide-react": "0.575.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "react-textarea-autosize": "8.5.9",
     "recharts": "3.8.0",
     "shiki": "3.23.0",
     "streamdown": "2.5.0",
     "use-stick-to-bottom": "1.1.6",
-    "ws": "8.21.0",
+    "ws": "8.21.3",
     "zustand": "5.0.14"
   }
 }

@@ -192,10 +192,6 @@ class LoggingService {
         this.output(LogLevel.ERROR, `📁 ${message}`, LogCategory.FILE_MONITOR, ...args);
     }
 
-    public telemetry(message: string, ...args: unknown[]): void {
-        this.output(LogLevel.INFO, message, LogCategory.TELEMETRY, ...args);
-    }
-
     public session(message: string, ...args: unknown[]): void {
         this.output(LogLevel.INFO, `🎯 ${message}`, LogCategory.SESSION, ...args);
     }

@@ -40,8 +40,6 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
         showCourseList: sinon.SinonStub;
         showCourseDetail: sinon.SinonStub;
         showExerciseDetail: sinon.SinonStub;
-        showAiConfig: sinon.SinonStub;
-        showServiceStatus: sinon.SinonStub;
         showStruggleDetection: sinon.SinonStub;
         showRecommendedExtensions: sinon.SinonStub;
         showGitCredentials: sinon.SinonStub;
@@ -78,8 +76,6 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             showCourseList: sandbox.stub().resolves(),
             showCourseDetail: sandbox.stub().resolves(),
             showExerciseDetail: sandbox.stub().resolves(),
-            showAiConfig: sandbox.stub(),
-            showServiceStatus: sandbox.stub(),
             showStruggleDetection: sandbox.stub(),
             showRecommendedExtensions: sandbox.stub(),
             showGitCredentials: sandbox.stub(),

@@ -1,9 +1,9 @@
 import type { EpisodeHistoryEntry } from '@shared/messageContracts';
+import { mmss } from '@shared/utils/mmss';
 
 import { Container } from '@webview/components';
 
 import styles from './EpisodeHistoryPanel.module.css';
-import { mmss } from './useEngineCountdowns';
 
 /** Static map from outcome label to its CSS module chip class. Avoids dynamic
  *  string concatenation which fails in esbuild CSS-modules production builds. */

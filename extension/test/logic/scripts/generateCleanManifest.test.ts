@@ -34,7 +34,7 @@ function baseManifest(): Manifest {
                 { command: 'artemis.login' },
                 { command: 'artemis.replaySession' },
                 { command: 'artemis.openRecordingsFolder' },
-                { command: 'artemis.showStruggleScore' },
+                { command: 'artemis.forceStruggleIntervention' },
             ],
             menus: {
                 commandPalette: [
@@ -67,11 +67,11 @@ describe('generate-clean-manifest: cleanManifest', () => {
     });
 
     describe('desktop profile', () => {
-        it('drops the recorder group, keeps the struggle-score command', () => {
+        it('drops the recorder group, keeps the struggle command', () => {
             const m = cleanManifest(baseManifest(), 'desktop');
             expect(m.contributes.configuration.properties['artemis.dataCollectionConsent']).toBeUndefined();
             expect(m.contributes.commands.map(c => c.command)).toEqual([
-                'artemis.login', 'artemis.showStruggleScore',
+                'artemis.login', 'artemis.forceStruggleIntervention',
             ]);
         });
         it('drops the recorder commandPalette entries (no dangling ref)', () => {
@@ -180,14 +180,14 @@ describe('generate-clean-manifest against the real package.json', () => {
         expect(cmds).not.toContain('artemis.openRecordingsFolder');
         expect(cp).not.toContain('artemis.replaySession');
         expect(m.contributes.configuration.properties['artemis.dataCollectionConsent']).toBeUndefined();
-        expect(cmds).toContain('artemis.showStruggleScore'); // struggle kept on Desktop
+        expect(cmds).toContain('artemis.forceStruggleIntervention'); // struggle kept on Desktop
     });
 
     it('openvsx: drops recorder + struggle groups and applies cloud defaults', () => {
         const m = cleanManifest(realManifest(), 'openvsx');
         const cmds = m.contributes.commands.map(c => c.command);
         expect(cmds).not.toContain('artemis.replaySession');
-        expect(cmds).not.toContain('artemis.showStruggleScore');
+        expect(cmds).not.toContain('artemis.forceStruggleIntervention');
     });
 
     /**

@@ -74,44 +74,15 @@ export class SubscriptionRegistry {
         );
     }
 
+    /**
+     * Subscribes to one Iris session's topic. The session id travels back to the caller with every
+     * frame, so a listener shared across sessions can tell where a frame came from. Everything else
+     * (replacing an existing subscription, swallowing a malformed frame, the stale-safe unsubscribe)
+     * is {@link subscribeToTopic}; the topic already names both Iris and the session, so the log
+     * lines it writes lose nothing.
+     */
     public subscribeToIrisSession(id: number, onMessage: (m: unknown, sourceSessionId: number) => void): () => void {
-        if (!this._client) {
-            this._deps.log('Cannot subscribe: not connected');
-            throw new Error('WebSocket not connected');
-        }
-
-        const topic = WEBSOCKET_TOPICS.irisSession(id);
-
-        if (this._subscriptions.has(topic)) {
-            this._deps.log(`Replacing existing subscription for ${topic}`);
-            const oldSub = this._subscriptions.get(topic);
-            try { oldSub?.unsubscribe(); } catch { /* stale sub, ignore */ }
-            this._subscriptions.delete(topic);
-        }
-
-        const subscription = this._client.subscribe(topic, (message: IMessage) => {
-            try {
-                const data: unknown = JSON.parse(message.body);
-                this._deps.log(`Received Iris message for session ${id}`);
-                onMessage(data, id);
-            } catch (error) {
-                const stack = error instanceof Error ? error.stack : String(error);
-                this._deps.log(`Error processing Iris message: ${stack}`);
-                logger.error('Full error processing Iris message', LogCategory.WEBSOCKET, error as Error);
-            }
-        });
-
-        this._subscriptions.set(topic, subscription);
-        this._deps.log(`✅ Subscribed to Iris session: ${topic}`);
-
-        const capturedSub = subscription;
-        return () => {
-            capturedSub.unsubscribe();
-            if (this._subscriptions.get(topic) === capturedSub) {
-                this._subscriptions.delete(topic);
-            }
-            this._deps.log(`Unsubscribed from ${topic}`);
-        };
+        return this.subscribeToTopic(WEBSOCKET_TOPICS.irisSession(id), (data) => onMessage(data, id));
     }
 
     public subscribeToTopic(topic: string, onMessage: (data: unknown) => void): () => void {

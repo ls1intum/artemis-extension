@@ -9,23 +9,12 @@ import type {
 import type { ArtemisUser } from '@extension/types';
 import { getRecommendedExtensionsByCategory, type RecommendedExtensionCategory } from '@extension/utils/recommendedExtensions';
 
-export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'ai-config' | 'service-status' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials';
+export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'struggle-detection' | 'recommended-extensions' | 'git-credentials';
 
 export interface UserInfo {
     username: string;
     serverUrl: string;
     user?: ArtemisUser;
-}
-
-interface AiExtension {
-    id: string;
-    name: string;
-    publisher: string;
-    version: string;
-    description: string;
-    isInstalled: boolean;
-    provider: string;
-    providerColor: string;
 }
 
 /**
@@ -47,7 +36,6 @@ export class AppStateManager {
     private _archivedCoursesData?: ArchivedCourse[];
     private _archiveCheckComplete = true;
     private _payload: NavigationPayload = { kind: 'none' };
-    private _aiExtensions?: AiExtension[];
     private _recommendedExtensions?: RecommendedExtensionCategory[];
     private _serverRenderedPS: RenderedProblemStatementPayload | null = null;
     private _workspaceMode: { exerciseId: number; isPractice: boolean; ticket: number } | undefined;
@@ -159,10 +147,6 @@ export class AppStateManager {
         this._serverRenderedPS = value;
     }
 
-    get aiExtensions(): AiExtension[] | undefined {
-        return this._aiExtensions;
-    }
-
     get recommendedExtensions(): RecommendedExtensionCategory[] | undefined {
         return this._recommendedExtensions;
     }
@@ -236,15 +220,6 @@ export class AppStateManager {
 
     public setArchivedCourses(courses: ArchivedCourse[]): void {
         this._archivedCoursesData = courses;
-    }
-
-    public showAiConfig(aiExtensions: AiExtension[]): void {
-        this._aiExtensions = aiExtensions;
-        this._setCurrentState('ai-config');
-    }
-
-    public showServiceStatus(): void {
-        this._setCurrentState('service-status');
     }
 
     public showStruggleDetection(): void {

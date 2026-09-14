@@ -140,21 +140,11 @@
     color: var(--vscode-descriptionForeground);
 }
 
-.hidden {
-    display: none;
-}
-
 .sectionTitle {
     font-size: 1.25rem;
     font-weight: 600;
     color: var(--vscode-foreground);
     margin: 0;
-}
-
-.sectionSubtitle {
-    font-size: 0.875rem;
-    color: var(--vscode-descriptionForeground);
-    margin: 0.25rem 0 0 0;
 }
 
 .sectionHeaderWithBadge {

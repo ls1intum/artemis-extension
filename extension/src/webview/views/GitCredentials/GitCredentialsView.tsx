@@ -97,7 +97,7 @@ export function GitCredentialsView({ vscodeApi }: GitCredentialsViewProps) {
 
             <PageHeader
                 title="Git Credentials Helper"
-                subtitle="Connect Git with your Artemis account to push and pull without repeated prompts"
+                subtitle="Sets the author name and email on your commits. Passwords and tokens are handled by Git itself."
             />
 
             <Container

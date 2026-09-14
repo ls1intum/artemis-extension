@@ -80,12 +80,14 @@ export function toExerciseSource(
  * Handles both nested (entry.course.exercises) and flat (entry.exercises) shapes.
  */
 export function collectExerciseSources(entries: CourseDashboardEntry[]): ExerciseSource[] {
-    return entries.flatMap(entry => {
-        const exercises = getEntryExercises(entry);
-        return exercises
-            .map(ex => toExerciseSource(ex, entry.course?.id))
-            .filter((s): s is ExerciseSource => s !== null);
-    });
+    return entries.flatMap(entry => toExerciseSources(getEntryExercises(entry), entry.course?.id));
+}
+
+/** Maps one course's exercises to sources, dropping the ones without a usable repository URL. */
+function toExerciseSources(exercises: ExerciseDetail[], courseId: number | undefined): ExerciseSource[] {
+    return exercises
+        .map(ex => toExerciseSource(ex, courseId))
+        .filter((s): s is ExerciseSource => s !== null);
 }
 
 /**
@@ -333,9 +335,7 @@ export async function searchArchivedCoursesForRepository(
             const entry: CourseDashboardEntry = {
                 course: { ...course, exercises: courseExercises, isArchived: true },
             };
-            const exercises: ExerciseSource[] = courseExercises
-                .map(ex => toExerciseSource(ex, course.id))
-                .filter((s): s is ExerciseSource => s !== null);
+            const exercises = toExerciseSources(courseExercises, course.id);
 
             if (findExerciseByRepositoryUrl(repositoryUrl, exercises)) {
                 logger.irisChat(`Found workspace match in archived course: ${course.title}`);
@@ -363,11 +363,7 @@ export async function findWorkspaceCourseInArchive(
         return null;
     }
 
-    const allActiveExercises: ExerciseSource[] = activeCourseEntries.flatMap(entry =>
-        getEntryExercises(entry)
-            .map(ex => toExerciseSource(ex, entry.course?.id))
-            .filter((s): s is ExerciseSource => s !== null)
-    );
+    const allActiveExercises = collectExerciseSources(activeCourseEntries);
 
     if (findExerciseByRepositoryUrl(repositoryUrl, allActiveExercises)) {
         return null; // Already matched in active courses

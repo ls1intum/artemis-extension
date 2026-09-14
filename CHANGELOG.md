@@ -14,15 +14,25 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 - **Proactive help on Open VSX:** The "Proactive code egress" setting no longer appears in the Open VSX build (which is also what VSCodium and EduIDE install). That build ships without the struggle detection engine, so the switch controlled nothing: turning it on ran no detection and sent no code, and turning it off changed nothing either. Its description nevertheless described local typing and pause analysis. The desktop build, which has the engine, is unaffected.
 
-- **Artemis 9.9 or newer is now required.** Artemis removed the endpoint that returned a single course together with its exercises, scores and participations, and it will not be part of Artemis 10. Everything the extension loaded through it now comes from the endpoints that replaced it, which Artemis added in 9.9 (checked against the 9.7, 9.8 and 9.9 tags). Against an older server the course list, the course detail and workspace detection will not work.
+- **Artemis 9.9 or newer is now required.** Artemis removed the endpoint that returned a single course together with its exercises, scores and participations, and it will not be part of Artemis 10. Everything the extension loaded through it now comes from the endpoints that replaced it, which Artemis added in 9.9 (checked against the 9.7, 9.8 and 9.9 tags). Against an older server the course list, the course detail and workspace detection will not work. The extension now warns after sign-in when the server is older, instead of leaving you with an empty course list.
 - **Archived courses show less.** The course detail of an archived course no longer has a description, a student count or an instructor group. The archive list Artemis serves does not carry them, and the endpoint that used to supply them is gone. The header now carries an "Archived" badge so the thinner view reads as deliberate rather than as a failed load. Title, semester, ID and the exercise list are unchanged.
 - **Reloading a course detail is cheaper.** The reload button fetches only the course's exercises instead of the whole course payload, and keeps everything else as it was. Nothing you can see changes except that the wait is shorter.
+- **The Service Status page and the health panel under the login error are gone.** Their API row reported working servers as unavailable. Connection and Iris problems now show up in the status bar and the chat.
+- **A mistyped server address now says so**, instead of failing with "404 Not Found" and an HTML error page in the banner.
+- **The AI Checker page is gone.** It matched your extensions against a list of AI extension ids frozen since October 2025, and showed what VS Code's own Extensions view already shows.
+- **The Git Credentials page no longer promises to handle your password.** It sets the author name and email on your commits; Git's own credential helper does the rest, which the page already said further down.
 
 ### Fixed
 
 - **Exercise not recognised when you also have a practice repository.** With both a graded and a practice participation, the extension kept whichever one Artemis happened to list first as the exercise's repository. When that was the practice one, a graded working copy matched nothing: the extension could not tell which exercise the folder belonged to, so the exercise did not light up in the course list and Iris did not pick it up as context. It now keeps the graded repository, which identifies both working copies, because a practice address can be resolved back to its graded form and not the other way round.
 
+- **Single sign-on against an older server no longer tells you to try again.** The failure was reported as an expired login code, so the advice was to repeat a step that could not work. It now says the server is too old for sign-on from the extension.
+
 ### Internal
+
+- **Login errors are classified by HTTP status instead of by matching the message text**, and the login-options lookup goes through the same classifier as the password submit.
+- **Two diagnostic commands left the command palette.** The struggle-score modal is gone, since the developer Struggle Detection page shows the same score with more around it, and the Theia environment report now appears only in Theia, where its output is not all "missing".
+- **The supported VS Code floor is now guarded by a test.** `@types/vscode` sits at `engines.vscode` so the compiler rejects an API an older VS Code does not have. A test pins that the two agree, and Renovate no longer proposes raising the typings on their own.
 
 - **Settings audit (#465):** The two settings above were found by checking every entry in the manifest against the code behind it. A test now pins both halves of that: each contributed setting is still named somewhere in `src`, and each packaged build contributes only settings whose feature it actually bundles. The second half is the one with teeth: dropping a feature from a build without dropping its setting fails CI instead of leaving an inert switch in the student's Settings UI. The first is a floor, since a setting can still be mentioned by a listener after the code that read it is gone.
 

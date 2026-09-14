@@ -1,13 +1,14 @@
 import { Fragment } from 'react';
 
 import type { BoundaryType, LiveDecisionTrace, StruggleDebugSnapshot } from '@shared/messageContracts';
+import { mmss } from '@shared/utils/mmss';
 
 import { Badge, Container } from '@webview/components';
 
 import styles from './DecisionFlowPipeline.module.css';
 import type { EditTraceReason } from './glossary';
 import { discreteText, GLOSSARY, reasonText } from './glossary';
-import { mmss, useEngineCountdowns } from './useEngineCountdowns';
+import { useEngineCountdowns } from './useEngineCountdowns';
 
 interface DecisionFlowPipelineProps {
     debug: StruggleDebugSnapshot;
