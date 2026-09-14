@@ -377,6 +377,118 @@ suite('Panel hide/show state persistence', () => {
     });
 });
 
+suite('The view header names the Artemis server', () => {
+    let provider: ArtemisWebviewProvider;
+    let mockContext: MockExtensionContext;
+    let view: ControllableWebviewView;
+    let sandbox: sinon.SinonSandbox;
+    let fireConfigChange: ((event: vscode.ConfigurationChangeEvent) => void) | undefined;
+
+    setup(async () => {
+        sandbox = sinon.createSandbox();
+        sandbox.stub(vscode.commands, 'registerCommand').returns(new vscode.Disposable(() => { /* noop */ }));
+
+        // Captured before the provider is built, because it subscribes in its constructor.
+        // Several listeners register; a fired event is handed to every one of them.
+        const listeners: Array<(event: vscode.ConfigurationChangeEvent) => void> = [];
+        sandbox.stub(vscode.workspace, 'onDidChangeConfiguration').callsFake(((cb: any) => {
+            listeners.push(cb);
+            return new vscode.Disposable(() => { /* noop */ });
+        }) as any);
+        fireConfigChange = (event) => { for (const cb of [...listeners]) { cb(event); } };
+
+        mockContext = new MockExtensionContext();
+        const mockAuthManager = new MockAuthManager(mockContext);
+        const mockApiService = new MockArtemisApiService(mockAuthManager);
+        const mockWebsocket = new MockArtemisWebsocketService(mockAuthManager);
+        const mockCoordinator = new StruggleCoordinator({ hub: new VsCodeSensorHub(), alertSink: { deliver: () => { /* noop */ } }, detectionConsent: { isGranted: () => true, onDidChange: new vscode.EventEmitter<void>().event } });
+        const fakeNoAi = { onNoAiStatusChanged: () => ({ dispose() {} }), dispose() {} } as any;
+        const oidc = new OidcLoginService(mockContext, mockAuthManager, mockApiService);
+
+        provider = new ArtemisWebviewProvider({
+            extensionUri: vscode.Uri.file('/'),
+            extensionContext: mockContext,
+            authManager: mockAuthManager,
+            oidcLoginService: oidc,
+            authCancellation: new AuthCancellationService(oidc),
+            handoverFailures: new HandoverFailureStore(),
+            courseAccessStorage: new CourseAccessStorageService(mockContext.globalState, () => null, () => 0),
+            artemisApi: mockApiService,
+            providerRegistry: createProviderRegistry(),
+            websocketService: mockWebsocket,
+            noAiDetectionService: fakeNoAi,
+            buildErrorCodeLensProvider: {} as unknown as BuildErrorCodeLensProvider,
+            struggleCoordinator: mockCoordinator,
+            updateAuthContext: async (_isAuthenticated: boolean) => {},
+        });
+
+        view = new ControllableWebviewView();
+        await provider.resolveWebviewView(view, {} as any, {} as any);
+    });
+
+    teardown(() => {
+        sandbox.restore();
+    });
+
+    test('the host is written as the view description when the view is resolved', () => {
+        // The default when nothing is configured, reduced to what the header can show.
+        assert.strictEqual(view.description, 'artemis.tum.de');
+    });
+
+    test('changing artemis.serverUrl rewrites it without waiting for a new view', () => {
+        sandbox.stub(vscode.workspace, 'getConfiguration').returns({
+            get: (key: string) => (key === 'serverUrl' ? 'https://artemis-test2.artemis.cit.tum.de/' : undefined),
+        } as unknown as vscode.WorkspaceConfiguration);
+
+        fireConfigChange?.({ affectsConfiguration: (section: string) => section === 'artemis.serverUrl' } as vscode.ConfigurationChangeEvent);
+
+        assert.strictEqual(view.description, 'artemis-test2.artemis.cit.tum.de', 'trailing slash dropped, host only');
+    });
+
+    test('the login view is told the server as part of its init data', () => {
+        // The proof that the login screen can name it at all: the view asks for init on
+        // ready, and the answer for the login route carries the server URL.
+        const spy = new SpyWebview();
+        const readyView = new ControllableWebviewView(spy);
+        return provider.resolveWebviewView(readyView, {} as any, {} as any).then(() => {
+            spy.simulateMessage({ type: 'ready' });
+
+            const sent = spy.sentMessages.filter(m => m?.type === 'setServerUrl');
+            assert.strictEqual(sent.length, 1, 'exactly one setServerUrl on ready');
+            assert.ok(typeof sent[0].serverUrl === 'string' && sent[0].serverUrl.length > 0);
+        });
+    });
+
+    test('a server change reaches the open login page, not just the header', async () => {
+        // The picker writes the setting and nothing re-renders the login page, so without this
+        // the page went on naming the server the user just switched away from.
+        const spy = new SpyWebview();
+        const openView = new ControllableWebviewView(spy);
+        await provider.resolveWebviewView(openView, {} as any, {} as any);
+        spy.simulateMessage({ type: 'ready' });
+        const before = spy.sentMessages.filter(m => m?.type === 'setServerUrl').length;
+
+        sandbox.stub(vscode.workspace, 'getConfiguration').returns({
+            get: (key: string) => (key === 'serverUrl' ? 'https://artemis-test2.artemis.cit.tum.de' : undefined),
+        } as unknown as vscode.WorkspaceConfiguration);
+        fireConfigChange?.({ affectsConfiguration: (section: string) => section === 'artemis.serverUrl' } as vscode.ConfigurationChangeEvent);
+
+        const sent = spy.sentMessages.filter(m => m?.type === 'setServerUrl');
+        assert.strictEqual(sent.length, before + 1, 'one more, sent by the setting change itself');
+        assert.strictEqual(sent[sent.length - 1].serverUrl, 'https://artemis-test2.artemis.cit.tum.de');
+    });
+
+    test('an unrelated setting is not mistaken for it', () => {
+        sandbox.stub(vscode.workspace, 'getConfiguration').returns({
+            get: () => 'https://somewhere.else',
+        } as unknown as vscode.WorkspaceConfiguration);
+
+        fireConfigChange?.({ affectsConfiguration: (section: string) => section === 'artemis.developerMode' } as vscode.ConfigurationChangeEvent);
+
+        assert.strictEqual(view.description, 'artemis.tum.de', 'untouched');
+    });
+});
+
 suite('Nudge banner replay and cache-clear', () => {
     let provider: ArtemisWebviewProvider;
     let mockContext: MockExtensionContext;

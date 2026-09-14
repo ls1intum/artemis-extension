@@ -23,7 +23,7 @@ import {
     getWorkspaceRepositoryUrl,
 } from '@extension/services/workspace';
 import type { ExerciseDetailsResponse } from '@extension/types';
-import { VSCODE_CONFIG } from '@extension/utils';
+import { isServerUrlLocked, VSCODE_CONFIG } from '@extension/utils';
 
 /**
  * Dependencies for `WebviewNavigationFacade`. The callbacks bridge back to the
@@ -335,6 +335,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         this.deps.postMessage({
             type: ExtensionMsg.SetServerUrl,
             serverUrl: serverUrl ?? this.deps.getServerUrl(),
+            locked: isServerUrlLocked(),
         });
     }
 

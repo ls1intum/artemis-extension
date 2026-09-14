@@ -59,6 +59,7 @@ export const WebviewCmd = {
     // Utility
     OpenWebsite: 'openWebsite',
     OpenSettings: 'openSettings',
+    SetServerUrl: 'setServerUrl',
     ReloadWindow: 'reloadWindow',
     OpenBugReport: 'openBugReport',
     OpenInEditor: 'openInEditor',
@@ -181,6 +182,7 @@ interface WebviewCmdPayloads {
     openWebsite: { path?: string };
     reloadWindow: undefined;
     openSettings: { setting: string };
+    setServerUrl: undefined;
     openBugReport: undefined;
     openInEditor: { data: Record<string, unknown> | string; language?: string };
     copyToClipboard: { text: string };
@@ -298,8 +300,18 @@ interface WebviewCmdPayloads {
         | { moment: 'stuck' | 'abandon'; action: 'accept' | 'decline' | 'timeout'; episodeId?: string; offerId?: string };    // offer banner
 }
 
+/**
+ * Commands whose payload is declared `undefined` in the map above. Listing one as
+ * payload-required makes it undeliverable, and silently: `postCommand` sends no payload
+ * for such a command, the guard then rejects the message, and the provider drops it
+ * before any handler runs. The element type below turns that into a compile error.
+ */
+type PayloadlessCmd = {
+    [K in keyof WebviewCmdPayloads]: WebviewCmdPayloads[K] extends undefined ? K : never;
+}[keyof WebviewCmdPayloads];
+
 /** Commands that require a non-undefined payload object. */
-export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
+const PAYLOAD_REQUIRED: readonly Exclude<WebviewCmd, PayloadlessCmd>[] = [
     WebviewCmd.Login,
     WebviewCmd.CheckLoginOptions,
     WebviewCmd.StartOidcLogin,
@@ -341,7 +353,9 @@ export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>([
     WebviewCmd.OpenConversation,
     WebviewCmd.SwitchCourse,
     // NewConversation is deliberately absent: it carries no payload.
-]);
+];
+
+export const COMMANDS_REQUIRING_PAYLOAD = new Set<string>(PAYLOAD_REQUIRED);
 
 type WebviewCommandMessages = {
     [K in WebviewCmd]: WebviewCmdPayloads[K] extends undefined

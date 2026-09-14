@@ -17,7 +17,7 @@ import {
 import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 import { getTheiaEnvironment } from '@extension/theia/theiaEnvironment';
 import type { CourseDashboardEntry, ExerciseDetail, ExerciseDetailsResponse } from '@extension/types';
-import { resolveServerUrl } from '@extension/utils';
+import { isServerUrlLocked, resolveServerUrl } from '@extension/utils';
 
 import { selectRecentCourses } from './recentCourseSelector';
 
@@ -361,7 +361,7 @@ export class ViewInitDataService {
     }
 
     public sendLoginInit(): void {
-        this._postMessage({ type: ExtensionMsg.SetServerUrl, serverUrl: resolveServerUrl() });
+        this._postMessage({ type: ExtensionMsg.SetServerUrl, serverUrl: resolveServerUrl(), locked: isServerUrlLocked() });
 
         // Replayed rather than only announced live. A live message can be queued while the view is not
         // ready and then thrown away by the next `render()`, which a plain configuration change is
