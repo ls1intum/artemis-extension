@@ -5,6 +5,8 @@ import { By, VSBrowser, WebDriver } from 'vscode-extension-tester';
 import {
     getCredentials,
     openArtemisView,
+    openFirstCourse,
+    openFirstExercise,
     performLogin,
     safeLogoutAndCleanup,
     switchBackFromWebview,
@@ -54,43 +56,29 @@ describe('ExerciseDetail View UI Tests', function () {
 
 		// Step 1: Dashboard to Course. CSS module classes are hashed, so only
 		// element types and XPath text selectors are usable here.
-		const courseElement = await driver
-			.findElement(
-				By.xpath(
-					"//button[contains(@class,'course')] | //div[contains(@class,'card')]//button | //a[.//span] | //button[.//h3] | //button[.//h2]",
-				),
-			)
-			.catch(() => null);
+		const courseOpened = await openFirstCourse(driver);
 
-		if (!courseElement) {
+		if (!courseOpened) {
 			console.log('ExerciseDetail smoke: No courses available; skipping ExerciseDetail smoke test');
 			await takeScreenshot(driver, 'exercise-detail-smoke-no-courses');
 			this.skip();
 			return;
 		}
 
-		await courseElement.click();
 
 		// Wait for CourseDetail to load before looking for exercises
 		await driver.sleep(3000);
 
 		// Step 2: Course to Exercise.
-		const exerciseElement = await driver
-			.findElement(
-				By.xpath(
-					"//button[contains(@class,'exercise')] | //a[contains(@href,'exercise')] | //li//button | //li//a",
-				),
-			)
-			.catch(() => null);
+		const exerciseOpened = await openFirstExercise(driver);
 
-		if (!exerciseElement) {
+		if (!exerciseOpened) {
 			console.log('ExerciseDetail smoke: No exercises available in course; skipping ExerciseDetail smoke test');
 			await takeScreenshot(driver, 'exercise-detail-smoke-no-exercises');
 			this.skip();
 			return;
 		}
 
-		await exerciseElement.click();
 
 		const participationSection = await driver
 			.wait(

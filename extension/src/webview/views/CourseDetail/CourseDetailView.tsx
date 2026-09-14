@@ -254,6 +254,7 @@ export function CourseDetailView({ vscodeApi }: CourseDetailViewProps) {
                             return (
                                 <ListItem
                                     key={exercise.id}
+                                    testId={`exercise-entry-${exercise.id}`}
                                     className={styles.exerciseItem}
                                     onClick={() => handleOpenExercise(exercise.id!)}
                                     selected={isWorkspaceExercise}

@@ -1,7 +1,7 @@
 // Covers E2EV-09: IrisChat view E2E smoke test
 // IrisChat is a SEPARATE sidebar panel from Artemis, with its own webview provider.
 import * as assert from 'assert';
-import { ActivityBar, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
+import { ActivityBar, By, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
 
 import { getCredentials, switchBackFromWebview, switchToWebviewFrame, takeScreenshot, waitForElement } from './helpers';
 
@@ -70,6 +70,15 @@ describe('IrisChat View UI Tests', function () {
 				10000,
 			);
 		} catch {
+			// With no course open the chat has no composer yet: it asks which course
+			// first. That is the cold-start view, not a broken one, and asserting it
+			// is what keeps this from skipping over an empty panel.
+			const chooser = await driver.findElements(By.css('[data-testid^="course-entry-"]'));
+			assert.ok(
+				chooser.length > 0,
+				'IrisChat shows neither a composer nor the course chooser it asks for first',
+			);
+			console.log('IrisChat smoke: no course open, so the view asks for one; skipping the composer assertion');
 			await takeScreenshot(driver, 'iris-chat-smoke');
 			this.skip();
 			return;

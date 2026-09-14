@@ -6,6 +6,7 @@ import {
     getCredentials,
     openArtemisView,
     safeLogoutAndCleanup,
+    submitUsername,
     switchBackFromWebview,
     switchToWebviewFrame,
     takeScreenshot,
@@ -49,15 +50,15 @@ describe('Login Flow UI Tests', function () {
 		await openArtemisView();
 		await switchToWebviewFrame(driver);
 
-		const usernameInput = await waitForElement(driver, '#username');
-		await usernameInput.clear();
-		await usernameInput.sendKeys(username);
+		// Stage 0: the username decides what stage 1 asks for, so the password field
+		// only exists after the server has answered Continue.
+		await submitUsername(driver, username);
 
 		const passwordInput = await waitForElement(driver, '#password');
 		await passwordInput.clear();
 		await passwordInput.sendKeys(password);
 
-		const submitButton = await waitForElement(driver, 'button[type="submit"]');
+		const submitButton = await waitForElement(driver, '[data-testid="login-submit"]');
 		await submitButton.click();
 
 		await takeScreenshot(driver, 'login-flow-submitted');

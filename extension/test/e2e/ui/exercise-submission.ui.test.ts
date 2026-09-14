@@ -5,6 +5,8 @@ import { By, VSBrowser, WebDriver } from 'vscode-extension-tester';
 import {
     getCredentials,
     openArtemisView,
+    openFirstCourse,
+    openFirstExercise,
     performLogin,
     safeLogoutAndCleanup,
     switchBackFromWebview,
@@ -76,40 +78,26 @@ describe('Exercise Submission Flow UI Tests', function () {
 		} else {
 			// Navigate through Dashboard, Course, Exercise list. CSS module
 			// classes are hashed, so the course card is matched structurally.
-			const courseElement = await driver
-				.findElement(
-					By.xpath(
-						"//button[contains(@class,'course')] | //div[contains(@class,'card')]//button | //a[.//span] | //button[.//h3] | //button[.//h2]",
-					),
-				)
-				.catch(() => null);
+			const courseOpened = await openFirstCourse(driver);
 
-			if (!courseElement) {
+			if (!courseOpened) {
 				console.log('Exercise submission: No courses available; skipping submission test');
 				await takeScreenshot(driver, 'exercise-submission-no-courses');
 				this.skip();
 				return;
 			}
 
-			await courseElement.click();
 			await driver.sleep(3000);
 
-			const exerciseElement = await driver
-				.findElement(
-					By.xpath(
-						"//button[contains(@class,'exercise')] | //a[contains(@href,'exercise')] | //li//button | //li//a",
-					),
-				)
-				.catch(() => null);
+			const exerciseOpened = await openFirstExercise(driver);
 
-			if (!exerciseElement) {
+			if (!exerciseOpened) {
 				console.log('Exercise submission: No exercises available in course; skipping submission test');
 				await takeScreenshot(driver, 'exercise-submission-no-exercises');
 				this.skip();
 				return;
 			}
 
-			await exerciseElement.click();
 			await driver.sleep(2000);
 		}
 
@@ -126,8 +114,18 @@ describe('Exercise Submission Flow UI Tests', function () {
 			.catch(() => null);
 
 		if (!submitButton) {
-			console.log('Exercise submission: No submit/run button found; skipping submission assertion');
-			await takeScreenshot(driver, 'exercise-submission-no-submit-button');
+			// Submitting needs the repository in the workspace. Without it the view offers
+			// Clone instead, which is the correct thing to show and not a missing button:
+			// asserting that is what keeps this from passing on an empty view.
+			const cloneButton = await driver
+				.findElement(By.xpath("//button[contains(., 'Clone Repository')]"))
+				.catch(() => null);
+			assert.ok(
+				cloneButton,
+				'Exercise view offers neither a submit action nor a way to get the repository',
+			);
+			console.log('Exercise submission: repository not in the workspace, so the view offers Clone; skipping the submit assertion');
+			await takeScreenshot(driver, 'exercise-submission-clone-offered');
 			this.skip();
 			return;
 		}
