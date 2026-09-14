@@ -38,7 +38,16 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     const [loading, setLoading] = useState(false);
     const [annotations, setAnnotations] = useState<Annotation[]>([]);
     const [researcherLanes, setResearcherLanes] = useState<Array<{ raterId: string; raterName: string; annotations: Annotation[] }> | null>(null);
-    const activeSessionId = useRef<string | null>(null);
+    // Which session is open. The state is what every render reads; the ref is the
+    // synchronous ownership claim, written before the first await so a response
+    // that arrives after the user moved on can be discarded. React does not
+    // re-render on a ref write, so the two are always set together.
+    const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+    const activeSessionIdRef = useRef<string | null>(null);
+    const claimSession = useCallback((id: string | null) => {
+        activeSessionIdRef.current = id;
+        setActiveSessionId(id);
+    }, []);
     const isResearcher = authStatus.role === 'researcher';
 
     const [videoSyncConfig, setVideoSyncConfig] = useState<VideoSyncConfig | null>(null);
@@ -59,15 +68,29 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     }, []);
     const [stickyLive, setStickyLive] = useState(false);
 
+    const [viewMode, setViewMode] = useState<'timeline' | 'list' | 'compare'>('timeline');
+    const [scrollToTimestamp, setScrollToTimestamp] = useState<number | null>(null);
+    const [zoomedXDomain, setZoomedXDomain] = useState<[number, number] | null>(null);
+    const [autoFollowLive, setAutoFollowLive] = useState(true);
+    const [hideEmptyLanes, setHideEmptyLanes] = useState(false);
+
     // Pending timeline marker position (click-to-place). The ref mirrors the
     // state synchronously so a label keypress immediately after a click reads
     // the fresh value; an effect-based mirror would lag a commit and race.
+    // It is cleared by every transition that replaces what the timeline shows:
+    // `loadFromApi`, `handleFileSession`, `handleBack`, the live-session end,
+    // and the sticky-live latch below.
     const [pendingTimestamp, setPendingTimestamp] = useState<number | null>(null);
     const pendingTsRef = useRef<number | null>(null);
     const setPending = useCallback((ts: number | null) => {
         pendingTsRef.current = ts;   // synchronous, no render lag
         setPendingTimestamp(ts);
     }, []);
+    // The latch is the one clear that happens during render, where writing the
+    // ref is not allowed, so it sets the state alone and this mirror follows a
+    // commit later. Every user-driven write still goes through `setPending` and
+    // keeps its synchronous guarantee.
+    useEffect(() => { pendingTsRef.current = pendingTimestamp; }, [pendingTimestamp]);
 
     // Track most recently ended live session so latch-on cannot flip back to live
     // during the brief window between sessionEnd event arrival and metadata.json
@@ -77,12 +100,41 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
 
     const liveSessionIds = useLiveSessions(true);
 
-    const isLiveSession = stickyLive;
+    // Sticky-live latches ON as soon as the polled live set contains the open
+    // session, and stays on until something clears it (leaving the view, or the
+    // session ending). Adjusted during render because it is a pure function of
+    // state: an effect would latch a commit later and cost an extra render.
+    // `loadFromApi(id, isLive)` also latches directly on click, so opening a
+    // live-badged session never waits for the poll.
+    const observedLive = activeSessionId !== null
+        && liveSessionIds.has(activeSessionId)
+        && endedLiveSessionId !== activeSessionId;
+    if (observedLive && !stickyLive) {
+        setStickyLive(true);
+        // Parity with the boundary clear this latch replaced: a position clicked
+        // on the archive timeline must not anchor the next live marker.
+        setPendingTimestamp(null);
+    }
+    const isLiveSession = stickyLive || observedLive;
     const isReadOnly = !authStatus.allowWrite || isResearcher;
     const writesDisabled = isLiveSession || isReadOnly;
 
+    const showAnnotationError = useCallback((message: string) => {
+        // Surface mutator failures through the toast stack (same channel as adds).
+        console.warn('[annotations]', message);
+        pushToast({ kind: 'error', text: message, at: Date.now() });
+    }, [pushToast]);
+    const mutator = useAnnotationMutations({
+        sessionId: activeSessionId,
+        raterName: authStatus.raterName,
+        setAnnotations,
+        onToast: pushToast,
+        onError: showAnnotationError,
+    });
+
     const loadFromApi = useCallback(async (sessionId: string, isLive: boolean, tailLimit?: number) => {
-        activeSessionId.current = sessionId; // claim ownership before any await
+        claimSession(sessionId); // claim ownership before any await
+        setPending(null); // a clicked position belongs to the view being replaced
         setLoading(true);
         setViewMode('timeline');
         setScrollToTimestamp(null);
@@ -106,7 +158,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                 apiFetch(`/api/recordings/${sessionId}/subtitles`, { method: 'HEAD' }),
             ];
             const [eventsRes, metaRes, replayRes, annotRes, videoSyncRes, subsRes] = await Promise.all(fetches);
-            if (activeSessionId.current !== sessionId) return; // user navigated away during fetch
+            if (activeSessionIdRef.current !== sessionId) return; // user navigated away during fetch
 
             const events: RecordedEvent[] = await eventsRes.json();
             let metadata: SessionMetadata | null = null;
@@ -152,36 +204,31 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         } finally {
             setLoading(false);
         }
-    // `mutator` is stable (memoized with [] deps in useAnnotationMutations) so
-    // including it here doesn't churn the callback identity.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [apiFetch, isResearcher]);
+    // `mutator` is stable (the controller is created once via lazy useState in
+    // useAnnotationMutations) so listing it here doesn't churn the callback identity.
+    }, [apiFetch, isResearcher, mutator, claimSession, setPending]);
 
-    const live = useLiveSession(activeSessionId.current, isLiveSession);
+    // The live stream tells us when the session is over (a `sessionEnd` line or
+    // the recording disappearing). Remember the id so the sticky-live latch
+    // cannot flip back on, leave live mode, and reload the archive shortly after
+    // so the full event list replaces the capped live buffer.
+    const handleLiveSessionEnded = useCallback((finalEvents: RecordedEvent[]) => {
+        const id = activeSessionIdRef.current;
+        if (!id) return;
+        // Stash the final live events into the session so the display does not
+        // blank out during the grace period before the archive reload.
+        setSession((prev) => prev ? { ...prev, events: finalEvents } : prev);
+        setPending(null);
+        setEndedLiveSessionId(id);
+        setStickyLive(false);
+        setTimeout(() => {
+            // Tail-limit the archive reload so a long session can't crash
+            // the tab; live mode caps the buffer at 5k for the same reason.
+            if (activeSessionIdRef.current === id) void loadFromApi(id, false, 5000);
+        }, 500);
+    }, [loadFromApi, setPending]);
 
-    const showAnnotationError = useCallback((message: string) => {
-        // Surface mutator failures through the toast stack (same channel as adds).
-        console.warn('[annotations]', message);
-        pushToast({ kind: 'error', text: message, at: Date.now() });
-    }, [pushToast]);
-    const mutator = useAnnotationMutations({
-        sessionId: activeSessionId.current,
-        raterName: authStatus.raterName,
-        setAnnotations,
-        onToast: pushToast,
-        onError: showAnnotationError,
-    });
-
-    // Latch sticky-live ON the moment we observe the current session in the live set,
-    // UNLESS we already saw it end during this view.
-    // Note: `loadFromApi(id, isLive)` also sets sticky-live directly when the user clicks
-    // a live-badged session, so the initial latch is immediate (not poll-delayed).
-    useEffect(() => {
-        const id = activeSessionId.current;
-        if (id && liveSessionIds.has(id) && endedLiveSessionId !== id) {
-            setStickyLive(true);
-        }
-    }, [liveSessionIds, endedLiveSessionId]);
+    const live = useLiveSession(activeSessionId, isLiveSession, handleLiveSessionEnded);
 
     // On the session list, Space opens a live recording (live-only convenience).
     const openLiveSession = useCallback((id: string) => { void loadFromApi(id, true); }, [loadFromApi]);
@@ -200,37 +247,10 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isLiveSession, mutator]);
 
-    // Reset sticky-live + ended-id when leaving the session view.
-    useEffect(() => {
-        if (session === null) {
-            setStickyLive(false);
-            setEndedLiveSessionId(null);
-        }
-    }, [session]);
-
-    // When the live session ends (sessionEnd event OR file disappeared),
-    // remember it (suppresses re-latch), drop sticky-live, and after 500ms
-    // reload in archive mode.
-    useEffect(() => {
-        if (live.error === 'Session ended' && activeSessionId.current) {
-            const id = activeSessionId.current;
-            // Stash current live events into session so display doesn't blank out
-            // during the 500ms grace before archive reload.
-            setSession((prev) => prev ? { ...prev, events: live.events } : prev);
-            setEndedLiveSessionId(id);
-            setStickyLive(false);
-            setTimeout(() => {
-                // Tail-limit the archive reload so a long session can't crash
-                // the tab; live mode caps the buffer at 5k for the same reason.
-                if (activeSessionId.current === id) void loadFromApi(id, false, 5000);
-            }, 500);
-        }
-    }, [live.error, live.events, loadFromApi]);
-
     // While a researcher watches a LIVE session, poll the all-lanes endpoint
     // once a second so raters' new marks appear without a manual reload. Only
     // the lanes refresh; the researcher's video/zoom/scroll stay put.
-    useResearcherLanePolling(isResearcher && isLiveSession, activeSessionId, apiFetch, setResearcherLanes);
+    useResearcherLanePolling(isResearcher && isLiveSession, activeSessionIdRef, apiFetch, setResearcherLanes);
 
     // Hotkeys enabled for any rater with a session loaded. The reference timestamp
     // is a clicked pending position if one is set (in any mode); otherwise the
@@ -268,12 +288,9 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         onEscape,
     );
 
-    // Force-clear pending on every session boundary / live toggle so it can never
-    // leak across sessions or into live mode.
-    useEffect(() => { setPending(null); }, [session, isLiveSession, setPending]);
-
     const handleFileSession = useCallback((loaded: LoadedSession) => {
-        activeSessionId.current = null;
+        claimSession(null);
+        setPending(null);
         mutator.reset(loaded.annotations ?? []);
         setResearcherLanes(null);
         setVideoSyncConfig(null);
@@ -288,10 +305,11 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         setStickyLive(false);
         setEndedLiveSessionId(null);
         setSession(loaded);
-    }, [mutator]);
+    }, [mutator, claimSession, setPending]);
 
     const handleBack = useCallback(() => {
-        activeSessionId.current = null;
+        claimSession(null);
+        setPending(null);
         mutator.reset([]);
         setResearcherLanes(null);
         setVideoSyncConfig(null);
@@ -303,8 +321,13 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         setToasts([]);
         setZoomedXDomain(null);
         setAutoFollowLive(true);
+        // Leaving the session view is the only transition that clears these:
+        // `handleFileSession` sets them for the file it loads, and every
+        // server session goes through `loadFromApi`.
+        setStickyLive(false);
+        setEndedLiveSessionId(null);
         setSession(null);
-    }, [mutator]);
+    }, [mutator, claimSession, setPending]);
 
     const handleVideoSeek = useCallback((timestamp: number) => {
         videoPlayerRef.current?.seekToSessionTimestamp(timestamp);
@@ -326,21 +349,21 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     }, []);
 
     const handleOpenSessionFolder = useCallback(() => {
-        if (!activeSessionId.current) return;
-        apiFetch(`/api/recordings/${encodeURIComponent(activeSessionId.current)}/open`, { method: 'POST' })
+        if (!activeSessionId) return;
+        apiFetch(`/api/recordings/${encodeURIComponent(activeSessionId)}/open`, { method: 'POST' })
             .catch(() => {/* best-effort */});
-    }, [apiFetch]);
+    }, [apiFetch, activeSessionId]);
 
     const handleOffsetChange = useCallback(async (newOffset: number) => {
-        if (!activeSessionId.current || !videoSyncConfig) return;
+        if (!activeSessionId || !videoSyncConfig) return;
         const updated = { ...videoSyncConfig, videoTimeAtSessionStartSeconds: newOffset };
         setVideoSyncConfig(updated);
-        await apiFetch(`/api/recordings/${activeSessionId.current}/video-sync`, {
+        await apiFetch(`/api/recordings/${activeSessionId}/video-sync`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updated),
         }).catch(() => {/* best-effort */});
-    }, [videoSyncConfig, apiFetch]);
+    }, [videoSyncConfig, apiFetch, activeSessionId]);
 
     const handleVideoPlayStateChange = useCallback((playing: boolean) => {
         setIsVideoPlaying(playing);
@@ -389,25 +412,19 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
     // Latched per session so that once an authoritative start is seen
     // it survives the live buffer trimming the sessionStart event out of the
     // sliding window. 0 (hidden) until a source is observed.
-    const liveStartRef = useRef<{ id: string | null; start: number }>({ id: null, start: 0 });
-    const liveElapsedStart = useMemo(() => {
-        const id = session?.fileName ?? null;
-        if (liveStartRef.current.id !== id) {
-            liveStartRef.current = { id, start: 0 };
-        }
-        if (liveStartRef.current.start === 0 && session) {
-            const authoritative = session.metadata?.startTime
-                ?? displayedEvents.find(e => e.type === 'sessionStart')?.timestamp
-                ?? 0;
-            if (authoritative > 0) liveStartRef.current.start = authoritative;
-        }
-        return liveStartRef.current.start;
-    }, [session, displayedEvents]);
-    const [viewMode, setViewMode] = useState<'timeline' | 'list' | 'compare'>('timeline');
-    const [scrollToTimestamp, setScrollToTimestamp] = useState<number | null>(null);
-    const [zoomedXDomain, setZoomedXDomain] = useState<[number, number] | null>(null);
-    const [autoFollowLive, setAutoFollowLive] = useState(true);
-    const [hideEmptyLanes, setHideEmptyLanes] = useState(false);
+    // The latch is adjusted during render rather than kept in a ref, so the value
+    // the timer draws is the one React rendered with.
+    const [liveStart, setLiveStart] = useState<{ id: string | null; start: number }>({ id: null, start: 0 });
+    const liveStartSessionId = session?.fileName ?? null;
+    let liveElapsedStart = liveStart.id === liveStartSessionId ? liveStart.start : 0;
+    if (liveElapsedStart === 0 && session) {
+        liveElapsedStart = session.metadata?.startTime
+            ?? displayedEvents.find(e => e.type === 'sessionStart')?.timestamp
+            ?? 0;
+    }
+    if (liveStart.id !== liveStartSessionId || liveStart.start !== liveElapsedStart) {
+        setLiveStart({ id: liveStartSessionId, start: liveElapsedStart });
+    }
 
     const handleViewInList = useCallback((timestamp: number) => {
         setScrollToTimestamp(timestamp);
@@ -453,16 +470,16 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         return max;
     }, [session, displayedEvents, sessionStartTime]);
 
-    const effectiveXDomain = zoomedXDomain ?? xDomain;
-
     // Slide the zoomed window right when new live events arrive, preserving width.
     // Only active when isLiveSession + autoFollowLive + currently zoomed in.
-    useEffect(() => {
-        if (!autoFollowLive || !isLiveSession || !zoomedXDomain || !xDomain) return;
-        if (xDomain[1] <= zoomedXDomain[1]) return;
+    // Adjusted during render, before `effectiveXDomain` is read: from an effect
+    // the window would trail the events it follows by a commit.
+    if (autoFollowLive && isLiveSession && zoomedXDomain && xDomain && xDomain[1] > zoomedXDomain[1]) {
         const range = zoomedXDomain[1] - zoomedXDomain[0];
         setZoomedXDomain([xDomain[1] - range, xDomain[1]]);
-    }, [autoFollowLive, isLiveSession, xDomain, zoomedXDomain]);
+    }
+
+    const effectiveXDomain = zoomedXDomain ?? xDomain;
 
     // Archive mode: keep the video playhead in view while zoomed. The playhead
     // lives in videoTimeRef (updated per frame by the player without re-rendering),
@@ -552,19 +569,17 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
         setZoomedXDomain([newMin, newMax]);
     }, [xDomain, zoomedXDomain]);
 
-    const videoUrl = activeSessionId.current && videoSyncConfig
-        ? `/api/recordings/${encodeURIComponent(activeSessionId.current)}/video?v=${videoCacheBust}`
+    const videoUrl = activeSessionId && videoSyncConfig
+        ? `/api/recordings/${encodeURIComponent(activeSessionId)}/video?v=${videoCacheBust}`
         : null;
 
-    const subtitlesUrl = activeSessionId.current && hasSubtitles
-        ? `/api/recordings/${encodeURIComponent(activeSessionId.current)}/subtitles?v=${videoCacheBust}`
+    const subtitlesUrl = activeSessionId && hasSubtitles
+        ? `/api/recordings/${encodeURIComponent(activeSessionId)}/subtitles?v=${videoCacheBust}`
         : null;
 
     // Click-to-place is only meaningful in a server-backed archival session. A
-    // file-loaded session has activeSessionId.current === null (addLabel is a
-    // silent no-op). Reading the ref during render is safe: every file-vs-server
-    // transition sets it synchronously and then re-renders via setSession.
-    const isServerSession = session !== null && activeSessionId.current !== null;
+    // file-loaded session has activeSessionId === null (addLabel is a silent no-op).
+    const isServerSession = session !== null && activeSessionId !== null;
 
     return (
         <div className="app">
@@ -572,7 +587,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                 <h1>Artemis Extension Session Analyzer</h1>
                 {session && (
                     <div className="header-actions">
-                        {activeSessionId.current && !writesDisabled && (
+                        {activeSessionId && !writesDisabled && (
                             <button className="reset-btn" onClick={handleOpenSessionFolder} title="Open session folder in Finder">
                                 Open Folder
                             </button>
@@ -605,7 +620,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
 
             {session && (
                 <div className="session-view">
-                    {activeSessionId.current && videoSyncConfig && videoUrl && !isLiveSession && (
+                    {activeSessionId && videoSyncConfig && videoUrl && !isLiveSession && (
                         <div className="video-section">
                             <VideoPlayer
                                 ref={videoPlayerRef}
@@ -624,12 +639,12 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                                         onOffsetChange={handleOffsetChange}
                                     />
                                     <VideoUpload
-                                        sessionId={activeSessionId.current}
+                                        sessionId={activeSessionId}
                                         hasVideo={true}
                                         onUploadComplete={handleVideoUploadComplete}
                                     />
                                     <SubtitleUpload
-                                        sessionId={activeSessionId.current}
+                                        sessionId={activeSessionId}
                                         hasSubtitles={hasSubtitles}
                                         onUploadComplete={handleSubtitleUploadComplete}
                                     />
@@ -637,9 +652,9 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                             )}
                         </div>
                     )}
-                    {activeSessionId.current && !videoSyncConfig && !writesDisabled && (
+                    {activeSessionId && !videoSyncConfig && !writesDisabled && (
                         <VideoUpload
-                            sessionId={activeSessionId.current}
+                            sessionId={activeSessionId}
                             hasVideo={false}
                             onUploadComplete={handleVideoUploadComplete}
                         />
@@ -653,7 +668,7 @@ export function RecordingViewerApp({ authStatus }: RecordingViewerAppProps) {
                             startTime={liveElapsedStart}
                         />
                     )}
-                    {activeSessionId.current && !writesDisabled && (
+                    {activeSessionId && !writesDisabled && (
                         <div className="hotkey-legend-bar">
                             <HotkeyLegend />
                         </div>

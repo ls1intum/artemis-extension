@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { RecordedEvent } from '../types';
 
 export interface LiveSessionState {
@@ -35,8 +35,24 @@ function scheduleAnimationFrame(cb: () => void): ScheduleHandle {
     return { cancel: () => clearTimeout(id) };
 }
 
-export function useLiveSession(sessionId: string | null, enabled: boolean): LiveSessionState {
+/**
+ * @param onEnded called once when the stream reports the session over (a
+ *  `sessionEnd` line or a `session-gone` notice), with the final event
+ *  snapshot. The end is a subscription event, so the caller reacts to it in
+ *  this callback rather than by watching `error` from an effect. Held in a ref,
+ *  so passing a fresh closure on every render does not re-open the stream.
+ */
+export function useLiveSession(
+    sessionId: string | null,
+    enabled: boolean,
+    onEnded?: (finalEvents: RecordedEvent[]) => void,
+): LiveSessionState {
     const [state, setState] = useState<LiveSessionState>(INITIAL);
+
+    const onEndedRef = useRef(onEnded);
+    useEffect(() => {
+        onEndedRef.current = onEnded;
+    });
 
     useEffect(() => {
         // All mutable state lives in this effect's closure so a stale
@@ -49,6 +65,14 @@ export function useLiveSession(sessionId: string | null, enabled: boolean): Live
         let totalReceived = 0;
         let sessionEndPending = false;
         let scheduled: ScheduleHandle | null = null;
+        // The two end signals can both arrive for one stream; the caller is told
+        // once. Per effect run, so a new session id starts over.
+        let endNotified = false;
+        const notifyEnded = (finalEvents: RecordedEvent[]) => {
+            if (endNotified) return;
+            endNotified = true;
+            onEndedRef.current?.(finalEvents);
+        };
 
         if (!enabled || !sessionId) {
             queueMicrotask(() => { if (!closed) setState(INITIAL); });
@@ -93,6 +117,7 @@ export function useLiveSession(sessionId: string | null, enabled: boolean): Live
                 // flushing real events, we obviously aren't disconnected.
                 error: ended ? 'Session ended' : null,
             }));
+            if (ended) notifyEnded(snapshot);
         };
 
         const scheduleFlush = () => {
@@ -139,7 +164,15 @@ export function useLiveSession(sessionId: string | null, enabled: boolean): Live
         es.addEventListener('session-gone', () => {
             if (closed) return;
             es.close();
+            // Drain whatever is still waiting for the next frame, so the state
+            // and the snapshot the caller gets are the full picture.
+            if (scheduled) {
+                scheduled.cancel();
+                scheduled = null;
+            }
+            flush();
             setState((s) => ({ ...s, connected: false, error: 'Session ended' }));
+            notifyEnded(eventsBuf.slice());
         });
 
         return () => {
