@@ -78,6 +78,22 @@ suite('toCourseDetailData', () => {
         assert.strictEqual(result.course.isArchived, true);
     });
 
+    test('honours an archived course that carries the flag itself', () => {
+        // The archive workspace scan hands its entry on without opts: the start page maps
+        // `entry.course` directly. Without this the badge would be missing on exactly the route
+        // that opens an archived course for you, while the same course opened from the archive
+        // list would show it.
+        const result = toCourseDetailData({ id: 1, title: 'X', isArchived: true });
+        assert.ok(result);
+        assert.strictEqual(result.course.isArchived, true);
+    });
+
+    test('opts win over the flag on the course', () => {
+        const result = toCourseDetailData({ id: 1, title: 'X', isArchived: true }, { isArchived: false });
+        assert.ok(result);
+        assert.strictEqual(result.course.isArchived, false);
+    });
+
     test('result type does not allow arbitrary index-signature access', () => {
         const raw: CourseDashboardCourse & { exams: unknown[] } = { id: 1, exams: [] };
         const detail = toCourseDetailData(raw)!;

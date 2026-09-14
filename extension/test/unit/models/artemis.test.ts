@@ -231,12 +231,10 @@ suite('ArtemisParticipation', () => {
     });
 
     test('tolerates a malformed nested results array instead of throwing', () => {
-        // Declared tolerance change: `results` used to be mapped through
-        // parseArtemisResult unguarded, so `results: [null]` threw and the
-        // websocket layer dropped the whole message. The field is gone, so the
-        // parse now succeeds. (`exercise` never had this problem -- it was
-        // guarded by a typeof check, so a malformed exercise object was already
-        // ignored rather than parsed.)
+        // `results` is not parsed at all, so `results: [null]` cannot throw and the websocket
+        // layer cannot lose the whole message over it. Mapping it through parseArtemisResult
+        // unguarded is what would. (`exercise` is guarded by a typeof check, so a malformed
+        // exercise object is ignored rather than parsed.)
         assert.doesNotThrow(() => parseArtemisParticipation({
             id: 1, type: 'student', results: [null],
         }));

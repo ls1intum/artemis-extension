@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 import type { ArtemisApiService } from '@extension/api';
-import type { CourseDashboardEntry, CourseDashboardResponse, ExerciseDetail } from '@extension/types';
+import type { CourseDashboardEntry, CourseDashboardResponse, ExerciseDetail, ParticipationSummary } from '@extension/types';
 
 import type { ExerciseRegistryEntry } from './exerciseRegistry';
 import { LogCategory, logger } from './loggingService';
@@ -80,9 +80,30 @@ function mergeDefined<T extends object>(previous: T, next: T): T {
     return merged;
 }
 
+/**
+ * The participation whose repository stands for the exercise.
+ *
+ * An exercise can carry several, typically a graded one and a practice one,
+ * and only ONE survives the projection: a registry entry holds a single
+ * `repositoryUri`, and splitting the exercise in two would show it twice in
+ * the picker. The graded repository is the one that answers BOTH workspaces,
+ * because `findExerciseByRepositoryUrl` degrades a practice remote to its
+ * graded form before giving up, while a graded remote has nothing to degrade
+ * to. Taking the array's first element instead loses the match for a graded
+ * folder whenever the server happens to list the practice participation first.
+ *
+ * The last fallback keeps an id for a participation that names no repository,
+ * so the participation reverse lookup still resolves build results.
+ */
+function representativeParticipation(raw: ExerciseDetail): ParticipationSummary | undefined {
+    const participations = raw.studentParticipations ?? [];
+    const withRepository = participations.filter(p => typeof p.repositoryUri === 'string');
+    return withRepository.find(p => p.testRun !== true) ?? withRepository[0] ?? participations[0];
+}
+
 function toCatalogExercise(raw: ExerciseDetail, courseId: number): CatalogExercise | null {
     if (typeof raw.id !== 'number' || typeof raw.title !== 'string') { return null; }
-    const participation = raw.studentParticipations?.[0];
+    const participation = representativeParticipation(raw);
     return {
         id: raw.id,
         courseId,
@@ -220,6 +241,49 @@ export class CourseCatalog implements vscode.Disposable {
         if (this._dashboard?.some(e => courseIdOf(e) === id)) { return; }
         if (this._supplemental.get(`c:${id}`)?.kind === 'course') { return; }
         this.upsertSupplemental({ kind: 'course', entry }, epoch);
+    }
+
+    /**
+     * Replaces the exercises recorded for one course, wherever that course lives.
+     *
+     * A reload refreshes one course's exercises, and `upsertSupplemental` cannot carry that: both
+     * `get()` and `projection()` let a dashboard entry win over the supplemental layer, so for any
+     * course the dashboard already holds, which is every active one, a supplemental write is
+     * discarded. The reload's exercises have to land in the same layer the course came from.
+     *
+     * Replacing rather than merging is the point. An exercise that has disappeared, or a
+     * participation that has, must not survive in the registry because the older list still
+     * mentions it.
+     *
+     * `epoch` is the producer's, captured before its fetch, for the reason given on
+     * {@link injectEntry}.
+     */
+    public replaceCourseExercises(courseId: number, exercises: ExerciseDetail[], epoch: number): void {
+        if (epoch !== this._epoch) {
+            logger.info('CourseCatalog: rejecting an exercise refresh from another session', LogCategory.GENERAL);
+            return;
+        }
+
+        const index = this._dashboard?.findIndex(e => courseIdOf(e) === courseId) ?? -1;
+        if (this._dashboard && index >= 0) {
+            const existing = this._dashboard[index];
+            // Both slots, because `getEntryExercises` prefers the nested list only while it is
+            // non-empty and falls back to the flat one. Writing just one of them would let the
+            // other answer for a course whose exercises were emptied.
+            this._dashboard[index] = { ...existing, exercises, course: { ...existing.course, exercises } };
+        } else {
+            const key = `c:${courseId}`;
+            const existing = this._supplemental.get(key);
+            const entry = existing?.kind === 'course'
+                // Keep the course record. For an archived course it is the archive row, and this
+                // call knows nothing but the exercises.
+                ? { ...existing.entry, exercises, course: { ...existing.entry.course, exercises } }
+                : { course: { id: courseId, exercises } };
+            this._supplemental.set(key, { kind: 'course', entry });
+        }
+
+        const merged = this.get();
+        if (merged) { this._onCoursesLoaded.fire(merged); }
     }
 
     public upsertSupplemental(record: SupplementalRecord, epoch: number): void {

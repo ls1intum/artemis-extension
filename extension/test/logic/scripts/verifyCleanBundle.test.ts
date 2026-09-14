@@ -70,6 +70,25 @@ describe('verify-clean-bundle', () => {
             ]);
             expect(forbiddenInputs(f, 'openvsx')).toHaveLength(3);
         });
+        it('allows the type-only telemetry contract seam (struggle layout)', () => {
+            const f = metaWith([
+                'src/extension/telemetry/noop.ts', // NOT services/telemetry/ - type-contract seam
+                'src/extension/telemetry/contract.ts',
+                'src/extension/dataCollection/noop.ts',
+            ]);
+            expect(forbiddenInputs(f, 'openvsx')).toEqual([]);
+        });
+        /**
+         * The seam's REAL entry, as opposed to its noop. esbuild aliases `@telemetry` to noop.ts
+         * here, so this file only reaches the bundle via an import that bypasses the alias, and
+         * it carries the engine wiring plus the developer commands. TELEMETRY_SUBTREE
+         * (`services/telemetry/`) does not cover this path, so it needs its own forbidden entry.
+         */
+        it('forbids the real telemetry seam entry, while Desktop keeps it', () => {
+            const f = metaWith(['src/extension/telemetry/index.ts']);
+            expect(forbiddenInputs(f, 'openvsx')).toEqual(['src/extension/telemetry/index.ts']);
+            expect(forbiddenInputs(metaWith(['src/extension/telemetry/index.ts']), 'desktop')).toEqual([]);
+        });
         it('forbids every StruggleDetection view/hook file except stub/types/index', () => {
             const f = metaWith([
                 'src/webview/views/StruggleDetection/StruggleDetectionView.tsx',

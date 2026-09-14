@@ -54,7 +54,7 @@ export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
                 title="AI Extension Checker"
                 subtitle="Checks for AI-assisted coding extensions that may violate academic integrity policies."
             >
-                {isLoaded && extensions.length > 0 && (
+                {extensions.length > 0 && (
                     <div style={{
                         padding: '12px 16px',
                         borderRadius: '6px',
@@ -73,7 +73,7 @@ export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
                 )}
             </PageHeader>
 
-            {isLoaded && Object.entries(groupedByProvider).map(([providerName, group]) => (
+            {Object.entries(groupedByProvider).map(([providerName, group]) => (
                 <Container
                     key={providerName}
                     listMode={true}
@@ -144,7 +144,7 @@ export function AiConfigView({ vscodeApi }: AiConfigViewProps) {
                 </Container>
             ))}
 
-            {isLoaded && extensions.length === 0 && (
+            {extensions.length === 0 && (
                 <Container variant="muted">
                     <EmptyState
                         title="No blocklisted extensions configured"

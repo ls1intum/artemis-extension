@@ -2,7 +2,7 @@ import * as assert from 'assert';
 
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog, SupplementalRecord } from '@extension/services/courseCatalog';
-import type { TelemetryManager } from '@extension/services/telemetry';
+import type { StruggleCoordinator } from '@extension/services/struggle/struggleCoordinator';
 import { ExerciseOpeningService } from '@extension/services/ui/exerciseOpeningService';
 import type { ExerciseDetailsResponse } from '@extension/types';
 
@@ -37,7 +37,7 @@ suite('ExerciseOpeningService → CourseAccessStorage hook', () => {
         const storage = new FakeCourseAccess();
         const svc = new ExerciseOpeningService(
             undefined,
-            undefined as unknown as TelemetryManager,
+            undefined as unknown as StruggleCoordinator,
             storage as unknown as CourseAccessStorageService,
         );
 
@@ -58,7 +58,7 @@ suite('ExerciseOpeningService → CourseAccessStorage hook', () => {
         const storage = new FakeCourseAccess();
         const svc = new ExerciseOpeningService(
             undefined,
-            undefined as unknown as TelemetryManager,
+            undefined as unknown as StruggleCoordinator,
             storage as unknown as CourseAccessStorageService,
         );
 
@@ -83,7 +83,7 @@ suite('ExerciseOpeningService → CourseAccessStorage hook', () => {
         const catalog = new FakeCatalog(6);
         const svc = new ExerciseOpeningService(
             catalog as unknown as CourseCatalog,
-            undefined as unknown as TelemetryManager,
+            undefined as unknown as StruggleCoordinator,
             storage as unknown as CourseAccessStorageService,
         );
 
@@ -105,7 +105,7 @@ suite('ExerciseOpeningService → CourseAccessStorage hook', () => {
     test('works without storage service (optional param)', () => {
         const svc = new ExerciseOpeningService(
             undefined,
-            undefined as unknown as TelemetryManager,
+            undefined as unknown as StruggleCoordinator,
             undefined,
         );
 
@@ -127,7 +127,7 @@ suite('ExerciseOpeningService → CourseCatalog write', () => {
         const catalog = new FakeCatalog(7);
         const svc = new ExerciseOpeningService(
             catalog as unknown as CourseCatalog,
-            undefined as unknown as TelemetryManager,
+            undefined as unknown as StruggleCoordinator,
             undefined,
         );
 
@@ -168,7 +168,7 @@ suite('ExerciseOpeningService → CourseCatalog write', () => {
         const catalog = new FakeCatalog();
         const svc = new ExerciseOpeningService(
             catalog as unknown as CourseCatalog,
-            undefined as unknown as TelemetryManager,
+            undefined as unknown as StruggleCoordinator,
             undefined,
         );
 
@@ -198,7 +198,7 @@ suite('ExerciseOpeningService: a late open that crossed an identity change', () 
         const telemetry = new FakeTelemetry();
         const svc = new ExerciseOpeningService(
             catalog as unknown as CourseCatalog,
-            telemetry as unknown as TelemetryManager,
+            telemetry as unknown as StruggleCoordinator,
             storage as unknown as CourseAccessStorageService,
         );
 
@@ -248,7 +248,7 @@ suite('ExerciseOpeningService: a late open that crossed an identity change', () 
         const telemetry = new FakeTelemetry();
         const svc = new ExerciseOpeningService(
             undefined,
-            telemetry as unknown as TelemetryManager,
+            telemetry as unknown as StruggleCoordinator,
             undefined,
         );
 

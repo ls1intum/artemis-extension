@@ -1,0 +1,54 @@
+.panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.note {
+    margin: 0;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.groupTitle {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--vscode-descriptionForeground);
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.label {
+    font-size: 13px;
+    color: var(--vscode-foreground);
+}
+
+.value {
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--vscode-foreground);
+}
+
+.muted {
+    color: var(--vscode-descriptionForeground);
+}
+
+.sub {
+    font-weight: 400;
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}

@@ -306,9 +306,14 @@ export interface ArchiveSearchResult {
 
 /**
  * Searches the given archived courses for one whose exercises match `repositoryUrl`.
- * Fetches archived course details one at a time (sequential) to avoid loading all at once.
+ * Fetches the exercises one course at a time (sequential) to avoid loading all at once.
  * A per-course failure does not abort the search - the remaining courses are still tried -
  * but it does mark the result unreachable, since the failed course could have been the match.
+ *
+ * The entry handed back is assembled here: the archive row the caller already
+ * holds carries the course metadata, and only the exercises are fetched. The
+ * old `courses/{id}/for-dashboard`, which returned both in one response, no
+ * longer exists server-side.
  */
 export async function searchArchivedCoursesForRepository(
     artemisApi: ArtemisApiService,
@@ -322,13 +327,18 @@ export async function searchArchivedCoursesForRepository(
             continue;
         }
         try {
-            const entry = await artemisApi.getCourseForDashboard(course.id);
-            const exercises: ExerciseSource[] = getEntryExercises(entry)
-                .map(ex => toExerciseSource(ex, entry.course?.id))
+            const courseExercises = await artemisApi.getCourseExercisesForOverview(course.id);
+            // `isArchived` travels on the course because this entry is handed to the start page,
+            // which maps `entry.course` directly and has no way to know where it came from.
+            const entry: CourseDashboardEntry = {
+                course: { ...course, exercises: courseExercises, isArchived: true },
+            };
+            const exercises: ExerciseSource[] = courseExercises
+                .map(ex => toExerciseSource(ex, course.id))
                 .filter((s): s is ExerciseSource => s !== null);
 
             if (findExerciseByRepositoryUrl(repositoryUrl, exercises)) {
-                logger.irisChat(`Found workspace match in archived course: ${entry.course?.title}`);
+                logger.irisChat(`Found workspace match in archived course: ${course.title}`);
                 return { entry, reachable };
             }
         } catch (error) {

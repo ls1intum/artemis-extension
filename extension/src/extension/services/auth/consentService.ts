@@ -8,9 +8,7 @@ export enum ConsentLevel {
     Pending = 'pending',
     /** User explicitly declined data collection */
     Declined = 'declined',
-    /** User consented to basic (anonymized) data collection */
-    Basic = 'basic',
-    /** User consented to extended data collection (detailed recordings) */
+    /** User consented to data collection: detailed session recordings for the study */
     Extended = 'extended',
 }
 
@@ -65,7 +63,11 @@ export class ConsentService implements vscode.Disposable {
             return;
         }
 
-        const message = 'Help improve Iris by sharing anonymous usage data. You can change this anytime in Settings.';
+        // Names what is actually written, including the two a student would not guess: whole-file
+        // snapshots (snapshots/snapshotManager.ts) and terminal output (TerminalCommandEvent.output).
+        // "Recording", not "sharing": the recorder writes to globalStorageUri and the extension has
+        // no upload path, so the copy must not imply one.
+        const message = 'Help improve Iris by recording your exercise sessions for research: your edits and the contents of your files, builds, terminal commands and their output, and your Iris chats. The recording is stored on this computer. You can change this anytime in Settings.';
 
         const selection = await vscode.window.showInformationMessage(
             message,
@@ -75,8 +77,8 @@ export class ConsentService implements vscode.Disposable {
         );
 
         if (selection === 'Accept') {
-            await this.setConsent(ConsentLevel.Basic);
-            logger.info('User accepted basic data collection', LogCategory.GENERAL);
+            await this.setConsent(ConsentLevel.Extended);
+            logger.info('User accepted data collection', LogCategory.GENERAL);
         } else if (selection === 'Decline') {
             await this.setConsent(ConsentLevel.Declined);
             logger.info('User declined data collection', LogCategory.GENERAL);
@@ -98,8 +100,13 @@ export class ConsentService implements vscode.Disposable {
         switch (value) {
             case 'declined':
                 return ConsentLevel.Declined;
+            // Legacy: `basic` was offered by an earlier prompt but gated nothing, so a profile
+            // carrying it consented to no collection that ever ran. It must not be promoted to the
+            // level that does record, and reading it as declined would be just as wrong: that was a
+            // yes, to terms that no longer exist. Pending asks again, with copy that says what is
+            // recorded, which is the only route by which such a profile can take part at all.
             case 'basic':
-                return ConsentLevel.Basic;
+                return ConsentLevel.Pending;
             case 'extended':
                 return ConsentLevel.Extended;
             case 'pending':

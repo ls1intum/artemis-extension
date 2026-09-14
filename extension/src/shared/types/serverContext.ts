@@ -15,7 +15,7 @@ export interface ServerContext {
     name?: string;
 }
 
-/** One row of `/api/iris/chat/{courseId}/sessions/overview`, plus the course it came from. */
+/** One row of `/api/iris/chat/courses/{courseId}/sessions/overview`, plus the course it came from. */
 export interface SessionSummary {
     sessionId: number;
     courseId: number;

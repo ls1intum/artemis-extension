@@ -3,30 +3,32 @@ import * as vscode from 'vscode';
 import type { ArtemisWebviewProvider, ChatWebviewProvider } from '@extension/provider';
 import type { ConsentService } from '@extension/services/auth/consentService';
 import type { ExerciseRegistry } from '@extension/services/exerciseRegistry';
-import type { ITelemetryManager } from '@extension/services/telemetry';
-import type { SessionRecorder } from '@extension/services/telemetry/recording';
+import type { SessionRecorder } from '@extension/services/recording';
 import {
     RecordingStatusBarService as RecordingStatusBarServiceImpl,
     SessionRecorder as SessionRecorderImpl,
-} from '@extension/services/telemetry/recording';
+} from '@extension/services/recording';
 import {
     collectInitialBreakpointSnapshot,
-} from '@extension/services/telemetry/recording/eventCollectors';
-import type { RecordedEvent } from '@extension/services/telemetry/recording/types';
+} from '@extension/services/recording/eventCollectors';
+import type { RecordedEvent } from '@extension/services/recording/types';
+import type { SensorHub } from '@extension/services/sensing';
+import { SPEC } from '@extension/services/struggle/config';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import type { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
+import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 import type { PlatformCapabilities } from '@extension/theia';
-import { VSCODE_CONFIG } from '@extension/utils/constants';
 
 interface RecorderWiringDeps {
     context: vscode.ExtensionContext;
     consentService: ConsentService;
     artemisWebsocketService: ArtemisWebsocketService;
-    telemetryManager: ITelemetryManager;
+    struggleCoordinator: IStruggleCoordinator;
     artemisWebviewProvider: ArtemisWebviewProvider;
     chatWebviewProvider: ChatWebviewProvider;
     capabilities?: PlatformCapabilities;
     exerciseRegistry?: ExerciseRegistry;
+    sensorHub: SensorHub;
     workspaceTracker: WorkspaceExerciseTracker;
 }
 
@@ -38,11 +40,11 @@ interface RecorderWiringResult {
 export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringResult {
     const {
         context, consentService, artemisWebsocketService,
-        telemetryManager, artemisWebviewProvider, chatWebviewProvider,
-        capabilities, exerciseRegistry, workspaceTracker,
+        struggleCoordinator, artemisWebviewProvider, chatWebviewProvider,
+        capabilities, exerciseRegistry, sensorHub, workspaceTracker,
     } = deps;
 
-    const sessionRecorder = new SessionRecorderImpl(context.globalStorageUri, capabilities, exerciseRegistry);
+    const sessionRecorder = new SessionRecorderImpl(context.globalStorageUri, capabilities, exerciseRegistry, undefined, sensorHub);
 
     if (consentService.isExtendedCollectionEnabled) {
         sessionRecorder.enable();
@@ -78,41 +80,27 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         sessionRecorder.recordIrisChatFeedback(messageId, helpful);
     }));
 
-    disposables.push(telemetryManager.onDidCalculateEQ(({ eq, confidence, source, triggerType }) => {
-        sessionRecorder.recordEqSnapshot(eq, confidence, source, triggerType);
+    // Recorder feed: per-tick struggle score + emitted alerts. The coordinator
+    // delegates onDidTick/onDidAlert from the engine; recording is bundle-excluded
+    // so the coordinator never imports the recorder (Decision 1).
+    disposables.push(struggleCoordinator.onDidTick(tick => {
+        sessionRecorder.recordStruggleScore({
+            t: tick.t,
+            fTyping: tick.features.fTyping, fGap: tick.features.fGap,
+            typingRate: tick.features.typingRate, longestGapS: tick.features.longestGapS,
+        });
     }));
-    disposables.push(telemetryManager.onDidShowIntervention(decision => {
-        sessionRecorder.recordIntervention(
-            'shown', decision.level as 'subtle' | 'notification' | 'proactive',
-            decision.shouldIntervene, decision.eq, decision.confidence, decision.triggerType,
-        );
-    }));
-    disposables.push(telemetryManager.onDidAcceptIntervention(decision => {
-        sessionRecorder.recordIntervention(
-            'accepted', decision.level as 'subtle' | 'notification' | 'proactive',
-            decision.shouldIntervene, decision.eq, decision.confidence, decision.triggerType,
-        );
-    }));
-    disposables.push(telemetryManager.onDidDismissIntervention(payload => {
-        sessionRecorder.recordIntervention(
-            'dismissed', payload.level as 'subtle' | 'notification' | 'proactive',
-            payload.shouldIntervene, payload.eq, payload.confidence, payload.triggerType,
-            { dismissReason: payload.dismissReason },
-        );
-    }));
-    disposables.push(telemetryManager.onDidBlockIntervention(({ decision }) => {
-        sessionRecorder.recordIntervention(
-            'blocked', decision.level as 'subtle' | 'notification' | 'proactive',
-            false, decision.eq, decision.confidence, decision.triggerType,
-            { blockedReason: decision.blockedReason, rawWanted: true },
-        );
-    }));
-    disposables.push(telemetryManager.onDidSuppressIntervention(({ decision, reason }) => {
-        sessionRecorder.recordIntervention(
-            'suppressed', decision.level as 'subtle' | 'notification' | 'proactive',
-            decision.shouldIntervene, decision.eq, decision.confidence, decision.triggerType,
-            { suppressionReason: reason, rawWanted: decision.rawWanted },
-        );
+    disposables.push(struggleCoordinator.onDidAlert(alert => {
+        sessionRecorder.recordAlert(alert.kind === 'edit'
+            ? {
+                kind: 'edit', t: alert.t, urgency: alert.urgency,
+                types: [...alert.types], primary: alert.primary,
+                path: alert.path, inWarmup: alert.inWarmup, inGrace: alert.inGrace, theta: SPEC.THETA_FULL,
+            }
+            : {
+                kind: 'discrete', t: alert.t, urgency: alert.urgency,
+                trigger: alert.trigger, inWarmup: alert.inWarmup, theta: SPEC.THETA_FULL,
+            });
     }));
 
     disposables.push(artemisWebviewProvider.onDidChangeViewNavigation(({ from, to }) => {
@@ -155,30 +143,13 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         sessionRecorder.recordSubmission(payload);
     }));
 
-    // Startup contributors run synchronously inside SessionRecorder._doStart,
-    // between the initial-state events and the `startupPhaseComplete` marker,
-    // so seeding is deterministic at session start.
-    disposables.push(sessionRecorder.registerStartupContributor((ctx): RecordedEvent[] => {
-        const eqState = telemetryManager.getEqEngineState();
-        if (eqState.snapshots.length === 0) {
-            return [];
-        }
-        return [{
-            type: 'eqEngineState',
-            timestamp: ctx.timestamp,
-            snapshots: eqState.snapshots.map(s => ({
-                timestamp: s.timestamp,
-                hasErrors: s.hasErrors,
-                errorFamilies: [...s.errorFamilies],
-                errorCount: s.errorCount,
-            })),
-            currentEQ: eqState.currentEQ,
-            pairCount: eqState.pairCount,
-            confidence: eqState.confidence,
-        }];
-    }));
+    // ── Startup contributors ─────────────────────────────────────────
+    // These run synchronously inside SessionRecorder._doStart, between the
+    // initial-state events and the `startupPhaseComplete` marker. They
+    // replace the old onDidChangeState seeding path (which fired after the
+    // first user event, not deterministically at session start).
 
-    // Snapshot what is visible at session start.
+    // Panel visibility seeds — snapshot what is visible at session start.
     disposables.push(sessionRecorder.registerStartupContributor((ctx): RecordedEvent[] => {
         return [
             {
@@ -196,18 +167,16 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
         ];
     }));
 
-    // Struggle-detection setting values at session start, so analysis can
-    // classify control vs treatment sessions.
+    // Configuration snapshot: legacy compatibility fields (#352). The settings were
+    // removed, so both values are pinned true; kept only so old and new recordings
+    // share one schema. engineVersion remains meaningful.
     disposables.push(sessionRecorder.registerStartupContributor((ctx): RecordedEvent[] => {
-        const struggleConfig = vscode.workspace.getConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION);
-        const enabled = struggleConfig.get<boolean>(VSCODE_CONFIG.STRUGGLE_DETECTION.ENABLED_KEY, true);
-        const rawShow = struggleConfig.get<unknown>(VSCODE_CONFIG.STRUGGLE_DETECTION.SHOW_INTERVENTIONS_KEY, true);
-        const showInterventions = typeof rawShow === 'boolean' ? rawShow : true;
         return [{
             type: 'configurationSnapshot',
             timestamp: ctx.timestamp,
-            struggleDetectionEnabled: enabled,
-            showInterventions,
+            struggleDetectionEnabled: true,
+            showInterventions: true,
+            engineVersion: 'v3',
         }];
     }));
 
@@ -216,44 +185,11 @@ export function wireSessionRecorder(deps: RecorderWiringDeps): RecorderWiringRes
     // workspace-global, independent of debug sessions.
     disposables.push(sessionRecorder.registerStartupContributor((ctx): RecordedEvent[] => {
         const root = ctx.exerciseRoot ? vscode.Uri.parse(ctx.exerciseRoot) : undefined;
-        const snapshot = collectInitialBreakpointSnapshot(vscode.debug.breakpoints, root, ctx.timestamp);
+        const snapshot = collectInitialBreakpointSnapshot(sensorHub.readBreakpoints(), root, ctx.timestamp);
         return snapshot ? [snapshot] : [];
     }));
 
-    // Runtime struggle-detection setting changes are recorded so mid-session
-    // flips can be reconciled with intervention events by timestamp.
-    const readStruggleEnabled = (): boolean => {
-        const cfg = vscode.workspace.getConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION);
-        return cfg.get<boolean>(VSCODE_CONFIG.STRUGGLE_DETECTION.ENABLED_KEY, true);
-    };
-    const readShowInterventions = (): boolean => {
-        const cfg = vscode.workspace.getConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION);
-        const raw = cfg.get<unknown>(VSCODE_CONFIG.STRUGGLE_DETECTION.SHOW_INTERVENTIONS_KEY, true);
-        return typeof raw === 'boolean' ? raw : true;
-    };
-    let lastStruggleEnabled = readStruggleEnabled();
-    let lastShowInterventions = readShowInterventions();
-
-    disposables.push(vscode.workspace.onDidChangeConfiguration(event => {
-        if (!event.affectsConfiguration(VSCODE_CONFIG.STRUGGLE_DETECTION.SECTION)) {
-            return;
-        }
-        const newEnabled = readStruggleEnabled();
-        const newShow = readShowInterventions();
-        const changes: { struggleDetectionEnabled?: boolean; showInterventions?: boolean } = {};
-        if (newEnabled !== lastStruggleEnabled) {
-            changes.struggleDetectionEnabled = newEnabled;
-            lastStruggleEnabled = newEnabled;
-        }
-        if (newShow !== lastShowInterventions) {
-            changes.showInterventions = newShow;
-            lastShowInterventions = newShow;
-        }
-        if (Object.keys(changes).length > 0) {
-            sessionRecorder.recordConfigurationChange(changes);
-        }
-    }));
-
+    // Recording status bar button
     const recordingStatusBar = new RecordingStatusBarServiceImpl(
         sessionRecorder,
         () => workspaceTracker.exerciseId,

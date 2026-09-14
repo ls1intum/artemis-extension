@@ -1,6 +1,6 @@
 import type { EventType } from '../types';
 import { ALL_LABELS } from '../types';
-import { MARKER_COLORS } from '../constants';
+import { ALL_MARKER_COLORS } from '../constants';
 import { formatOffset } from './format';
 import {
     AXIS_HEIGHT,
@@ -108,7 +108,7 @@ function drawDots({ ctx, visibleLanes, laneBins, hoveredDotKey }: DrawParams): v
         const bins = laneBins.get(type);
         if (!bins || bins.length === 0) continue;
         const cy = laneIdx * LANE_HEIGHT + LANE_HEIGHT / 2;
-        const color = MARKER_COLORS[type];
+        const color = ALL_MARKER_COLORS[type];
         for (const bin of bins) {
             const isDense = bin.count >= DENSE_THRESHOLD;
             const r = isDense ? DOT_RADIUS_DENSE : DOT_RADIUS;

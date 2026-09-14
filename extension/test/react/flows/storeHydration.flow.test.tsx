@@ -136,6 +136,8 @@ describe('dashboardInit hydrates useDashboardStore', () => {
         expect(state.recentCourses.length).toBeGreaterThan(0);
         expect(state.recentCourses[0].courseData.course.id).toBe(42);
         expect(state.isLoading).toBe(false);
+        // hideDeveloperTools hydrates from the payload (fail-closed default is true → init sets false).
+        expect(state.hideDeveloperTools).toBe(false);
     });
 });
 

@@ -4,6 +4,7 @@ export type { BuildLogEntry, ParsedBuildError } from './build';
 export { parseBuildLogEntry } from './build';
 export type { ArtemisFeedback, ArtemisParticipation, ArtemisUser } from './core';
 export { parseArtemisFeedback, parseArtemisParticipation, parseArtemisResult, parseArtemisUser } from './core';
+export { parseCourseExercisesForOverview } from './courseOverview';
 export { ApiError, isIrisCourseDisabled, MalformedResponseError } from './errors';
 export type { IrisHealthStatus } from './iris';
 export { parseIrisHealthStatus } from './iris';

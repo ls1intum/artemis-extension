@@ -2,7 +2,7 @@
 // profiles select what is dropped:
 //   desktop  drop the recorder group only (struggle detection stays)
 //   openvsx  drop recorder + struggle + walkthrough groups and apply cloud/Theia setting defaults
-// CLI: generate-clean-manifest.js <out-path> --profile=desktop|openvsx. See docs/adr/002.
+// CLI: generate-clean-manifest.js <out-path> --profile=desktop|openvsx. See docs/adr/002 + 003.
 const fs = require('fs');
 const path = require('path');
 
@@ -10,13 +10,19 @@ const path = require('path');
 const CLOUD_SETTING_DEFAULTS = {
     'artemis.startPage': 'workspace-exercise',
     'artemis.showStartPageSuggestion': false,
-    'artemis.struggleDetection.enabled': false,
-    'artemis.struggleDetection.showInterventions': false,
     'artemis.showSetDefaultClonePathPrompt': false,
 };
 
 const RECORDER_COMMANDS = new Set(['artemis.replaySession', 'artemis.openRecordingsFolder']);
-const STRUGGLE_COMMANDS = new Set(['artemis.showStruggleScore']);
+// Every command registered in code the Open VSX build drops. The developer commands come from
+// the `@telemetry` seam module, which resolves to noop.ts there, so contributing them without
+// dropping them advertises a palette entry with no handler behind it. Kept honest by
+// "openvsx: contributes no command whose only registration site is dropped from the bundle".
+const STRUGGLE_COMMANDS = new Set([
+    'artemis.showStruggleScore',
+    'artemis.forceStruggleIntervention',
+    'artemis.toggleStruggleWarmupSkip',
+]);
 
 function dropCommandsAndMenuRefs(m, commandSet) {
     const c = m.contributes || {};
@@ -36,6 +42,13 @@ function dropRecorderGroup(m) {
 }
 
 function dropStruggleGroup(m) {
+    // The legacy struggle settings were removed from the source manifest (#352). The proactive-help
+    // consent is not one of them: it still gates the engine in the builds that HAVE an engine. Here
+    // the `@telemetry` seam resolves to noop.ts, so nothing reads the setting, no consent prompt
+    // fires and no proactive control is built. Leaving it contributed would offer a switch for
+    // local struggle detection this bundle does not contain.
+    const props = m.contributes && m.contributes.configuration && m.contributes.configuration.properties;
+    if (props) { delete props['artemis.iris.proactiveCodeEgress']; }
     dropCommandsAndMenuRefs(m, STRUGGLE_COMMANDS);
 }
 

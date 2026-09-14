@@ -10,9 +10,11 @@ export interface ExerciseRegistryEntry extends ExerciseRef {
 export class ExerciseRegistry {
     private exercises: Map<number, ExerciseRegistryEntry> = new Map();
     /**
-     * Reverse lookup from participationId to exerciseId. A ResultDTO carries
-     * only a participationId, so without this map TelemetryManager cannot tell
-     * a build result for exercise A from one for the active exercise B.
+     * Reverse lookup from participationId to exerciseId.
+     * Enables the StruggleCoordinator to filter WebSocket build results by the
+     * currently-active exercise — the ResultDTO only carries a participationId,
+     * not an exerciseId, so without this map a result from exercise A would
+     * contaminate the struggle engine of the active exercise B.
      */
     private participationToExercise: Map<number, number> = new Map();
 

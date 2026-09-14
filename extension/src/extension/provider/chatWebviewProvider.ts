@@ -19,6 +19,7 @@ import {
     IrisWebSocketSessionClient,
 } from '@extension/services/iris';
 import type { IrisChatSendAttempt } from '@extension/services/iris/chat/chatSendController';
+import { ProactiveChatPresenter } from '@extension/services/iris/chat/proactiveChatPresenter';
 import type { TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
 import { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
 import { transcriptMessage } from '@extension/services/iris/conversation/messageFormatting';
@@ -27,7 +28,6 @@ import type { DetectionUiState } from '@extension/services/iris/startup/chatStar
 import { ChatStartupCoordinator } from '@extension/services/iris/startup/chatStartupCoordinator';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { SessionIdentityReader } from '@extension/services/session/sessionIdentityCoordinator';
-import type { ITelemetryManager, StruggleContext } from '@extension/services/telemetry';
 import { getReactWebviewHtml } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
 import {
@@ -36,6 +36,7 @@ import {
 } from '@extension/services/workspace';
 import type { DetectionOutcome } from '@extension/services/workspace/detectionOutcome';
 import type { WorkspaceExercise, WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
+import type { IStruggleCoordinator } from '@extension/telemetry/contract';
 import type { IChatWebviewProvider } from '@extension/types/IChatWebviewProvider';
 
 import { BaseWebviewProvider } from './baseWebviewProvider';
@@ -135,8 +136,23 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }>();
     public readonly onDidProvideIrisChatFeedback = this._onDidProvideIrisChatFeedback.event;
 
+    /**
+     * Everything the proactive struggle feature draws in the chat. Public because
+     * `extension.ts` wires the engine's chat hooks straight to it.
+     */
+    public readonly proactive: ProactiveChatPresenter;
+
     private readonly _onDidChangePanelVisibility = new vscode.EventEmitter<boolean>();
     public readonly onDidChangePanelVisibility = this._onDidChangePanelVisibility.event;
+
+    /**
+     * Offer buttons live in BOTH webviews: the sidebar renders the offer banner, the chat renders
+     * the offer bubble (`IrisChatView.handleOfferAnswer`). Both post the same `nudgeBannerAction`
+     * command, so both providers need to surface it or the chat-side click is silently dropped in
+     * the unhandled-command path. `extension.ts` subscribes one handler to both events.
+     */
+    private readonly _onDidNudgeBannerAction = new vscode.EventEmitter<WebCmd<typeof WebviewCmd.NudgeBannerAction>['payload']>();
+    public readonly onDidNudgeBannerAction = this._onDidNudgeBannerAction.event;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -146,7 +162,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         noAiDetectionService: NoAiDetectionService,
         exerciseRegistry: ExerciseRegistry,
         private readonly _courseCatalog: CourseCatalog | undefined,
-        private readonly _telemetryManager: ITelemetryManager | undefined,
+        _struggleCoordinator: IStruggleCoordinator | undefined,
         workspaceTracker: WorkspaceExerciseTracker,
         /** The picker's course order. Scopes recency per server and per principal. */
         courseAccess: CourseAccessStorageService,
@@ -161,6 +177,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._disposables.push(this._onDidChangeExerciseContext);
         this._disposables.push(this._onDidProvideIrisChatFeedback);
         this._disposables.push(this._onDidChangePanelVisibility);
+        this._disposables.push(this._onDidNudgeBannerAction);
         // Struggle detection follows the WORKSPACE, never the chat topic: the
         // detector observes the code that is open, and `workspaceDetectionService`
         // derives that from the folder's git remote. A topic change points the
@@ -202,6 +219,13 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         // websocket service, so every collaborator must read it at call time.
         const getConversation = () => this._conversation;
 
+        this.proactive = new ProactiveChatPresenter({
+            postMessage: post,
+            getConversation,
+            getView: () => this._view,
+            focusChat: () => vscode.commands.executeCommand('iris.chatView.focus'),
+            artemisApi: this._artemisApiService,
+        });
         this._availability = new ChatAvailabilityCoordinator(
             getConversation, this._courseCatalog, this._artemisApiService, post,
         );
@@ -360,12 +384,17 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         this._viewDisposables.push(webviewView.onDidChangeVisibility(() => {
             this._onDidChangePanelVisibility.fire(webviewView.visible);
             if (webviewView.visible) {
+                this.proactive.setProactiveBadge(false);
                 logger.debug('Iris Chat view became visible, loading data...', LogCategory.VIEW);
                 this._sendInitData();
             } else {
                 logger.debug('Iris Chat view became hidden', LogCategory.VIEW);
             }
         }));
+        // Seed the current visibility once: a view that resolves already-visible fires no
+        // onDidChangeVisibility change event, so consumers (the in-session banner gate) would
+        // otherwise stay stale-false until the first visibility toggle.
+        this._onDidChangePanelVisibility.fire(webviewView.visible);
 
         this._viewDisposables.push(vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('artemis.developerMode')) {
@@ -419,6 +448,11 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     private async _sendInitData(): Promise<void> {
         this._viewStatePresenter.postSnapshot();
+        // A re-created webview starts with an empty live-episode set; replay the last
+        // snapshot BEFORE messages hydrate so the live episode never renders folded.
+        // Synchronous on purpose: it must not introduce an await between the state
+        // snapshot above and the transcript below.
+        this.proactive.resendLiveEpisode();
         // A conversation already installed (the webview was disposed and
         // recreated while one was open, which is what collapsing and reopening
         // the sidebar does without `retainContextWhenHidden`) gets no other
@@ -446,9 +480,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         }
     }
 
-    public getStruggleContext(): StruggleContext | undefined {
-        return this._telemetryManager?.getStruggleContext();
-    }
+    // ── Public API ─────────────────────────────────────────────────────
 
     /**
      * The course the open conversation is in, for anything outside the chat
@@ -472,6 +504,20 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
         return this._noAiDetectionService.isNoAiEnabled;
     }
 
+    /**
+     * Resolves once the initial `.noai` workspace scan has run, so the first `isNoAiEnabled()` read is
+     * authoritative. Used by the AskIris proactive card so the first render can't fail-open.
+     */
+    /** Collapse every proactive episode to a fold line. On IChatWebviewProvider. */
+    public collapseProactiveEpisodes(): void {
+        this.proactive.collapseProactiveEpisodes();
+    }
+
+    public whenNoAiReady(): Promise<void> {
+        return this._noAiDetectionService.waitForInitialization().then(() => undefined);
+    }
+
+    // ── Workspace detection sink ──────────────────────────────────────
     // Called by wireWorkspaceDetection at activation. The provider implements
     // the sink because it owns the presenter that has to repost the snapshot
     // when the workspace exercise changes.
@@ -553,6 +599,12 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
 
     protected _onReady(): void {
         this._sendInitData();
+        // A banner-raised offer is accepted BEFORE the chat exists: `handleBannerAction` runs, then
+        // `iris.chatView.focus` resolves the view and `_resetReadyState()` throws the queued message
+        // away. Replaying here is what makes the student land on a chat that already shows Iris
+        // working. Nothing in the load path can clear the flag, so the order against LoadMessages
+        // does not matter.
+        this.proactive.replayThinking();
     }
 
     protected _handleCommand(message: Extract<WebviewToExtensionMessage, { type: 'command' }>): void {
@@ -649,8 +701,18 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                     });
                     break;
                 }
+                case WebviewCmd.MessageProactiveOutcome: {
+                    const { sessionId, messageId, proactiveEpisodeId, outcome } = getPayload<WebCmd<'messageProactiveOutcome'>>(message);
+                    this.proactive.handleProactiveOutcome(sessionId, messageId, proactiveEpisodeId, outcome);
+                    break;
+                }
                 case WebviewCmd.OpenHelpPopup:
                     this._handleOpenHelpPopup();
+                    break;
+                case WebviewCmd.NudgeBannerAction:
+                    // The chat's offer bubble. Unlike the sidebar there is no banner cache to
+                    // invalidate here; the bubble resolves itself through resolveOffer.
+                    this._onDidNudgeBannerAction.fire(getPayload<WebCmd<typeof WebviewCmd.NudgeBannerAction>>(message));
                     break;
                 default:
                     void this._handleUtilityCommand(message).then(handled => {
@@ -744,6 +806,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
             vscode.window.showErrorMessage('Failed to submit feedback. Please try again.');
         }
     }
+
 
     private async _handleOpenDiagnostics(): Promise<void> {
         const report = this._chatDiagnosticsService.generateDiagnosticsReport();

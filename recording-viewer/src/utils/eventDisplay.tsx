@@ -1,7 +1,46 @@
 import type { RecordedEvent } from '../types';
 import { formatOffset, formatDuration, shortenUri, formatDebugSessionMeta, formatBreakpointLocation } from './format';
 
-/** "45% | statement 20–80% visible": page scroll percent + visible slice of the statement. */
+// Single source of truth for rendering a recorded event.
+
+/**
+ * The EQ engine and its recording events (`eqSnapshot`, `eqEngineState`,
+ * `intervention`) were retired from the canonical schema ("remove all Error
+ * Quotient (EQ) code for struggle engine v3") and are no longer part of
+ * `RecordedEvent`. Old recordings on disk still contain these rows (the
+ * loader casts raw JSON as `RecordedEvent`, see `parseSession.ts`), so their
+ * shapes are kept here, locally, purely for legacy display — deliberately
+ * not re-joined to the synced schema. Only the fields actually rendered below
+ * are declared.
+ */
+interface LegacyEqSnapshotEvent {
+    eq: number;
+    confidence: 'sufficient' | 'insufficient';
+}
+interface LegacyEqEngineStateEvent {
+    snapshots: unknown[];
+    currentEQ: number;
+    confidence: 'sufficient' | 'insufficient';
+}
+interface LegacyInterventionEvent {
+    action: string;
+    level: string;
+    eq: number;
+    triggerType?: string;
+    blockedReason?: string;
+}
+
+function asLegacyEqSnapshot(event: RecordedEvent): LegacyEqSnapshotEvent {
+    return event as unknown as LegacyEqSnapshotEvent;
+}
+function asLegacyEqEngineState(event: RecordedEvent): LegacyEqEngineStateEvent {
+    return event as unknown as LegacyEqEngineStateEvent;
+}
+function asLegacyIntervention(event: RecordedEvent): LegacyInterventionEvent {
+    return event as unknown as LegacyInterventionEvent;
+}
+
+/** "45% | statement 20–80% visible" — page scroll percent + visible slice of the statement. */
 function describeStatementScroll(e: {
     scrollTop: number; scrollHeight: number; viewportHeight: number;
     statementTop: number; statementHeight: number;
@@ -35,14 +74,39 @@ function describeStatementSelection(e: { selectedText: string; selectionLength: 
 
 // Full, multi-field description shown in the event stream's expandable detail row.
 export function eventDetail(event: RecordedEvent): React.ReactNode {
+    // Legacy event types retired from the schema (see the comment above) —
+    // checked ahead of the switch since the type-narrowing `RecordedEvent`
+    // union no longer includes them.
+    const legacyType: string = event.type;
+    if (legacyType === 'eqSnapshot') {
+        const e = asLegacyEqSnapshot(event);
+        return (
+            <span className="event-detail">
+                EQ: <strong>{Math.round(e.eq * 100)}%</strong>
+                <span className={`confidence-tag ${e.confidence}`}>{e.confidence}</span>
+            </span>
+        );
+    }
+    if (legacyType === 'intervention') {
+        const e = asLegacyIntervention(event);
+        return (
+            <span className="event-detail">
+                {e.action.toUpperCase()} | {e.level} | EQ: <strong>{Math.round(e.eq * 100)}%</strong>
+                {e.triggerType && ` | ${e.triggerType}`}
+                {e.action === 'blocked' && e.blockedReason && ` | reason: ${e.blockedReason}`}
+            </span>
+        );
+    }
+    if (legacyType === 'eqEngineState') {
+        const e = asLegacyEqEngineState(event);
+        return (
+            <span className="event-detail">
+                {e.snapshots.length} snapshot(s) | EQ: <strong>{Math.round(e.currentEQ * 100)}%</strong>
+                <span className={`confidence-tag ${e.confidence}`}>{e.confidence}</span>
+            </span>
+        );
+    }
     switch (event.type) {
-        case 'eqSnapshot':
-            return (
-                <span className="event-detail">
-                    EQ: <strong>{Math.round(event.eq * 100)}%</strong>
-                    <span className={`confidence-tag ${event.confidence}`}>{event.confidence}</span>
-                </span>
-            );
         case 'buildResult':
             return (
                 <span className="event-detail">
@@ -142,21 +206,6 @@ export function eventDetail(event: RecordedEvent): React.ReactNode {
                     {shortenUri(event.uri)} | L{event.visibleRanges[0]?.startLine ?? 0}-L{event.visibleRanges[0]?.endLine ?? 0}
                 </span>
             );
-        case 'intervention':
-            return (
-                <span className="event-detail">
-                    {event.action.toUpperCase()} | {event.level} | EQ: <strong>{Math.round(event.eq * 100)}%</strong>
-                    {event.triggerType && ` | ${event.triggerType}`}
-                    {event.action === 'blocked' && event.blockedReason && ` | reason: ${event.blockedReason}`}
-                </span>
-            );
-        case 'eqEngineState':
-            return (
-                <span className="event-detail">
-                    {event.snapshots.length} snapshot(s) | EQ: <strong>{Math.round(event.currentEQ * 100)}%</strong>
-                    <span className={`confidence-tag ${event.confidence}`}>{event.confidence}</span>
-                </span>
-            );
         case 'viewNavigation':
             return (
                 <span className="event-detail">
@@ -202,7 +251,7 @@ export function eventDetail(event: RecordedEvent): React.ReactNode {
         case 'configurationSnapshot':
             return (
                 <span className="event-detail">
-                    struggleDetection:{event.struggleDetectionEnabled ? 'on' : 'off'} | interventions:{event.showInterventions ? 'on' : 'off'}
+                    struggleDetection:{event.struggleDetectionEnabled ? 'on' : 'off'} | interventions:{event.showInterventions ? 'on' : 'off'} (legacy fields)
                 </span>
             );
         case 'configurationChange': {
@@ -283,6 +332,22 @@ export function eventDetail(event: RecordedEvent): React.ReactNode {
 // Compact single-line summary shown in the tracking-timeline tooltip.
 export function eventSummary(event: RecordedEvent, sessionStartTime: number): React.ReactNode {
     const time = formatOffset(event.timestamp - sessionStartTime);
+    // Legacy event types retired from the schema (see the comment at the top
+    // of this file) — checked ahead of the switch since the type-narrowing
+    // `RecordedEvent` union no longer includes them.
+    const legacyType: string = event.type;
+    if (legacyType === 'eqSnapshot') {
+        const e = asLegacyEqSnapshot(event);
+        return <><span className="tt-time">{time}</span> EQ: {Math.round(e.eq * 100)}% ({e.confidence})</>;
+    }
+    if (legacyType === 'eqEngineState') {
+        const e = asLegacyEqEngineState(event);
+        return <><span className="tt-time">{time}</span> EQ: {Math.round(e.currentEQ * 100)}% ({e.confidence}) | {e.snapshots.length} snapshot(s)</>;
+    }
+    if (legacyType === 'intervention') {
+        const e = asLegacyIntervention(event);
+        return <><span className="tt-time">{time}</span> {e.action.toUpperCase()} | {e.level} | EQ: {Math.round(e.eq * 100)}%{e.triggerType ? ` | ${e.triggerType}` : ''}</>;
+    }
     switch (event.type) {
         case 'textChange': {
             let inserted = 0, deleted = 0;
@@ -299,10 +364,6 @@ export function eventSummary(event: RecordedEvent, sessionStartTime: number): Re
             return <><span className="tt-time">{time}</span> {shortenUri(event.fromUri)} → {shortenUri(event.toUri)}</>;
         case 'buildResult':
             return <><span className="tt-time">{time}</span> {event.buildFailed ? 'BUILD FAILED' : event.successful ? 'PASSED' : `${event.errorCount} error(s)`}{event.failedTests.length > 0 ? ` | ${event.failedTests.length} test(s) failed` : ''}</>;
-        case 'eqSnapshot':
-            return <><span className="tt-time">{time}</span> EQ: {Math.round(event.eq * 100)}% ({event.confidence})</>;
-        case 'eqEngineState':
-            return <><span className="tt-time">{time}</span> EQ: {Math.round(event.currentEQ * 100)}% ({event.confidence}) | {event.snapshots.length} snapshot(s)</>;
         case 'sessionStart':
             return <><span className="tt-time">{time}</span> Exercise {event.exerciseId}{event.participantId ? ` | ${event.participantId}` : ''}</>;
         case 'sessionEnd':
@@ -321,8 +382,6 @@ export function eventSummary(event: RecordedEvent, sessionStartTime: number): Re
             return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | L{event.selections[0]?.startLine ?? 0}:{event.selections[0]?.startCharacter ?? 0}{event.kind ? ` (${event.kind})` : ''}</>;
         case 'visibleRangeChange':
             return <><span className="tt-time">{time}</span> {shortenUri(event.uri)} | L{event.visibleRanges[0]?.startLine ?? 0}-L{event.visibleRanges[0]?.endLine ?? 0}</>;
-        case 'intervention':
-            return <><span className="tt-time">{time}</span> {event.action.toUpperCase()} | {event.level} | EQ: {Math.round(event.eq * 100)}%{event.triggerType ? ` | ${event.triggerType}` : ''}</>;
         case 'viewNavigation':
             return <><span className="tt-time">{time}</span> {event.from} → {event.to}</>;
         case 'panelVisibility':
@@ -340,7 +399,7 @@ export function eventSummary(event: RecordedEvent, sessionStartTime: number): Re
                 ? <><span className="tt-time">{time}</span> Task "{event.taskName}" opened | {event.passedTests}/{event.totalTests} passed ({event.failedTests} failed)</>
                 : <><span className="tt-time">{time}</span> Task "{event.taskName}" closed | {formatDuration(event.durationMs)} ({event.closeReason})</>;
         case 'configurationSnapshot':
-            return <><span className="tt-time">{time}</span> struggleDetection:{event.struggleDetectionEnabled ? 'on' : 'off'} | interventions:{event.showInterventions ? 'on' : 'off'}</>;
+            return <><span className="tt-time">{time}</span> struggleDetection:{event.struggleDetectionEnabled ? 'on' : 'off'} | interventions:{event.showInterventions ? 'on' : 'off'} (legacy fields)</>;
         case 'configurationChange': {
             const parts: string[] = [];
             if (event.changes.struggleDetectionEnabled !== undefined) {

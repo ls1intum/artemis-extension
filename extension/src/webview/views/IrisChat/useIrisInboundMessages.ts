@@ -6,9 +6,24 @@ import { useChatStore } from '@webview/stores/useChatStore';
 
 import type { ChatMessage } from './types';
 
-/** One wire row as the transcript stores it. Every row gets a fresh localId:
- *  the server does not issue one, and the list is keyed on it. */
-function toChatMessage(m: ExtMsg<'loadMessages'>['messages'][number]): ChatMessage {
+/**
+ * One wire row as the transcript stores it. Every row gets a fresh localId:
+ * the server does not issue one, and the list is keyed on it.
+ *
+ * `offer` is client-local and only ever rides an `addMessage`, so the parameter
+ * widens rather than the load/merge contracts.
+ *
+ * The four proactive fields are spread CONDITIONALLY, and that is load-bearing.
+ * The three arms this serves carry different field sets - `addMessage` all four,
+ * `loadMessages` three, `mergeSessionMessages` none - and `mergeHistory` merges
+ * as `{ ...prev, ...inc }`. A spread copies own properties INCLUDING ones set to
+ * `undefined`, so mapping them unconditionally would blank a live proactive
+ * bubble's episode identity on every reconnect merge. Omitting the key instead
+ * lets the previous value stand.
+ */
+export type WireRow = ExtMsg<'loadMessages'>['messages'][number] & { offer?: ChatMessage['offer'] };
+
+export function toChatMessage(m: WireRow): ChatMessage {
     return {
         id: m.id,
         localId: crypto.randomUUID(),
@@ -16,6 +31,10 @@ function toChatMessage(m: ExtMsg<'loadMessages'>['messages'][number]): ChatMessa
         content: m.content,
         timestamp: m.timestamp,
         helpful: m.helpful ?? null,
+        ...(m.origin !== undefined ? { origin: m.origin } : {}),
+        ...(m.proactiveOutcome !== undefined ? { proactiveOutcome: m.proactiveOutcome } : {}),
+        ...(m.proactiveEpisodeId !== undefined ? { proactiveEpisodeId: m.proactiveEpisodeId } : {}),
+        ...(m.offer !== undefined ? { offer: m.offer } : {}),
         activities: m.activities,
         final: m.final,
         status: 'sent',
@@ -56,7 +75,9 @@ export function useIrisInboundMessages({ onCourseRefreshAnswered }: InboundOptio
             setReferencedFiles, setWebSocketStatus,
             setDisabledMessage, setUnavailableMessage, setNoAiDetected,
             resetTransientChatUi, applyRunUi, applyCommit, markMessageFailed,
+            removeMessageById, foldEpisode, setLiveEpisode, resolveOffer, foldAllEpisodes,
             setOpenSessionError, mergeLoadedMessages, confirmSentMessage, showNotice,
+            setProactiveThinking,
         } = useChatStore.getState();
         const belongsHere = (m: { sessionId: number }): boolean =>
             m.sessionId === useChatStore.getState().currentSessionId;
@@ -85,6 +106,13 @@ export function useIrisInboundMessages({ onCourseRefreshAnswered }: InboundOptio
 
             case ExtensionMsg.UpdateIrisRunUi: {
                 applyRunUi(msg.projection);
+                break;
+            }
+
+            // Host-owned and deliberately outside `belongsHere`: the flag is not addressed to a
+            // conversation, and the host is the only thing that can turn it off.
+            case ExtensionMsg.SetProactiveThinking: {
+                setProactiveThinking(msg.thinking);
                 break;
             }
 
@@ -183,6 +211,29 @@ export function useIrisInboundMessages({ onCourseRefreshAnswered }: InboundOptio
                 showNotice({ text: msg.text, tone: msg.tone });
                 break;
             }
+
+            // The proactive control frames. None is session-scoped: they address a
+            // row or an episode by id, and the host only ever sends them for the
+            // transcript on screen.
+            case ExtensionMsg.RemoveMessage:
+                removeMessageById(msg.id);
+                break;
+
+            case ExtensionMsg.ResolveOffer:
+                resolveOffer(msg.offerId, msg.answered);
+                break;
+
+            case ExtensionMsg.FoldEpisode:
+                foldEpisode(msg.episodeId, msg.outcome, msg.praise);
+                break;
+
+            case ExtensionMsg.SetLiveEpisode:
+                setLiveEpisode(msg.episodeId);
+                break;
+
+            case ExtensionMsg.CollapseProactiveEpisodes:
+                foldAllEpisodes();
+                break;
 
             case ExtensionMsg.ConfirmSentMessage: {
                 if (!belongsHere(msg)) { break; }
