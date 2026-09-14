@@ -15,6 +15,7 @@ interface ListItemProps {
   disabled?: boolean;
   className?: string;
   id?: string;
+  testId?: string;
 }
 
 export function ListItem({
@@ -29,6 +30,7 @@ export function ListItem({
   disabled = false,
   className,
   id,
+  testId,
 }: ListItemProps) {
   const listItemClasses = clsx(
     styles.listItem,
@@ -59,9 +61,18 @@ export function ListItem({
       className={listItemClasses}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
-      role="option"
-      aria-selected={selected}
+      /*
+       * A row here navigates; it is not one choice in a set. `option` says the
+       * latter and is only valid inside a `listbox`, which no caller provides, so
+       * axe reports it as a critical `aria-required-parent`. `aria-current` is the
+       * attribute for "this is the one you are on" and is valid on any role. The
+       * rest of the codebase reaches for a real `<button>` here (see `CoursePicker`),
+       * which is where this component should end up.
+       */
+      role="button"
+      aria-current={selected ? 'true' : undefined}
       aria-disabled={disabled}
+      data-testid={testId}
       tabIndex={onClick && !disabled ? 0 : undefined}
     >
       {icon && <div className={styles.listItemIcon}>{icon}</div>}

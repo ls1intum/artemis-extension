@@ -8,6 +8,7 @@ import {
     getCredentials,
     openArtemisView,
     performLogin,
+    reattachWebviewFrame,
     runAxeInCurrentFrame,
     switchBackFromWebview,
     switchToWebviewFrame,
@@ -18,8 +19,17 @@ import {
 async function assertNoAxeViolations(viewName: string, driver: WebDriver): Promise<void> {
 	const results = await runAxeInCurrentFrame(driver);
 	if (results.violations.length > 0) {
+		// The offending nodes, not just the rule: a contrast violation with no element
+		// behind it is a finding nobody can act on, and the screenshot does not say
+		// which of forty elements axe meant.
 		const summary = results.violations
-			.map((v) => `[${v.impact}] ${v.id}: ${v.description} (${(v.nodes as unknown[]).length} nodes)`)
+			.map((v) => {
+				const nodes = (v.nodes as { target?: unknown[]; failureSummary?: string }[]) ?? [];
+				const details = nodes
+					.map((n) => `      ${JSON.stringify(n.target)} ${((n.failureSummary ?? '').split('\n')[1] ?? '').trim()}`)
+					.join('\n');
+				return `[${v.impact}] ${v.id}: ${v.description} (${nodes.length} nodes)\n${details}`;
+			})
 			.join('\n  ');
 		await takeScreenshot(driver, `a11y-fail-${viewName}`);
 		assert.strictEqual(
@@ -114,11 +124,14 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 
 			try {
 				const coursesBtn = await driver.wait(
-					until.elementLocated(By.xpath("//button[.//span[contains(text(),'Courses')]]")),
+					until.elementLocated(By.xpath("//button[contains(., 'Browse Courses')]")),
 					8000,
 				);
 				await coursesBtn.click();
-				await driver.sleep(2000);
+				// Navigating rebuilds the webview document. Without re-entering the frame
+				// axe runs against the workbench instead, and then reports VS Code's own
+				// `.monaco-list` and `.editor-group-container` as this view's violations.
+				await reattachWebviewFrame(driver);
 			} catch {
 				// Button not present on this server configuration. Run axe on whatever
 				// view is visible instead.

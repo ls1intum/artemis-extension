@@ -86,9 +86,33 @@ export function getCredentials(): { username: string; password: string } {
 }
 
 /**
- * Perform the standard login sequence: open the Artemis view, fill in
- * credentials, submit the form, wait for navigation to Dashboard, then
- * switch back to the VS Code host context.
+ * Stage 0 of the login: type the username and press Continue.
+ *
+ * The form is two-stage because the server decides per account how it signs in:
+ * Continue asks `login-options`, and only the answer says whether stage 1 is a
+ * password field, an OIDC redirect, or a note that the extension cannot complete
+ * this account's sign-in. Nothing below stage 0 exists before that round-trip, so
+ * every caller has to go through here first.
+ *
+ * Must be called AFTER `switchToWebviewFrame`.
+ */
+export async function submitUsername(driver: WebDriver, username: string): Promise<void> {
+	const usernameInput = await waitForElement(driver, '#username');
+	await usernameInput.clear();
+	await usernameInput.sendKeys(username);
+
+	const continueButton = await waitForElement(driver, '[data-testid="login-next"]');
+	await continueButton.click();
+}
+
+/**
+ * Perform the standard login sequence: open the Artemis view, go through both
+ * stages of the form, wait for navigation to the Dashboard, then switch back to
+ * the VS Code host context.
+ *
+ * Only the password path is driven. An account the server answers with OIDC or
+ * SAML2 cannot be signed in from a test at all: one hands off to a browser, the
+ * other the extension declines outright.
  */
 export async function performLogin(
 	driver: WebDriver,
@@ -98,21 +122,95 @@ export async function performLogin(
 	await openArtemisView();
 	await switchToWebviewFrame(driver);
 
-	const usernameInput = await waitForElement(driver, '#username');
-	await usernameInput.clear();
-	await usernameInput.sendKeys(username);
+	await submitUsername(driver, username);
 
 	const passwordInput = await waitForElement(driver, '#password');
 	await passwordInput.clear();
 	await passwordInput.sendKeys(password);
 
-	const submitButton = await waitForElement(driver, 'button[type="submit"]');
+	const submitButton = await waitForElement(driver, '[data-testid="login-submit"]');
 	await submitButton.click();
 
 	// Wait for auth + navigation to Dashboard
 	await driver.sleep(5000);
 
 	await switchBackFromWebview(driver);
+}
+
+/**
+ * Navigate from the Dashboard into the first course the account has.
+ *
+ * The Dashboard lists only courses this profile has opened before, which on a fresh
+ * test profile is none, so looking for a course there finds nothing however many
+ * selectors are tried. "Browse Courses" opens the full list, where every course is a
+ * `course-entry-<id>` row, which is a stated contract rather than a
+ * hashed CSS-module class.
+ *
+ * Returns false when the account genuinely has no course, which is a reason for a
+ * suite to skip rather than to fail.
+ *
+ * Must be called AFTER `switchToWebviewFrame`.
+ */
+export async function openFirstCourse(driver: WebDriver): Promise<boolean> {
+	const browse = await driver
+		.findElement(By.xpath("//button[contains(., 'Browse Courses')]"))
+		.catch(() => null);
+	if (browse) {
+		await browse.click();
+		await reattachWebviewFrame(driver);
+	}
+
+	const course = await driver
+		.wait(async () => {
+			const rows = await driver.findElements(By.css('[data-testid^="course-entry-"]'));
+			return rows.length > 0 ? rows[0] : null;
+		}, 10000)
+		.catch(() => null);
+	if (!course) {
+		return false;
+	}
+
+	await course.click();
+	await reattachWebviewFrame(driver);
+	return true;
+}
+
+/**
+ * Open the first exercise of the course that is currently on screen.
+ *
+ * Same contract as the course rows: `CourseDetail` marks each exercise row
+ * `exercise-entry-<id>`. Returns false when the course has none.
+ *
+ * Must be called AFTER `openFirstCourse`.
+ */
+export async function openFirstExercise(driver: WebDriver): Promise<boolean> {
+	const exercise = await driver
+		.wait(async () => {
+			const rows = await driver.findElements(By.css('[data-testid^="exercise-entry-"]'));
+			return rows.length > 0 ? rows[0] : null;
+		}, 10000)
+		.catch(() => null);
+	if (!exercise) {
+		return false;
+	}
+
+	await exercise.click();
+	await reattachWebviewFrame(driver);
+	return true;
+}
+
+/**
+ * Re-enter the webview after a navigation inside it.
+ *
+ * Navigating replaces the whole webview document (the host rewrites
+ * `webview.html`), which leaves the driver attached to a frame that no longer
+ * exists. Queries against it do not throw, they simply match nothing, so a page
+ * that is plainly on screen reads as an empty one.
+ */
+export async function reattachWebviewFrame(driver: WebDriver): Promise<void> {
+	await switchBackFromWebview(driver);
+	await driver.sleep(500);
+	await switchToWebviewFrame(driver);
 }
 
 /**

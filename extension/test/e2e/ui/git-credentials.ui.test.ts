@@ -6,6 +6,7 @@ import {
     getCredentials,
     openArtemisView,
     performLogin,
+    reattachWebviewFrame,
     switchBackFromWebview,
     switchToWebviewFrame,
     takeScreenshot,
@@ -58,14 +59,14 @@ describe('GitCredentials View UI Tests', function () {
 		await switchToWebviewFrame(driver);
 
 		try {
+			// Matched on the button's whole text, not on a span inside it: the entry is a
+			// `Button` with an icon next to the label, so the label is not always its own span.
 			const gitCredentialsButton = await driver.wait(
-				until.elementLocated(
-					By.xpath("//button[.//span[contains(text(),'Git')]]"),
-				),
+				until.elementLocated(By.xpath("//button[contains(., 'Git Credentials')]")),
 				10000,
 			);
 			await gitCredentialsButton.click();
-			await driver.sleep(2000);
+			await reattachWebviewFrame(driver);
 		} catch {
 			// Button not found, skip gracefully.
 			await takeScreenshot(driver, 'git-credentials-smoke');

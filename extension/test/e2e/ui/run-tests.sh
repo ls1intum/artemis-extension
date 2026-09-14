@@ -108,6 +108,10 @@ for test_file in out/test/e2e/ui/*.ui.test.js; do
   if [ -f test-results.xml ]; then
     tests_count=$(sed -n 's/.*<testsuites[^>]*tests="\([0-9]*\)".*/\1/p' test-results.xml | head -1)
     skipped_count=$(sed -n 's/.*<testsuites[^>]*skipped="\([0-9]*\)".*/\1/p' test-results.xml | head -1)
+    # Kept per suite. The reporter writes one `test-results.xml` and the next suite
+    # overwrites it, so without this the assertion text of every failure but the last
+    # is gone by the time the summary is printed, and the log alone does not carry it.
+    cp test-results.xml "reports/ui/${name}.xml"
   fi
 
   if [ "$rc" -ne 0 ]; then

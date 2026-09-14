@@ -11,9 +11,17 @@
     border-color: var(--theme-success-border);
 }
 
+/*
+ * The text is the theme's normal foreground, not the error red. Red on the tinted
+ * red block is 4.04:1 at 13px (axe, Dark Modern), and AA wants 4.5:1. The tint
+ * cannot be lightened into compliance either: with this foreground the background
+ * would have to be within a hair of the editor background, which is the same as
+ * having no tint. The red border and fill still carry the signal, and the
+ * foreground token is the one colour VS Code guarantees against its own background.
+ */
 .error {
     background-color: var(--theme-error-background);
-    color: var(--theme-error-foreground);
+    color: var(--vscode-foreground);
     border-color: var(--theme-error-border);
 }
 
