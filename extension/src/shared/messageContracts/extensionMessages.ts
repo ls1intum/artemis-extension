@@ -418,7 +418,11 @@ interface ExtensionMsgPayloads {
      * an Artemis that is no longer coming.
      */
     loginSessionEnded: undefined;
-    setServerUrl: { serverUrl: string };
+    /**
+     * `locked` where the environment dictates the server (managed Theia/EduIDE): the
+     * login page then names it without offering to change it.
+     */
+    setServerUrl: { serverUrl: string; locked: boolean };
     loginOptionsResult: {
         loginMethod: 'PASSWORD' | 'OIDC' | 'SAML2';
         /** Null for password accounts; the view falls back to its own label. */

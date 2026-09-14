@@ -10,6 +10,7 @@ import type {
     TestResultsOverviewClosedPayload,
     TestResultsOverviewOpenedPayload,
 } from '@shared/messageContracts/webviewCommands';
+import { serverDisplayName } from '@shared/utils/serverDisplayName';
 
 import { ArtemisApiService } from '@extension/api';
 import { fetchWithTimeout } from '@extension/api/fetchWithTimeout';
@@ -46,7 +47,7 @@ import type { ILiveEngineFeed, IStruggleCoordinator } from '@extension/telemetry
 import type { ExerciseDetailsResponse } from '@extension/types';
 import { WebSocketMessageHandler } from '@extension/types';
 import type { IArtemisWebviewProvider } from '@extension/types/IArtemisWebviewProvider';
-import { CONFIG, resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
+import { CONFIG, isServerUrlLocked, resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
 import { createRecordingWebviewHandlers } from '@dataCollection';
 import { createLiveEngineFeed } from '@telemetry';
 
@@ -237,6 +238,15 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                     this._broadcaster.broadcast({ type: ExtensionMsg.UpdateProactiveConsent });
                 }
             }),
+            // #496/#497: both places that name the server have to follow the setting rather than
+            // only being written when the view is created. The login page reads it from the message;
+            // switching servers from its own server line would otherwise leave it naming the old one.
+            vscode.workspace.onDidChangeConfiguration(event => {
+                if (event.affectsConfiguration(`${VSCODE_CONFIG.ARTEMIS_SECTION}.${VSCODE_CONFIG.SERVER_URL_KEY}`)) {
+                    this._updateViewDescription();
+                    this._broadcaster.broadcast({ type: ExtensionMsg.SetServerUrl, serverUrl: resolveServerUrl(), locked: isServerUrlLocked() });
+                }
+            }),
             // #334: a .noai create/delete live-refreshes the exercise card (the view re-requests on this).
             this._noAiDetectionService.onNoAiStatusChanged(isNoAiDetected => {
                 this._broadcaster.broadcast({ type: ExtensionMsg.UpdateNoAiStatus, isNoAiDetected });
@@ -400,6 +410,17 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
         this._drainDisposables();
     }
 
+    /**
+     * Names the Artemis instance next to the view title, which is where VS Code puts
+     * "which context am I in". Before this, the extension knew the server and never
+     * said it, so signing in against the wrong instance looked like bad credentials
+     * or an empty course list.
+     */
+    private _updateViewDescription(): void {
+        if (!this._view) { return; }
+        this._view.description = serverDisplayName(resolveServerUrl()) || undefined;
+    }
+
     public async resolveWebviewView(
         webviewView: vscode.WebviewView,
         _context: vscode.WebviewViewResolveContext,
@@ -407,6 +428,7 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
     ) {
         this._drainViewDisposables();
         this._view = webviewView;
+        this._updateViewDescription();
 
         this._resetReadyState();
         this._bannerNeedsReplay = true;
