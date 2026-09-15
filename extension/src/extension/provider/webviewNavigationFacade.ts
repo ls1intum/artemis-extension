@@ -228,8 +228,8 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         this.deps.render();
     }
 
-    public showGitCredentials(): void {
-        this.deps.appStateManager.showGitCredentials();
+    public showSubmissionSetup(): void {
+        this.deps.appStateManager.showSubmissionSetup();
         this.deps.render();
     }
 

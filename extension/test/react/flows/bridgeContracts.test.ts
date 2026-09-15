@@ -18,7 +18,7 @@ import {
     createCourseListPayload,
     createDashboardPayload,
     createExerciseDetailPayload,
-    createGitCredentialsPayload,
+    createSubmissionSetupPayload,
 } from '@test/react/fixtures';
 
 describe('Bridge Contracts', () => {
@@ -142,34 +142,29 @@ describe('Bridge Contracts', () => {
         });
     });
 
-    describe('git-credentials (gitIdentityInfo)', () => {
-        it('has type discriminant "gitIdentityInfo"', () => {
-            const payload = createGitCredentialsPayload();
-            expect(payload.type).toBe('gitIdentityInfo');
+    describe('submission-setup (submissionSetupInfo)', () => {
+        it('has type discriminant "submissionSetupInfo"', () => {
+            const payload = createSubmissionSetupPayload();
+            expect(payload.type).toBe('submissionSetupInfo');
         });
 
         it('passes isExtensionMessage() type guard', () => {
-            const payload = createGitCredentialsPayload();
+            const payload = createSubmissionSetupPayload();
             expect(isExtensionMessage(payload)).toBe(true);
         });
 
-        it('payload.name is a string', () => {
-            const payload = createGitCredentialsPayload();
-            expect(typeof payload.name).toBe('string');
+        it('carries all four checks', () => {
+            const payload = createSubmissionSetupPayload();
+            expect(Object.keys(payload.snapshot).sort())
+                .toEqual(['access', 'git', 'identity', 'repository']);
         });
 
-        it('payload.email is a string', () => {
-            const payload = createGitCredentialsPayload();
-            expect(typeof payload.email).toBe('string');
-        });
-
-        it('custom credentials flow through via overrides', () => {
-            const payload = createGitCredentialsPayload({
-                name: 'Jane Doe',
-                email: 'jane@tum.de',
+        it('a blocked repository carries the reason instead of a title', () => {
+            const payload = createSubmissionSetupPayload({
+                repository: { state: 'problem', blocker: 'ssh-remote' },
             });
-            expect(payload.name).toBe('Jane Doe');
-            expect(payload.email).toBe('jane@tum.de');
+            expect(payload.snapshot.repository.blocker).toBe('ssh-remote');
+            expect(payload.snapshot.repository.exerciseTitle).toBeUndefined();
         });
     });
 

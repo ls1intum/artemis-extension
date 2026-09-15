@@ -2,22 +2,11 @@ import * as vscode from 'vscode';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
-import { extractErrorMessage } from '@extension/utils';
+import { extractRedactedErrorMessage } from '@extension/utils';
 
 const execFileAsync = promisify(execFile);
 
 const CLONE_TIMEOUT_MS = 120_000; // 2 minutes
-
-/**
- * Strips embedded credentials from any https URL appearing in a string.
- * execFile errors typically include the full failed command (with auth URL),
- * so we sanitize before bubbling the error up to logs or notifications.
- */
-function redactUrlCredentials(text: string): string {
-    return text
-        .replace(/(\bhttps?:\/\/)[^/\s@]+:[^/\s@]+@/gi, '$1***:***@')
-        .replace(/(\bhttps?:\/\/)[^/\s@]+@/gi, '$1***@');
-}
 
 /**
  * Clones a git repository programmatically (without terminal).
@@ -40,8 +29,7 @@ export async function cloneRepositoryProgrammatic(
                     timeout: CLONE_TIMEOUT_MS,
                 });
             } catch (error: unknown) {
-                const original = extractErrorMessage(error);
-                throw new Error(redactUrlCredentials(original));
+                throw new Error(extractRedactedErrorMessage(error));
             }
         },
     );

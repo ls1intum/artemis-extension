@@ -6,8 +6,9 @@ import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { SubmissionFailureReason, SubmissionPayload } from '@extension/services/recording/types';
 import * as workspaceServices from '@extension/services/workspace';
+import { isAuthFailureText } from '@extension/services/workspace/gitService';
 import * as fileChecker from '@extension/services/workspace/workspaceFileChecker';
-import { extractErrorMessage, VSCODE_CONFIG } from '@extension/utils';
+import { extractErrorMessage, extractRedactedErrorMessage, VSCODE_CONFIG } from '@extension/utils';
 
 import type { CommandContext, CommandMap } from './types';
 
@@ -236,8 +237,15 @@ export class RepositorySubmitCommands {
                 // a genuine push rejection) regardless of which step the lock hit.
                 failureReason = 'other';
                 vscode.window.showErrorMessage(GIT_LOCK_USER_MESSAGE);
+            } else if (isAuthFailureText(errorMessage)) {
+                // Artemis refused the credential in the remote URL. The raw git
+                // output names that URL, token and all, so it is redacted before
+                // it reaches the student, and the repair lives on one page.
+                // Only a push can reach here with this text: the pull is allowed
+                // to fail quietly, and every earlier step is local.
+                void this.offerSubmissionSetup(extractRedactedErrorMessage(error));
             } else {
-                vscode.window.showErrorMessage(errorMessage);
+                vscode.window.showErrorMessage(extractRedactedErrorMessage(error));
             }
 
             if (participationId !== undefined && !succeededEmitted) {
@@ -247,6 +255,23 @@ export class RepositorySubmitCommands {
             this._submitInFlight = false;
         }
     };
+
+    /**
+     * A push that failed on authentication is not something a student can act on
+     * from an error toast: the credential lives in the git remote, which the
+     * extension put there. Offer the page that can replace it, in the same shape
+     * the missing-identity path already uses.
+     */
+    private async offerSubmissionSetup(redactedMessage: string): Promise<void> {
+        const choice = await vscode.window.showErrorMessage(
+            `Artemis refused your access, so the submission was not pushed. ${redactedMessage}`,
+            { modal: true },
+            'Open Submission Setup',
+        );
+        if (choice === 'Open Submission Setup') {
+            this.context.actionHandler.showSubmissionSetup();
+        }
+    }
 
     private async ensureGitIdentityConfigured(cwd: string): Promise<void> {
         const identity = await this.gitService.getIdentity({ cwd });
@@ -262,16 +287,30 @@ export class RepositorySubmitCommands {
         );
 
         if (choice === 'Configure Git Identity') {
-            this.context.actionHandler.showGitCredentials();
+            this.context.actionHandler.showSubmissionSetup();
         }
 
         throw new Error(GIT_IDENTITY_NOT_CONFIGURED);
     }
 
+    /** Recompute and push the Submission Setup snapshot, when a page is there to receive it. */
+    private async postSubmissionSetupSnapshot(): Promise<void> {
+        const service = this.context.submissionSetup;
+        if (!service) { return; }
+        try {
+            this.context.sendMessage({
+                type: ExtensionMsg.SubmissionSetupInfo,
+                snapshot: await service.buildSnapshot(),
+            });
+        } catch (error: unknown) {
+            logger.error('Failed to refresh the submission setup snapshot', LogCategory.SUBMISSION, error);
+        }
+    }
+
     private handleSaveGitIdentity = async (message: WebviewToExtensionMessage): Promise<void> => {
         const sendResult = (status: 'success' | 'error' | 'warning' | 'info', text: string) => {
             this.context.sendMessage({
-                type: ExtensionMsg.GitCredentialsResult,
+                type: ExtensionMsg.SubmissionSetupResult,
                 status,
                 message: text
             });
@@ -293,8 +332,10 @@ export class RepositorySubmitCommands {
                 return;
             }
             await this.gitService.setGlobalIdentity({ name: rawName, email: rawEmail });
-            sendResult('success', 'Git identity saved globally.');
-            vscode.window.showInformationMessage('Git author information saved globally.');
+            sendResult('success', 'Saved. Git will use this name and email on your submissions.');
+            // The page renders a snapshot, not the form's own state, so without
+            // this the identity row and the banner keep reporting the old answer.
+            await this.postSubmissionSetupSnapshot();
         } catch (error: unknown) {
             logger.error('Failed to save Git identity globally:', LogCategory.SUBMISSION, error);
             const messageText = extractErrorMessage(error);

@@ -7,6 +7,7 @@ import { ExtensionMsg, getOptionalPayload, getPayload, WebviewCmd } from '@share
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import {
+    buildAuthenticatedRepositoryUrl,
     getWorkspaceRepositoryUrl as defaultGetWorkspaceRepositoryUrl,
     GitService,
     normalizeRepositoryUrl as defaultNormalizeRepositoryUrl,
@@ -100,15 +101,12 @@ export class RepositoryCloneCommands {
             logger.warn('Could not fetch current user, defaulting username:', LogCategory.SUBMISSION, userErr);
         }
 
-        try {
-            const url = new URL(repositoryUri);
-            url.username = username;
-            url.password = vcsToken;
-            return url.toString();
-        } catch {
+        const authenticatedUrl = buildAuthenticatedRepositoryUrl(repositoryUri, username, vcsToken);
+        if (!authenticatedUrl) {
             vscode.window.showErrorMessage('Invalid repository URL received from server.');
             return null;
         }
+        return authenticatedUrl;
     }
 
     private async _selectFolder(openLabel: string, title: string): Promise<string | undefined> {

@@ -140,7 +140,7 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 			await assertNoAxeViolations('course-list', driver);
 		});
 
-		it('GitCredentials view should have zero axe violations', async function () {
+		it('Submission Setup view should have zero axe violations', async function () {
 			this.timeout(30000);
 
 			await openArtemisView();
@@ -149,20 +149,20 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 			try {
 				await waitForElement(driver, 'h1', 10000);
 			} catch {
-				await takeScreenshot(driver, 'a11y-skip-git-credentials');
+				await takeScreenshot(driver, 'a11y-skip-submission-setup');
 				this.skip();
 				return;
 			}
 
 			try {
-				const gitBtn = await driver.wait(
-					until.elementLocated(By.xpath("//button[.//span[contains(text(),'Git')]]")),
+				const setupBtn = await driver.wait(
+					until.elementLocated(By.xpath("//button[contains(., 'Submission Setup')]")),
 					8000,
 				);
-				await gitBtn.click();
+				await setupBtn.click();
 				await driver.sleep(2000);
 			} catch {
-				await takeScreenshot(driver, 'a11y-skip-git-credentials');
+				await takeScreenshot(driver, 'a11y-skip-submission-setup');
 				this.skip();
 				return;
 			}
@@ -181,7 +181,7 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 				// Accept loading state.
 			}
 
-			await assertNoAxeViolations('git-credentials', driver);
+			await assertNoAxeViolations('submission-setup', driver);
 		});
 
 		it('CourseDetail view should have zero axe violations', async function () {

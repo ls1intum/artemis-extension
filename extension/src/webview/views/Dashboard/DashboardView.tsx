@@ -76,8 +76,8 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
         postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
     };
 
-    const handleShowGitCredentials = () => {
-        postCommand(vscodeApi, 'showGitCredentials');
+    const handleShowSubmissionSetup = () => {
+        postCommand(vscodeApi, 'showSubmissionSetup');
     };
 
     const handleShowStruggleDetection = () => {
@@ -291,8 +291,8 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                             </span>
                         </Button>
                     )}
-                    <Button variant="ghost" fullWidth onClick={handleShowGitCredentials} icon={<GitBranch size={16} />}>
-                        Git Credentials
+                    <Button variant="ghost" fullWidth onClick={handleShowSubmissionSetup} icon={<GitBranch size={16} />}>
+                        Submission Setup
                     </Button>
                     <Button variant="ghost" fullWidth onClick={handleOpenBugReport} icon={<Bug size={16} />}>
                         Bug Report

@@ -1,6 +1,12 @@
+export { buildAuthenticatedRepositoryUrl } from './authenticatedRepositoryUrl';
 export { FileMonitorService } from './fileMonitorService';
 export { GitService } from './gitService';
 export { NoAiDetectionService } from './noAiDetectionService';
+export {
+    type ResolvedParticipation,
+    type SubmissionSetupDeps,
+    SubmissionSetupService,
+} from './submissionSetupService';
 export {
     collectExerciseSources,
     type DetectedExercise,

@@ -8,7 +8,7 @@ import type {
 } from '@extension/types';
 import type { ArtemisUser } from '@extension/types';
 
-export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'struggle-detection' | 'git-credentials';
+export type AppState = 'login' | 'dashboard' | 'course-list' | 'course-detail' | 'exercise-detail' | 'struggle-detection' | 'submission-setup';
 
 export interface UserInfo {
     username: string;
@@ -219,8 +219,8 @@ export class AppStateManager {
         this._setCurrentState('struggle-detection');
     }
 
-    public showGitCredentials(): void {
-        this._setCurrentState('git-credentials');
+    public showSubmissionSetup(): void {
+        this._setCurrentState('submission-setup');
     }
 
 }

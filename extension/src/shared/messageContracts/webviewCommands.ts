@@ -67,12 +67,14 @@ export const WebviewCmd = {
 
     // Git
     SaveGitIdentity: 'saveGitIdentity',
+    RefreshSubmissionSetup: 'refreshSubmissionSetup',
+    RenewArtemisAccess: 'renewArtemisAccess',
 
     // Recording
     OpenRecordingsFolder: 'openRecordingsFolder',
 
     // Views
-    ShowGitCredentials: 'showGitCredentials',
+    ShowSubmissionSetup: 'showSubmissionSetup',
     ShowStruggleDetection: 'showStruggleDetection',
     StruggleLiveSubscribe: 'struggleLiveSubscribe',
     StruggleLiveUnsubscribe: 'struggleLiveUnsubscribe',
@@ -192,8 +194,18 @@ interface WebviewCmdPayloads {
 
     // Git
     saveGitIdentity: { name: string; email: string };
+    /** Recompute the whole snapshot. No payload: the host owns every input it reads. */
+    refreshSubmissionSetup: undefined;
+    /**
+     * Fetch a fresh VCS access token and repair the remote.
+     *
+     * Deliberately payload-free. The participation is re-resolved from the open
+     * workspace instead of being taken from the webview, because an id supplied
+     * by the page would be an unvalidated argument to a token endpoint.
+     */
+    renewArtemisAccess: undefined;
     // Views
-    showGitCredentials: undefined;
+    showSubmissionSetup: undefined;
     showStruggleDetection: undefined;
     struggleLiveSubscribe: undefined;
     struggleLiveUnsubscribe: undefined;

@@ -1,4 +1,4 @@
-// Covers E2EV-10: GitCredentials view E2E smoke test
+// Covers E2EV-10: Submission Setup view E2E smoke test
 import assert from 'assert';
 import { By, until, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
 
@@ -12,7 +12,7 @@ import {
     takeScreenshot,
 } from './helpers';
 
-describe('GitCredentials View UI Tests', function () {
+describe('Submission Setup View UI Tests', function () {
 	let driver: WebDriver;
 	let username: string;
 	let password: string;
@@ -52,7 +52,7 @@ describe('GitCredentials View UI Tests', function () {
 		}
 	});
 
-	it('should render GitCredentials view', async function () {
+	it('should render the Submission Setup view', async function () {
 		this.timeout(30000);
 
 		await openArtemisView();
@@ -61,33 +61,35 @@ describe('GitCredentials View UI Tests', function () {
 		try {
 			// Matched on the button's whole text, not on a span inside it: the entry is a
 			// `Button` with an icon next to the label, so the label is not always its own span.
-			const gitCredentialsButton = await driver.wait(
-				until.elementLocated(By.xpath("//button[contains(., 'Git Credentials')]")),
+			const submissionSetupButton = await driver.wait(
+				until.elementLocated(By.xpath("//button[contains(., 'Submission Setup')]")),
 				10000,
 			);
-			await gitCredentialsButton.click();
+			await submissionSetupButton.click();
 			await reattachWebviewFrame(driver);
 		} catch {
 			// Button not found, skip gracefully.
-			await takeScreenshot(driver, 'git-credentials-smoke');
+			await takeScreenshot(driver, 'submission-setup-smoke');
 			this.skip();
 			return;
 		}
 
+		// The page is a checklist, so the rows are the evidence it mounted; a
+		// form only exists while the identity is missing or being edited.
 		let contentElement: Awaited<ReturnType<typeof driver.findElement>> | null = null;
 		try {
 			contentElement = await driver.wait(
-				until.elementLocated(By.xpath('//form | //input | //section | //main')),
+				until.elementLocated(By.css('[data-testid="setup-row-git"]')),
 				8000,
 			);
 		} catch {
-			await takeScreenshot(driver, 'git-credentials-smoke');
+			await takeScreenshot(driver, 'submission-setup-smoke');
 			this.skip();
 			return;
 		}
 
-		assert.ok(contentElement, 'GitCredentials view content should be visible');
+		assert.ok(contentElement, 'Submission Setup view content should be visible');
 
-		await takeScreenshot(driver, 'git-credentials-smoke');
+		await takeScreenshot(driver, 'submission-setup-smoke');
 	});
 });
