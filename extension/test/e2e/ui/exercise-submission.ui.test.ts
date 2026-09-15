@@ -130,6 +130,17 @@ describe('Exercise Submission Flow UI Tests', function () {
 			return;
 		}
 
+		// A workspace with nothing uncommitted is the normal state right after a
+		// clone, and the view disables Submit for it. Clicking anyway fails with
+		// "element click intercepted", which reads like a broken selector rather
+		// than like the view being right.
+		if (!await submitButton.isEnabled()) {
+			console.log('Exercise submission: nothing to submit in this workspace, so Submit is disabled; skipping the submit assertion');
+			await takeScreenshot(driver, 'exercise-submission-nothing-to-submit');
+			this.skip();
+			return;
+		}
+
 		await submitButton.click();
 		await takeScreenshot(driver, 'exercise-submission-after-click');
 

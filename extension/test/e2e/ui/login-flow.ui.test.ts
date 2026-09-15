@@ -3,6 +3,7 @@ import * as assert from 'assert';
 import { By, VSBrowser, WebDriver } from 'vscode-extension-tester';
 
 import {
+    attachToLoginForm,
     getCredentials,
     openArtemisView,
     safeLogoutAndCleanup,
@@ -48,7 +49,10 @@ describe('Login Flow UI Tests', function () {
 		this.timeout(30000);
 
 		await openArtemisView();
-		await switchToWebviewFrame(driver);
+		// Not a plain switchToFrame: the first webview on a fresh profile can be
+		// VS Code's own Getting Started page, whose frame answers every query
+		// with nothing.
+		await attachToLoginForm(driver);
 
 		// Stage 0: the username decides what stage 1 asks for, so the password field
 		// only exists after the server has answered Continue.

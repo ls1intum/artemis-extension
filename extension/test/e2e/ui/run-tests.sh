@@ -94,7 +94,15 @@ for test_file in out/test/e2e/ui/*.ui.test.js; do
   # reaching extension elements. The load-bearing setting is
   # `workbench.welcomePage.experimentalOnboarding: false`, identified via
   # redhat-developer/vscode-extension-tester#2345. See issue #176.
-  extest run-tests "$test_file" --code_version "$UI_CODE_VERSION" --mocha_config .mocharc.ui.yml --code_settings "$SETTINGS_FILE" 2>&1 | tee "$log_file"
+  # ARTEMIS_TEST_REPO (optional, from .env) opens a cloned exercise as the
+  # workspace. The Submission Setup repair test needs one: without a repository
+  # there is no access to check and it skips itself.
+  OPEN_RESOURCE=()
+  if [ -n "${ARTEMIS_TEST_REPO:-}" ] && [ -d "$ARTEMIS_TEST_REPO" ]; then
+    OPEN_RESOURCE=(-r "$ARTEMIS_TEST_REPO")
+  fi
+
+  extest run-tests "$test_file" --code_version "$UI_CODE_VERSION" --mocha_config .mocharc.ui.yml --code_settings "$SETTINGS_FILE" "${OPEN_RESOURCE[@]}" 2>&1 | tee "$log_file"
   rc=${PIPESTATUS[0]}
 
   # Distinguish "actually ran" from "skipped because .env was missing".

@@ -139,6 +139,27 @@ export async function attachToLoginForm(driver: WebDriver, attempts = 6): Promis
 }
 
 /**
+ * Walk the view back to the Dashboard, wherever it currently sits.
+ *
+ * Suites share one VS Code instance and each test leaves the view where its own
+ * navigation ended, so a test that starts by looking for a dashboard entry finds
+ * a course list instead and skips itself for the wrong reason. Every page above
+ * the Dashboard carries a Back link, and the walk stops as soon as none is left.
+ *
+ * Must be called AFTER `switchToWebviewFrame`.
+ */
+export async function returnToDashboard(driver: WebDriver, maxSteps = 4): Promise<void> {
+	for (let step = 0; step < maxSteps; step++) {
+		const back = await driver
+			.findElement(By.xpath("//button[contains(., 'Back to Dashboard') or contains(., 'Back to Courses') or contains(., 'Back')]"))
+			.catch(() => null);
+		if (!back) { return; }
+		await back.click();
+		await reattachWebviewFrame(driver);
+	}
+}
+
+/**
  * Perform the standard login sequence: open the Artemis view, go through both
  * stages of the form, wait for navigation to the Dashboard, then switch back to
  * the VS Code host context.
