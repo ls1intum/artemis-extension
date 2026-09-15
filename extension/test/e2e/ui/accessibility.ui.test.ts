@@ -5,10 +5,12 @@ import * as assert from 'assert';
 import { ActivityBar, By, until, VSBrowser, WebDriver, Workbench } from 'vscode-extension-tester';
 
 import {
+    attachToLoginForm,
     getCredentials,
     openArtemisView,
     performLogin,
     reattachWebviewFrame,
+    returnToDashboard,
     runAxeInCurrentFrame,
     switchBackFromWebview,
     switchToWebviewFrame,
@@ -72,8 +74,10 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 		// The Login view is only visible when NOT logged in.
 		// This test runs before the nested describe logs in.
 		await openArtemisView();
-		await switchToWebviewFrame(driver);
-		await waitForElement(driver, 'form', 10000);
+		// Not a plain switchToFrame: on a fresh profile the first webview the
+		// driver finds is VS Code's own Getting Started page, and axe would then
+		// audit the theme picker instead of the login form.
+		await attachToLoginForm(driver);
 		await assertNoAxeViolations('login', driver);
 	});
 
@@ -104,6 +108,9 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 
 			await openArtemisView();
 			await switchToWebviewFrame(driver);
+			// Each suite shares one VS Code instance, so this test starts wherever
+			// the previous one navigated to.
+			await returnToDashboard(driver);
 			await waitForElement(driver, 'h1', 10000);
 			await assertNoAxeViolations('dashboard', driver);
 		});
@@ -113,6 +120,9 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 
 			await openArtemisView();
 			await switchToWebviewFrame(driver);
+			// Each suite shares one VS Code instance, so this test starts wherever
+			// the previous one navigated to.
+			await returnToDashboard(driver);
 
 			try {
 				await waitForElement(driver, 'h1', 10000);
@@ -140,39 +150,46 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 			await assertNoAxeViolations('course-list', driver);
 		});
 
-		it('GitCredentials view should have zero axe violations', async function () {
+		it('Submission Setup view should have zero axe violations', async function () {
 			this.timeout(30000);
 
 			await openArtemisView();
 			await switchToWebviewFrame(driver);
+			// Each suite shares one VS Code instance, so this test starts wherever
+			// the previous one navigated to.
+			await returnToDashboard(driver);
 
 			try {
 				await waitForElement(driver, 'h1', 10000);
 			} catch {
-				await takeScreenshot(driver, 'a11y-skip-git-credentials');
+				await takeScreenshot(driver, 'a11y-skip-submission-setup');
 				this.skip();
 				return;
 			}
 
 			try {
-				const gitBtn = await driver.wait(
-					until.elementLocated(By.xpath("//button[.//span[contains(text(),'Git')]]")),
+				const setupBtn = await driver.wait(
+					until.elementLocated(By.xpath("//button[contains(., 'Submission Setup')]")),
 					8000,
 				);
-				await gitBtn.click();
-				await driver.sleep(2000);
+				await setupBtn.click();
+				// Navigating replaces the webview document, so the driver is
+				// still attached to a frame that no longer exists: axe would run
+				// against nothing and report a clean page.
+				await reattachWebviewFrame(driver);
 			} catch {
-				await takeScreenshot(driver, 'a11y-skip-git-credentials');
+				await takeScreenshot(driver, 'a11y-skip-submission-setup');
 				this.skip();
 				return;
 			}
 
-			// Accept any content (form, input, section) as evidence of mount.
+			// The checklist rows are the evidence it mounted; a form only exists
+			// while the identity is missing or being edited.
 			try {
 				await driver.wait(
 					() =>
 						driver
-							.findElement(By.xpath('//form | //input | //section | //main'))
+							.findElement(By.css('[data-testid="setup-row-git"]'))
 							.then((el) => el)
 							.catch(() => null),
 					8000,
@@ -181,7 +198,7 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 				// Accept loading state.
 			}
 
-			await assertNoAxeViolations('git-credentials', driver);
+			await assertNoAxeViolations('submission-setup', driver);
 		});
 
 		it('CourseDetail view should have zero axe violations', async function () {
@@ -189,6 +206,9 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 
 			await openArtemisView();
 			await switchToWebviewFrame(driver);
+			// Each suite shares one VS Code instance, so this test starts wherever
+			// the previous one navigated to.
+			await returnToDashboard(driver);
 
 			try {
 				await waitForElement(driver, 'h1', 10000);
@@ -237,6 +257,9 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 
 			await openArtemisView();
 			await switchToWebviewFrame(driver);
+			// Each suite shares one VS Code instance, so this test starts wherever
+			// the previous one navigated to.
+			await returnToDashboard(driver);
 
 			try {
 				await waitForElement(driver, 'h1', 10000);

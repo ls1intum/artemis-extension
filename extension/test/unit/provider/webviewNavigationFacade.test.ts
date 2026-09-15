@@ -53,7 +53,7 @@ suite('WebviewNavigationFacade', () => {
             showCourseDetail: sinon.SinonStub;
             showExerciseDetail: sinon.SinonStub;
             showStruggleDetection: sinon.SinonStub;
-            showGitCredentials: sinon.SinonStub;
+            showSubmissionSetup: sinon.SinonStub;
             seedAuthenticatedSession: sinon.SinonStub;
             injectCourseEntry: sinon.SinonStub;
             currentState: string;
@@ -107,7 +107,7 @@ suite('WebviewNavigationFacade', () => {
                 showCourseDetail: sandbox.stub(),
                 showExerciseDetail: sandbox.stub(),
                 showStruggleDetection: sandbox.stub(),
-                showGitCredentials: sandbox.stub(),
+                showSubmissionSetup: sandbox.stub(),
                 seedAuthenticatedSession: sandbox.stub(),
                 injectCourseEntry: sandbox.stub(),
                 currentState: 'login',
@@ -454,7 +454,7 @@ suite('WebviewNavigationFacade', () => {
             showCourseDetail: sandbox.stub(),
             showExerciseDetail: sandbox.stub(),
             showStruggleDetection: sandbox.stub(),
-            showGitCredentials: sandbox.stub(),
+            showSubmissionSetup: sandbox.stub(),
             seedAuthenticatedSession: sandbox.stub(),
             injectCourseEntry: sandbox.stub(),
             currentState: 'exercise-detail',
@@ -499,7 +499,7 @@ suite('WebviewNavigationFacade', () => {
             showCourseDetail: sandbox.stub(),
             showExerciseDetail: sandbox.stub(),
             showStruggleDetection: sandbox.stub(),
-            showGitCredentials: sandbox.stub(),
+            showSubmissionSetup: sandbox.stub(),
             seedAuthenticatedSession: sandbox.stub(),
             injectCourseEntry: sandbox.stub(),
             currentState: 'exercise-detail',
@@ -559,7 +559,7 @@ suite('WebviewNavigationFacade', () => {
                 showCourseDetail: sandbox.stub(),
                 showExerciseDetail: sandbox.stub(),
                 showStruggleDetection: sandbox.stub(),
-                showGitCredentials: sandbox.stub(),
+                showSubmissionSetup: sandbox.stub(),
                 seedAuthenticatedSession: sandbox.stub(),
                 injectCourseEntry: sandbox.stub(),
                 currentState: 'exercise-detail',
@@ -699,13 +699,13 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.notCalled(stubs.render);
     });
 
-    test('showGitCredentials: delegates and renders', () => {
+    test('showSubmissionSetup: delegates and renders', () => {
         const { deps, stubs } = buildDeps();
         const facade = new WebviewNavigationFacade(deps);
 
-        facade.showGitCredentials();
+        facade.showSubmissionSetup();
 
-        sinon.assert.calledOnce(stubs.appStateManager.showGitCredentials);
+        sinon.assert.calledOnce(stubs.appStateManager.showSubmissionSetup);
         sinon.assert.called(stubs.render);
     });
 
@@ -767,7 +767,7 @@ suite('WebviewNavigationFacade', () => {
             showCourseDetail: sandbox.stub(),
             showExerciseDetail: sandbox.stub(),
             showStruggleDetection: sandbox.stub(),
-            showGitCredentials: sandbox.stub(),
+            showSubmissionSetup: sandbox.stub(),
             seedAuthenticatedSession: sandbox.stub(),
             injectCourseEntry: sandbox.stub(),
             currentState: 'course-list',

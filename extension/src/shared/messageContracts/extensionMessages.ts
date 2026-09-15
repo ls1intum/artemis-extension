@@ -9,6 +9,7 @@ import type {
     ResultSummary,
     SubmissionSummary,
 } from '@shared/types/apiResponses';
+import type { SubmissionSetupSnapshot } from '@shared/types/submissionSetup';
 
 import type { AttemptId } from './domainTypes';
 import type { ArchivedCourse, CourseDetailData, RecentCourseNode } from './domainTypes';
@@ -282,8 +283,8 @@ export const ExtensionMsg = {
     UpdateRepoStatus: 'updateRepoStatus',
     UpdateDirtyPagesStatus: 'updateDirtyPagesStatus',
     ShowClonedRepoNotice: 'showClonedRepoNotice',
-    GitCredentialsResult: 'gitCredentialsResult',
-    GitIdentityInfo: 'gitIdentityInfo',
+    SubmissionSetupResult: 'submissionSetupResult',
+    SubmissionSetupInfo: 'submissionSetupInfo',
 
     // Server-side problem statement rendering
     ProblemStatementRendered: 'problemStatementRendered',
@@ -694,11 +695,13 @@ interface ExtensionMsgPayloads {
         autoSaveEnabled: boolean;
     };
     showClonedRepoNotice: { exerciseTitle: string; participationId: number };
-    gitCredentialsResult: {
+    /** One line of feedback about an action the page just took (save, renew, recheck). */
+    submissionSetupResult: {
         status: 'success' | 'error' | 'warning' | 'info';
         message: string;
     };
-    gitIdentityInfo: { name: string; email: string };
+    /** The whole Submission Setup state, recomputed by the host; the page renders it as-is. */
+    submissionSetupInfo: { snapshot: SubmissionSetupSnapshot };
 
     // Server-side problem statement rendering. Broadcast to every open webview,
     // so it carries the exerciseId it belongs to; each exercise-detail view

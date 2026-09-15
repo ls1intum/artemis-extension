@@ -7,8 +7,8 @@ import {
     createCourseListPayload,
     createDashboardPayload,
     createExerciseDetailPayload,
-    createGitCredentialsPayload,
     createIrisInitPayload,
+    createSubmissionSetupPayload,
 } from '@test/react/fixtures';
 import { useChatStore } from '@webview/stores/useChatStore';
 import { useCourseDetailStore } from '@webview/stores/useCourseDetailStore';
@@ -19,8 +19,8 @@ import { CourseDetailView } from '@webview/views/CourseDetail/CourseDetailView';
 import { CourseListView } from '@webview/views/CourseList/CourseListView';
 import { DashboardView } from '@webview/views/Dashboard/DashboardView';
 import { ExerciseDetailView } from '@webview/views/ExerciseDetail/ExerciseDetailView';
-import { GitCredentialsView } from '@webview/views/GitCredentials/GitCredentialsView';
 import { IrisChatView } from '@webview/views/IrisChat/IrisChatView';
+import { SubmissionSetupView } from '@webview/views/SubmissionSetup/SubmissionSetupView';
 
 /**
  * Store hydration flow integration tests.
@@ -36,22 +36,20 @@ import { IrisChatView } from '@webview/views/IrisChat/IrisChatView';
  *  3. assert on store.getState() or DOM content
  */
 
-describe('gitIdentityInfo hydrates GitCredentialsView local state', () => {
-    it('renders pre-filled name and email after init message', async () => {
+describe('submissionSetupInfo hydrates SubmissionSetupView local state', () => {
+    it('renders the four rows after the init message', async () => {
         const mockApi = createMockVsCodeApi();
-        render(<GitCredentialsView vscodeApi={mockApi} />);
+        render(<SubmissionSetupView vscodeApi={mockApi} />);
 
         await act(async () => {
-            dispatchExtensionMessage(
-                createGitCredentialsPayload({
-                    name: 'Alice Example',
-                    email: 'alice@tum.de',
-                }),
-            );
+            dispatchExtensionMessage(createSubmissionSetupPayload());
         });
 
-        expect((screen.getByDisplayValue('Alice Example') as HTMLInputElement).value).toBe('Alice Example');
-        expect((screen.getByDisplayValue('alice@tum.de') as HTMLInputElement).value).toBe('alice@tum.de');
+        expect(screen.getByTestId('setup-row-git')).toBeInTheDocument();
+        expect(screen.getByTestId('setup-row-identity')).toBeInTheDocument();
+        expect(screen.getByTestId('setup-row-repository')).toBeInTheDocument();
+        expect(screen.getByTestId('setup-row-access')).toBeInTheDocument();
+        expect(screen.getByText('Sorting Algorithms')).toBeInTheDocument();
     });
 });
 

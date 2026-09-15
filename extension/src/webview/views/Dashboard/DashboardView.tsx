@@ -76,8 +76,8 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
         postCommand(vscodeApi, 'openSettings', { setting: 'Artemis' });
     };
 
-    const handleShowGitCredentials = () => {
-        postCommand(vscodeApi, 'showGitCredentials');
+    const handleShowSubmissionSetup = () => {
+        postCommand(vscodeApi, 'showSubmissionSetup');
     };
 
     const handleShowStruggleDetection = () => {
@@ -200,20 +200,20 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                                     key={course.id || index}
                                     className={`${styles.courseNode} ${isExpanded ? styles.isExpanded : ''}`}
                                 >
-                                    <div
-                                        className={styles.courseHeader}
-                                        onClick={() => toggleCourseExpanded(index)}
-                                        role="button"
-                                        tabIndex={0}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' || e.key === ' ') {
-                                                e.preventDefault();
-                                                toggleCourseExpanded(index);
-                                            }
-                                        }}
-                                    >
-                                        <ChevronRight size={12} className={styles.courseExpandIcon} />
-                                        <span className={styles.courseTitle}>{course.title}</span>
+                                    {/* The row holds two separate actions, expand and open, so the
+                                        outer element must not be a button itself: a control nested in
+                                        another control is announced unpredictably and traps focus
+                                        (axe nested-interactive). The toggle fills the row instead. */}
+                                    <div className={styles.courseHeader}>
+                                        <button
+                                            type="button"
+                                            className={styles.courseToggle}
+                                            onClick={() => toggleCourseExpanded(index)}
+                                            aria-expanded={isExpanded}
+                                        >
+                                            <ChevronRight size={12} className={styles.courseExpandIcon} />
+                                            <span className={styles.courseTitle}>{course.title}</span>
+                                        </button>
                                         <button
                                             type="button"
                                             className={styles.courseArrow}
@@ -291,8 +291,8 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                             </span>
                         </Button>
                     )}
-                    <Button variant="ghost" fullWidth onClick={handleShowGitCredentials} icon={<GitBranch size={16} />}>
-                        Git Credentials
+                    <Button variant="ghost" fullWidth onClick={handleShowSubmissionSetup} icon={<GitBranch size={16} />}>
+                        Submission Setup
                     </Button>
                     <Button variant="ghost" fullWidth onClick={handleOpenBugReport} icon={<Bug size={16} />}>
                         Bug Report

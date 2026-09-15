@@ -18,6 +18,7 @@ import type {
     IrisHealthStatus,
     ProfileInfo,
     ProgrammingSubmission,
+    VcsAccessTokenOverview,
 } from '@extension/types';
 import type {
     CourseDashboardCourse,
@@ -331,6 +332,39 @@ export class ArtemisApiService {
             { method: 'GET' }
         );
         return response.text();
+    }
+
+    /**
+     * The VCS access tokens this account owns, as display metadata without the secrets.
+     *
+     * The only way to get at a token's id, which is what revoking one needs.
+     * Artemis' own user settings read the same endpoint.
+     */
+    async listVcsAccessTokens(): Promise<VcsAccessTokenOverview[]> {
+        const response = await this.makeRequest('/api/programming/vcs-access-tokens');
+        const body: unknown = await response.json();
+        if (!Array.isArray(body)) { return []; }
+        return body.flatMap((entry): VcsAccessTokenOverview[] => {
+            const e = entry as { id?: unknown; tokenType?: unknown; exerciseId?: unknown; repositoryUri?: unknown };
+            if (typeof e.id !== 'number' || typeof e.tokenType !== 'string') { return []; }
+            return [{
+                id: e.id,
+                tokenType: e.tokenType,
+                exerciseId: typeof e.exerciseId === 'number' ? e.exerciseId : undefined,
+                repositoryUri: typeof e.repositoryUri === 'string' ? e.repositoryUri : undefined,
+            }];
+        });
+    }
+
+    /**
+     * Revoke one of this account's tokens. Scoped to the current user server-side,
+     * so it can only ever affect the caller's own tokens.
+     */
+    async revokeVcsAccessToken(tokenId: number, tokenType: 'PARTICIPATION' | 'REPOSITORY'): Promise<void> {
+        await this.makeRequest(
+            `/api/programming/vcs-access-tokens/${tokenId}?tokenType=${tokenType}`,
+            { method: 'DELETE' },
+        );
     }
 
     async createVcsAccessToken(participationId: number): Promise<string> {

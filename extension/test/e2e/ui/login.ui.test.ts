@@ -3,6 +3,7 @@ import * as assert from 'assert';
 import { By, VSBrowser, WebDriver } from 'vscode-extension-tester';
 
 import {
+    attachToLoginForm,
     getCredentials,
     openArtemisView,
     submitUsername,
@@ -39,8 +40,10 @@ describe('Login View UI Tests', function () {
 		this.timeout(20000);
 		await openArtemisView();
 
-		const webview = await switchToWebviewFrame(driver);
-		assert.ok(webview, 'Webview should be accessible');
+		// Not a plain switchToFrame: the first webview on a fresh profile can be
+		// VS Code's own Getting Started page, whose frame answers every query
+		// with nothing.
+		await attachToLoginForm(driver);
 
 		const form = await waitForElement(driver, 'form');
 		assert.ok(form, 'Login form should be present');

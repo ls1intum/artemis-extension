@@ -41,7 +41,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
         showCourseDetail: sinon.SinonStub;
         showExerciseDetail: sinon.SinonStub;
         showStruggleDetection: sinon.SinonStub;
-        showGitCredentials: sinon.SinonStub;
+        showSubmissionSetup: sinon.SinonStub;
         openExerciseDetails: sinon.SinonStub;
         openExerciseFullscreen: sinon.SinonStub;
         openCourseFullscreen: sinon.SinonStub;
@@ -76,7 +76,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             showCourseDetail: sandbox.stub().resolves(),
             showExerciseDetail: sandbox.stub().resolves(),
             showStruggleDetection: sandbox.stub(),
-            showGitCredentials: sandbox.stub(),
+            showSubmissionSetup: sandbox.stub(),
             openExerciseDetails: sandbox.stub().resolves(),
             openExerciseFullscreen: sandbox.stub().resolves(),
             openCourseFullscreen: sandbox.stub().resolves(),
@@ -299,6 +299,16 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
     });
 
     suite('command dispatch', () => {
+        test('registers the submission-setup commands and owns the service both consumers read', () => {
+            // The page is useless unless these are routed, and the init service
+            // answers from the same instance, so a second one here would let the
+            // first render disagree with every later refresh.
+            const handlers = (handler as any).commandHandlers as Map<string, unknown>;
+            assert.ok(handlers.has('refreshSubmissionSetup'), 'refreshSubmissionSetup must be routable');
+            assert.ok(handlers.has('renewArtemisAccess'), 'renewArtemisAccess must be routable');
+            assert.ok(handler.submissionSetup, 'the snapshot service must be reachable from the handler');
+        });
+
         test('routes command-type messages via the command field', async () => {
             const routeHandlerStub = sandbox.stub().resolves();
             (handler as any).commandHandlers.set('testRoute', routeHandlerStub);

@@ -7,6 +7,7 @@ import { ExtensionMsg, getOptionalPayload, getPayload, WebviewCmd } from '@share
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import {
+    buildAuthenticatedRepositoryUrl,
     getWorkspaceRepositoryUrl as defaultGetWorkspaceRepositoryUrl,
     GitService,
     normalizeRepositoryUrl as defaultNormalizeRepositoryUrl,
@@ -15,7 +16,7 @@ import {
     cloneRepositoryProgrammatic as defaultCloneRepositoryProgrammatic,
     getTheiaEnvironment as defaultGetTheiaEnvironment,
 } from '@extension/theia';
-import { expandHomePath, extractErrorMessage, VSCODE_CONFIG } from '@extension/utils';
+import { expandHomePath, extractRedactedErrorMessage, VSCODE_CONFIG } from '@extension/utils';
 
 import type { CommandContext, CommandMap } from './types';
 
@@ -100,15 +101,12 @@ export class RepositoryCloneCommands {
             logger.warn('Could not fetch current user, defaulting username:', LogCategory.SUBMISSION, userErr);
         }
 
-        try {
-            const url = new URL(repositoryUri);
-            url.username = username;
-            url.password = vcsToken;
-            return url.toString();
-        } catch {
+        const authenticatedUrl = buildAuthenticatedRepositoryUrl(repositoryUri, username, vcsToken);
+        if (!authenticatedUrl) {
             vscode.window.showErrorMessage('Invalid repository URL received from server.');
             return null;
         }
+        return authenticatedUrl;
     }
 
     private async _selectFolder(openLabel: string, title: string): Promise<string | undefined> {
@@ -271,8 +269,11 @@ export class RepositoryCloneCommands {
                 void vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(repoPath), true);
             }
         } catch (error: unknown) {
-            logger.error('Clone repository error:', LogCategory.SUBMISSION, error);
-            vscode.window.showErrorMessage(`Failed to clone repository: ${extractErrorMessage(error)}`);
+            // A clone runs against the tokenised URL, and git quotes it back in
+            // the failure, so neither the log nor the notification may carry the
+            // raw text.
+            logger.error('Clone repository error:', LogCategory.SUBMISSION, extractRedactedErrorMessage(error));
+            vscode.window.showErrorMessage(`Failed to clone repository: ${extractRedactedErrorMessage(error)}`);
         }
     };
 
@@ -294,8 +295,9 @@ export class RepositoryCloneCommands {
                 'Authenticated clone URL copied to clipboard. It contains a VCS access token, so do not share it.'
             );
         } catch (error: unknown) {
-            logger.error('Failed to copy authenticated clone URL:', LogCategory.SUBMISSION, error);
-            vscode.window.showErrorMessage(`Failed to copy clone URL: ${extractErrorMessage(error)}`);
+            logger.error('Failed to copy authenticated clone URL:', LogCategory.SUBMISSION,
+                extractRedactedErrorMessage(error));
+            vscode.window.showErrorMessage(`Failed to copy clone URL: ${extractRedactedErrorMessage(error)}`);
         }
     };
 

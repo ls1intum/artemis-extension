@@ -22,7 +22,7 @@ export class NavigationCommandModule {
             [WebviewCmd.ShowStruggleDetection]: this.handleShowStruggleDetection,
             [WebviewCmd.StruggleLiveSubscribe]: this.handleStruggleLiveSubscribe,
             [WebviewCmd.StruggleLiveUnsubscribe]: this.handleStruggleLiveUnsubscribe,
-            [WebviewCmd.ShowGitCredentials]: this.handleShowGitCredentials,
+            [WebviewCmd.ShowSubmissionSetup]: this.handleShowSubmissionSetup,
             [WebviewCmd.LoadArchivedCourses]: this.handleLoadArchivedCourses,
             [WebviewCmd.ReloadCourses]: this.handleReloadCourses,
             [WebviewCmd.ReloadDashboard]: this.handleReloadDashboard,
@@ -150,8 +150,8 @@ export class NavigationCommandModule {
         this.context.struggleLiveFeed?.unsubscribe(sink);
     };
 
-    private handleShowGitCredentials = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        this.context.actionHandler.showGitCredentials();
+    private handleShowSubmissionSetup = async (_message: WebviewToExtensionMessage): Promise<void> => {
+        this.context.actionHandler.showSubmissionSetup();
     };
 
     private handleLoadArchivedCourses = async (_message: WebviewToExtensionMessage): Promise<void> => {
