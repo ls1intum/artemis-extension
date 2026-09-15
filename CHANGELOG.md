@@ -10,7 +10,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ### Added
 
-- **"Renew" repairs Artemis access from the page.** The access token the extension puts into your repository when it clones can stop working, and until now a push that failed because of it showed a raw Git error and nothing else. The page asks Artemis for your token for this participation, checks it against your repository before changing anything, and only then rewrites the remote. If it is refused too, or Artemis cannot be reached, your repository is left exactly as it was and the page says the token has to be renewed in Artemis itself. This repairs the common cases: a repository cloned by hand from the Artemis website, and a remote whose token went stale while the one on the server is fine.
+- **"Renew" repairs Artemis access from the page.** The access token the extension puts into your repository when it clones can stop working, and until now a push that failed because of it showed a raw Git error and nothing else. Renew asks Artemis for the token of this exercise and tries it against your repository before changing anything. If that one is refused as well, it revokes it and has Artemis issue a new one, and only a token that has been shown to work is written into your repository. If nothing works, or Artemis cannot be reached, your repository is left exactly as it was. This repairs an expired token, a repository cloned by hand from the Artemis website, and a remote whose token went stale.
 
 - **A push refused by Artemis now offers the repair.** The submission error names what happened and opens Submission Setup, instead of showing Git's own message with the access token in it.
 

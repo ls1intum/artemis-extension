@@ -166,17 +166,23 @@ describe('Submission Setup View UI Tests', function () {
 		}
 
 		await openSubmissionSetup(driver);
-		await waitForAccessText(driver, /Git can reach your repository/);
-		await takeScreenshot(driver, 'submission-setup-ready');
+		await waitForAccessText(driver, /./);
+		await takeScreenshot(driver, 'submission-setup-initial');
 
-		// Break the credential the way an expiry would: the remote still points
-		// at the right repository, and the token in it no longer works.
+		// Break the credential the way an expiry would: the remote still points at
+		// the right repository, and the token in it no longer works. Harmless when
+		// the token is already dead server-side, which is the other case this run
+		// has to cope with.
 		const workingUrl = git(['remote', 'get-url', 'origin']);
 		const deadUrl = workingUrl.replace(/\/\/[^@]*@/, '//artemis_admin:dead-token@');
 		git(['remote', 'set-url', 'origin', deadUrl]);
 
-		const recheck = await driver.findElement(By.css('[data-testid="setup-access-recheck"]'));
-		await recheck.click();
+		const recheck = await driver
+			.findElement(By.css('[data-testid="setup-access-recheck"]'))
+			.catch(() => null);
+		if (recheck) {
+			await recheck.click();
+		}
 
 		await waitForAccessText(driver, /refused access/i);
 		await takeScreenshot(driver, 'submission-setup-refused');

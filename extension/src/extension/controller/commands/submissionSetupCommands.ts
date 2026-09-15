@@ -5,7 +5,8 @@ import { ExtensionMsg, WebviewCmd } from '@shared/messageContracts';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import type { GitService } from '@extension/services/workspace';
-import { buildAuthenticatedRepositoryUrl } from '@extension/services/workspace';
+import type { ResolvedParticipation } from '@extension/services/workspace';
+import { buildAuthenticatedRepositoryUrl, normalizeRepositoryUrl } from '@extension/services/workspace';
 import { ApiError } from '@extension/types';
 import { extractRedactedErrorMessage } from '@extension/utils';
 
@@ -84,54 +85,36 @@ export class SubmissionSetupCommands {
             return;
         }
 
-        let token: string;
-        try {
-            // Get-or-create, not PUT. The plan called for PUT on the assumption
-            // that it rotates a participation's token; measured against Artemis
-            // develop it does not. With a token already on record it answers 500
-            // (InvalidDataAccessApiUsageException server-side), so a renewal
-            // built on it would fail for every student who has ever cloned.
-            //
-            // What this repairs is therefore the common case: the token in
-            // `.git/config` is stale or absent (a hand-cloned repository, a
-            // remote rewritten elsewhere) while the server's own token is good.
-            // A token that is genuinely dead on the server cannot be replaced
-            // from here, and the probe below is what keeps that honest: the
-            // credential is tested before anything is written, so the student is
-            // told it is still refused instead of being handed a repaired-looking
-            // remote that fails on the next push.
-            token = await this.context.artemisApi.getOrCreateVcsAccessToken(participation.participationId);
-        } catch (error: unknown) {
-            if (error instanceof ApiError && error.status === 401) {
-                // makeRequest has already cleared the session and started the
-                // auth-expired flow; this is a login problem, not a token problem.
-                this.sendResult('error', 'Your Artemis session expired. Sign in again, then retry.');
-                return;
-            }
-            // The logger prints message and stack, and a git or fetch error can
-            // quote the tokenised URL, so it is redacted before it gets there.
-            logger.error('Could not create a VCS access token', LogCategory.SUBMISSION,
-                extractRedactedErrorMessage(error));
-            this.sendResult('error', `Could not renew your access: ${extractRedactedErrorMessage(error)}`);
-            return;
-        }
+        // Two steps, cheapest first. Most broken remotes carry a stale or absent
+        // token while the server's own token is perfectly good: a hand-cloned
+        // repository, or a remote rewritten elsewhere. Asking for the token
+        // Artemis already has repairs those without invalidating a credential
+        // that may also be in use in another checkout.
+        let authenticatedUrl = await this.buildUrlFor(participation, login, false);
+        if (authenticatedUrl === undefined) { return; }
 
-        const authenticatedUrl = buildAuthenticatedRepositoryUrl(participation.repositoryUri, login, token);
-        if (!authenticatedUrl) {
-            this.sendResult('error', 'Artemis returned a repository address this extension cannot use.');
-            return;
-        }
-
-        // Prove the new credential works BEFORE touching git config. A remote
+        // Prove the credential works BEFORE touching git config. A remote
         // rewritten to a URL that turns out to be refused is worse than the dead
         // one: the student can no longer tell which failure they are looking at.
-        const probe = await this.git.probeRemoteAccess(folder, authenticatedUrl);
+        let probe = await this.git.probeRemoteAccess(folder, authenticatedUrl);
+
+        if (probe === 'refused') {
+            // Artemis' own token is dead too, so it has to be replaced. PUT
+            // alone cannot do that: with a token on record it answers 500 (a
+            // bare IllegalStateException in ParticipationVCSAccessTokenRepository
+            // that Spring translates), so the old one is revoked first.
+            this.sendResult('info', 'That access token no longer works. Getting a new one from Artemis...');
+            authenticatedUrl = await this.buildUrlFor(participation, login, true);
+            if (authenticatedUrl === undefined) { return; }
+            probe = await this.git.probeRemoteAccess(folder, authenticatedUrl);
+        }
+
         if (probe !== 'ok') {
             this.sendResult(
                 'error',
                 probe === 'refused'
                     ? 'Artemis still refuses this repository, so nothing was changed. '
-                        + 'Your access token needs to be renewed in Artemis itself.'
+                        + 'Ask your instructor whether you still have access to it.'
                     : 'Could not reach Artemis, so nothing was changed.',
             );
             await this.postSnapshot();
@@ -155,6 +138,76 @@ export class SubmissionSetupCommands {
         this.sendResult('success', 'Access renewed. You can submit again.');
         await this.postSnapshot();
     };
+
+    /**
+     * The authenticated URL for this participation, from the token Artemis
+     * already has or, when `rotate` is set, from a freshly minted one.
+     *
+     * `undefined` means the caller must stop: the failure has already been
+     * reported to the page.
+     */
+    private async buildUrlFor(
+        participation: ResolvedParticipation,
+        login: string,
+        rotate: boolean,
+    ): Promise<string | undefined> {
+        let token: string;
+        try {
+            token = rotate
+                ? await this.rotateToken(participation)
+                : await this.context.artemisApi.getOrCreateVcsAccessToken(participation.participationId);
+        } catch (error: unknown) {
+            if (error instanceof ApiError && error.status === 401) {
+                // makeRequest has already cleared the session and started the
+                // auth-expired flow; this is a login problem, not a token problem.
+                this.sendResult('error', 'Your Artemis session expired. Sign in again, then retry.');
+                return undefined;
+            }
+            // The logger prints message and stack, and a fetch error can quote
+            // the tokenised URL, so it is redacted before it gets there.
+            logger.error('Could not obtain a VCS access token', LogCategory.SUBMISSION,
+                extractRedactedErrorMessage(error));
+            this.sendResult('error', `Could not renew your access: ${extractRedactedErrorMessage(error)}`);
+            return undefined;
+        }
+
+        const url = buildAuthenticatedRepositoryUrl(participation.repositoryUri, login, token);
+        if (!url) {
+            this.sendResult('error', 'Artemis returned a repository address this extension cannot use.');
+            return undefined;
+        }
+        return url;
+    }
+
+    /**
+     * Revoke this participation's token and mint a replacement.
+     *
+     * The id comes from the account's token overview, matched on the repository
+     * the participation names rather than on its exercise: an exercise can own a
+     * graded and a practice token, and revoking the wrong one would break the
+     * other checkout while leaving this one dead.
+     */
+    private async rotateToken(participation: ResolvedParticipation): Promise<string> {
+        const tokens = await this.context.artemisApi.listVcsAccessTokens();
+        const target = normalizeRepositoryUrl(participation.repositoryUri);
+        const existing = tokens.find(t =>
+            t.tokenType === 'PARTICIPATION'
+            && t.repositoryUri !== undefined
+            && normalizeRepositoryUrl(t.repositoryUri) === target);
+
+        if (existing) {
+            await this.context.artemisApi.revokeVcsAccessToken(existing.id, 'PARTICIPATION');
+        }
+        try {
+            return await this.context.artemisApi.createVcsAccessToken(participation.participationId);
+        } catch (error: unknown) {
+            // The old token is gone by now, so an account left with none would
+            // be worse off than before the repair started.
+            logger.error('Could not create a replacement VCS access token', LogCategory.SUBMISSION,
+                extractRedactedErrorMessage(error));
+            return await this.context.artemisApi.getOrCreateVcsAccessToken(participation.participationId);
+        }
+    }
 
     private async currentLogin(): Promise<string | undefined> {
         try {

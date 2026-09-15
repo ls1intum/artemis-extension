@@ -31,6 +31,9 @@ suite('SubmissionSetupCommands.renewArtemisAccess', () => {
         probeRemoteAccess?: sinon.SinonStub;
         setRemoteUrl?: sinon.SinonStub;
         getPushUrls?: sinon.SinonStub;
+        listVcsAccessTokens?: sinon.SinonStub;
+        revokeVcsAccessToken?: sinon.SinonStub;
+        mintedToken?: sinon.SinonStub;
     } = {}) {
         const sendMessage = sandbox.stub();
         const resolveParticipation = overrides.resolveParticipation ?? sandbox.stub().resolves({
@@ -42,15 +45,21 @@ suite('SubmissionSetupCommands.renewArtemisAccess', () => {
             repository: { state: 'ok', participationId: 99 },
             access: { state: 'ok' },
         });
-        const createVcsAccessToken = sandbox.stub().resolves('put-token');
+        const createVcsAccessToken = overrides.mintedToken ?? sandbox.stub().resolves('fresh-token');
         const getVcsAccessToken = sandbox.stub().resolves(TOKEN);
         const getOrCreateVcsAccessToken = overrides.createVcsAccessToken ?? sandbox.stub().resolves(TOKEN);
+        const listVcsAccessTokens = overrides.listVcsAccessTokens ?? sandbox.stub().resolves([
+            { id: 7, tokenType: 'PARTICIPATION', exerciseId: 3, repositoryUri: REPO_URL },
+        ]);
+        const revokeVcsAccessToken = overrides.revokeVcsAccessToken ?? sandbox.stub().resolves();
         const ctx = {
             sendMessage,
             artemisApi: {
                 createVcsAccessToken,
                 getVcsAccessToken,
                 getOrCreateVcsAccessToken,
+                listVcsAccessTokens,
+                revokeVcsAccessToken,
                 getCurrentUser: overrides.getCurrentUser ?? sandbox.stub().resolves({ login: 'ge38nac' }),
             },
             submissionSetup: { buildSnapshot, resolveParticipation },
@@ -67,7 +76,10 @@ suite('SubmissionSetupCommands.renewArtemisAccess', () => {
             type: 'command', command: WebviewCmd.RenewArtemisAccess,
         } as never);
 
-        return { renew, mod, sendMessage, git, ctx, createVcsAccessToken, getOrCreateVcsAccessToken, buildSnapshot, resolveParticipation };
+        return {
+            renew, mod, sendMessage, git, ctx, createVcsAccessToken, getOrCreateVcsAccessToken,
+            listVcsAccessTokens, revokeVcsAccessToken, buildSnapshot, resolveParticipation,
+        };
     }
 
     /** The last result line the page was given. */
@@ -77,10 +89,7 @@ suite('SubmissionSetupCommands.renewArtemisAccess', () => {
         return call?.args[0] as { status: string; message: string } | undefined;
     }
 
-    test('asks for the participation token with get-or-create, because PUT does not rotate one', async () => {
-        // Measured against Artemis develop: PUT with a token already on record
-        // answers 500, so a renewal built on it would fail for every student who
-        // has ever cloned.
+    test('starts with the token Artemis already has, which repairs a stale remote', async () => {
         const { renew, createVcsAccessToken, getOrCreateVcsAccessToken, git } = build();
 
         await renew();
@@ -104,7 +113,45 @@ suite('SubmissionSetupCommands.renewArtemisAccess', () => {
         assert.strictEqual(probeRemoteAccess.firstCall.args[1], (setRemoteUrl.firstCall.args[1] as string));
     });
 
-    test('leaves the remote alone when the new token is refused', async () => {
+    test('rotates the token when the one Artemis has is refused too', async () => {
+        // PUT alone cannot replace a token that exists (Artemis answers 500), so
+        // the old one is revoked first. Measured against a local develop.
+        const probeRemoteAccess = sandbox.stub();
+        probeRemoteAccess.onFirstCall().resolves('refused');
+        probeRemoteAccess.onSecondCall().resolves('ok');
+        const setRemoteUrl = sandbox.stub().resolves();
+        const { renew, revokeVcsAccessToken, createVcsAccessToken, sendMessage } =
+            build({ probeRemoteAccess, setRemoteUrl });
+
+        await renew();
+
+        sinon.assert.calledOnceWithExactly(revokeVcsAccessToken, 7, 'PARTICIPATION');
+        sinon.assert.calledOnceWithExactly(createVcsAccessToken, 99);
+        sinon.assert.callOrder(revokeVcsAccessToken, createVcsAccessToken, setRemoteUrl);
+        assert.ok((setRemoteUrl.firstCall.args[1] as string).includes('fresh-token'));
+        assert.strictEqual(lastResult(sendMessage)!.status, 'success');
+    });
+
+    test('revokes the token of this repository, not another participation of the same exercise', async () => {
+        const probeRemoteAccess = sandbox.stub();
+        probeRemoteAccess.onFirstCall().resolves('refused');
+        probeRemoteAccess.onSecondCall().resolves('ok');
+        const { renew, revokeVcsAccessToken } = build({
+            probeRemoteAccess,
+            listVcsAccessTokens: sandbox.stub().resolves([
+                // Same exercise, the practice repository: revoking this one would
+                // break that checkout and leave this one dead.
+                { id: 5, tokenType: 'PARTICIPATION', exerciseId: 3, repositoryUri: REPO_URL.replace('exercise-', 'exercise-practice-') },
+                { id: 7, tokenType: 'PARTICIPATION', exerciseId: 3, repositoryUri: REPO_URL },
+            ]),
+        });
+
+        await renew();
+
+        sinon.assert.calledOnceWithExactly(revokeVcsAccessToken, 7, 'PARTICIPATION');
+    });
+
+    test('leaves the remote alone when even a fresh token is refused', async () => {
         const setRemoteUrl = sandbox.stub().resolves();
         const { renew, sendMessage } = build({
             probeRemoteAccess: sandbox.stub().resolves('refused'),
@@ -113,13 +160,21 @@ suite('SubmissionSetupCommands.renewArtemisAccess', () => {
 
         await renew();
 
-        // The token Artemis handed back is refused too, which is the case this
-        // page cannot repair. Saying so beats installing it and letting the next
-        // push fail.
         sinon.assert.notCalled(setRemoteUrl);
         assert.match(lastResult(sendMessage)!.message, /nothing was changed/);
-        assert.match(lastResult(sendMessage)!.message, /renewed in Artemis itself/);
+        assert.match(lastResult(sendMessage)!.message, /still have access/);
         assert.strictEqual(lastResult(sendMessage)!.status, 'error');
+    });
+
+    test('does not rotate when the token Artemis has already works', async () => {
+        const { renew, revokeVcsAccessToken, createVcsAccessToken } = build();
+
+        await renew();
+
+        // Rotating would invalidate a credential that may be in use in another
+        // checkout, for no gain.
+        sinon.assert.notCalled(revokeVcsAccessToken);
+        sinon.assert.notCalled(createVcsAccessToken);
     });
 
     test('leaves the remote alone when Artemis cannot be reached', async () => {
