@@ -186,6 +186,19 @@ suite('SubmissionSetupCommands.renewArtemisAccess', () => {
         assert.match(message, /\*\*\*/);
     });
 
+    test('aborts the repair when the repository configuration cannot be read', async () => {
+        const setRemoteUrl = sandbox.stub().resolves();
+        const { renew, sendMessage } = build({
+            getPushUrls: sandbox.stub().rejects(new Error('fatal: bad config line 3')),
+            setRemoteUrl,
+        });
+
+        await renew();
+
+        sinon.assert.notCalled(setRemoteUrl);
+        assert.strictEqual(lastResult(sendMessage)!.status, 'error');
+    });
+
     test('pushes a fresh snapshot after a successful renewal', async () => {
         const { renew, sendMessage, buildSnapshot } = build();
 

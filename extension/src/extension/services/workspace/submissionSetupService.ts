@@ -38,7 +38,8 @@ export interface SubmissionSetupDeps {
 
 /** What the repository inspection concluded, either a blocker or a resolved participation. */
 type RepositoryOutcome =
-    | { kind: 'blocked'; blocker: RepositoryBlocker }
+    /** `blocker` is absent when git itself failed to answer, which is not one of the known shapes. */
+    | { kind: 'blocked'; blocker?: RepositoryBlocker }
     | { kind: 'resolved'; participation: ResolvedParticipation; probeUrl: string | undefined };
 
 /** Blockers that are an absence rather than something the student broke. */
@@ -98,7 +99,7 @@ export class SubmissionSetupService {
                     participationId: repository.participation.participationId,
                 }
                 : {
-                    state: NEUTRAL_BLOCKERS.has(repository.blocker) ? 'unknown' : 'problem',
+                    state: !repository.blocker || NEUTRAL_BLOCKERS.has(repository.blocker) ? 'unknown' : 'problem',
                     folderName: folder ? path.basename(folder) : undefined,
                     blocker: repository.blocker,
                 },
@@ -143,6 +144,19 @@ export class SubmissionSetupService {
      * would only make the refusal look like an offer.
      */
     private async inspectRepository(folder: string): Promise<RepositoryOutcome> {
+        try {
+            return await this.inspectRepositoryOrThrow(folder);
+        } catch (error: unknown) {
+            // A git query that fails for an unexpected reason (an unreadable
+            // config, a broken working copy) is not one of the shapes below, and
+            // guessing which one it resembles would put a repair button on a
+            // repository nobody has understood.
+            logger.warn('Submission setup: a git query failed', LogCategory.VIEW, error);
+            return { kind: 'blocked' };
+        }
+    }
+
+    private async inspectRepositoryOrThrow(folder: string): Promise<RepositoryOutcome> {
         const git = this.deps.git;
 
         if (!await git.isInsideWorkTree(folder)) {
@@ -154,8 +168,11 @@ export class SubmissionSetupService {
             return { kind: 'blocked', blocker: 'no-origin' };
         }
 
+        // Git allows several `remote.origin.url` values and pushes to all of
+        // them, so repairing the first would leave the rest dead.
+        const originUrls = await git.getAllRemoteUrls(folder);
         const pushUrls = await git.getPushUrls(folder);
-        if (pushUrls.length > 1) {
+        if (pushUrls.length > 1 || originUrls.length > 1) {
             return { kind: 'blocked', blocker: 'multiple-push-urls' };
         }
 
@@ -174,6 +191,13 @@ export class SubmissionSetupService {
         }
         if (branchRemote !== 'origin') {
             return { kind: 'blocked', blocker: 'other-push-remote' };
+        }
+        // A remote without a `merge` ref is a branch with no upstream: under the
+        // default `push.default=simple` a plain `git push` refuses, and no
+        // credential repair would change that.
+        const branchMerge = await git.getConfigValue(`branch.${branch}.merge`, { cwd: folder });
+        if (!branchMerge) {
+            return { kind: 'blocked', blocker: 'no-push-upstream' };
         }
 
         const participation = await this.resolveParticipationFor(originUrl);

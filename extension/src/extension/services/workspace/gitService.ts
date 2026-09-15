@@ -44,6 +44,20 @@ export function isAuthFailureText(text: string): boolean {
     return AUTH_FAILURE_PATTERN.test(text);
 }
 
+/**
+ * `git config --get`-family exit code for "the key is not set", which is the
+ * normal answer for a remote without a push URL, not a failure.
+ *
+ * Every other non-zero exit is a real problem (a broken config file, a missing
+ * binary), and a caller that collapsed the two would silently skip work it had
+ * to do, so this is checked rather than assumed.
+ */
+const GIT_CONFIG_KEY_ABSENT = 1;
+
+function isMissingConfigKey(error: unknown): boolean {
+    return (error as { code?: unknown } | null)?.code === GIT_CONFIG_KEY_ABSENT;
+}
+
 export class GitService {
     public async isGitAvailable(): Promise<boolean> {
         try {
@@ -135,6 +149,22 @@ export class GitService {
     }
 
     /**
+     * Every `remote.<name>.url` value, not just the first.
+     *
+     * Git allows several, and a push goes to all of them. `getRemoteUrl` answers
+     * with the first one alone, so a caller about to rewrite a remote has to ask
+     * this instead, or it would repair one URL and leave the others dead.
+     */
+    public async getAllRemoteUrls(cwd: string, remote = 'origin'): Promise<string[]> {
+        try {
+            const { stdout } = await this.runGit(['remote', 'get-url', '--all', remote], { cwd });
+            return stdout.split('\n').map(line => line.trim()).filter(Boolean);
+        } catch {
+            return [];
+        }
+    }
+
+    /**
      * Every configured push URL of `origin`.
      *
      * Empty when none is configured, which is the normal case and means pushes
@@ -145,8 +175,12 @@ export class GitService {
         try {
             const { stdout } = await this.runGit(['config', '--get-all', `remote.${remote}.pushurl`], { cwd });
             return stdout.split('\n').map(line => line.trim()).filter(Boolean);
-        } catch {
-            return [];
+        } catch (error: unknown) {
+            if (isMissingConfigKey(error)) { return []; }
+            // A swallowed failure here reads as "no push URL configured", and a
+            // renewal would then repair the fetch URL while the push kept using
+            // a dead credential.
+            throw error;
         }
     }
 
@@ -213,8 +247,18 @@ export class GitService {
      */
     public async setRemoteUrl(cwd: string, url: string, options: { alsoPush: boolean }): Promise<void> {
         const previousFetch = await this.getRemoteUrl(cwd);
+        if (!previousFetch) {
+            // Writing without having read the old value would make the rollback
+            // below impossible, so the operation is refused instead of being
+            // performed in a way that cannot be undone.
+            throw new Error('Could not read the current remote URL, so it was left unchanged.');
+        }
 
-        await this.runGit(['remote', 'set-url', 'origin', url], { cwd });
+        try {
+            await this.runGit(['remote', 'set-url', 'origin', url], { cwd });
+        } catch (error: unknown) {
+            throw new Error(extractRedactedErrorMessage(error));
+        }
 
         if (!options.alsoPush) {
             return;
@@ -223,15 +267,13 @@ export class GitService {
         try {
             await this.runGit(['remote', 'set-url', '--push', 'origin', url], { cwd });
         } catch (error: unknown) {
-            if (previousFetch) {
-                try {
-                    await this.runGit(['remote', 'set-url', 'origin', previousFetch], { cwd });
-                } catch (rollbackError: unknown) {
-                    throw new Error(
-                        `${extractRedactedErrorMessage(error)} (and the fetch URL could not be restored: `
-                        + `${extractRedactedErrorMessage(rollbackError)})`,
-                    );
-                }
+            try {
+                await this.runGit(['remote', 'set-url', 'origin', previousFetch], { cwd });
+            } catch (rollbackError: unknown) {
+                throw new Error(
+                    `${extractRedactedErrorMessage(error)} (and the fetch URL could not be restored: `
+                    + `${extractRedactedErrorMessage(rollbackError)})`,
+                );
             }
             throw new Error(extractRedactedErrorMessage(error));
         }

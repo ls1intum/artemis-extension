@@ -14,6 +14,11 @@ import type { CommandContext, CommandMap } from './types';
 
 const GIT_IDENTITY_NOT_CONFIGURED = 'GIT_IDENTITY_NOT_CONFIGURED';
 
+/** Redact a git message that is already a string, for the paths that never had an Error. */
+function redactedGitMessage(message: string): string {
+    return extractRedactedErrorMessage(new Error(message));
+}
+
 /**
  * Maximum length of a commit message stored in the session recording. The full message is
  * always used for the actual git commit; only the recorded copy is capped so a large pasted
@@ -188,7 +193,10 @@ export class RepositorySubmitCommands {
                         // success. Surface it instead so the outer catch shows the lock message.
                         throw pullError;
                     }
-                    logger.warn('Pull failed, but continuing with push:', LogCategory.SUBMISSION, pullMessage);
+                    // Redacted: a failed pull quotes the remote URL, which
+                    // carries the student's VCS access token.
+                    logger.warn('Pull failed, but continuing with push:', LogCategory.SUBMISSION,
+                        redactedGitMessage(pullMessage));
                 }
 
                 progress.report({ message: 'Pushing to Artemis...' });
@@ -224,7 +232,7 @@ export class RepositorySubmitCommands {
                 });
             }
         } catch (error: unknown) {
-            logger.error('Submit exercise error:', LogCategory.SUBMISSION, error);
+            logger.error('Submit exercise error:', LogCategory.SUBMISSION, extractRedactedErrorMessage(error));
             const errorMessage = error instanceof Error ? error.message : 'Failed to submit exercise.';
 
             if (errorMessage === GIT_IDENTITY_NOT_CONFIGURED) {

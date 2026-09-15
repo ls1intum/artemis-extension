@@ -20,16 +20,34 @@ export function SubmissionSetupView({ vscodeApi }: SubmissionSetupViewProps) {
     const [snapshot, setSnapshot] = useState<SubmissionSetupSnapshot | null>(null);
     const [busy, setBusy] = useState<'renew' | 'recheck' | 'save' | null>(null);
     const [editingIdentity, setEditingIdentity] = useState(false);
+    /**
+     * The same flag, readable from the message handler. The handler is not
+     * re-created on every render, so the state variable it closes over can be
+     * stale, and this decides whether a draft gets discarded.
+     */
+    const editingRef = useRef(false);
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
 
     const [statusMessage, setStatusMessage] = useState('');
     const [statusType, setStatusType] = useState<'success' | 'error' | 'warning' | 'info'>('info');
     const statusTimerRef = useRef<ReturnType<typeof setTimeout>>();
+    /**
+     * Which status line the pending timer belongs to. Without it, the timer
+     * started by a success would later clear whatever newer message happens to
+     * be on screen, including a validation warning the student has not read.
+     */
+    const statusSerialRef = useRef(0);
 
     useEffect(() => () => {
         if (statusTimerRef.current) { clearTimeout(statusTimerRef.current); }
     }, []);
+
+    /** Keep the flag and its ref in step; every caller goes through here. */
+    const setEditing = (open: boolean) => {
+        editingRef.current = open;
+        setEditingIdentity(open);
+    };
 
     useExtensionMessage((msg) => {
         switch (msg.type) {
@@ -38,18 +56,30 @@ export function SubmissionSetupView({ vscodeApi }: SubmissionSetupViewProps) {
                 // A snapshot is the answer to whatever was in flight, so it is
                 // also what ends the busy state: no action has to remember to.
                 setBusy(null);
-                setName(msg.snapshot.identity.name);
-                setEmail(msg.snapshot.identity.email);
-                setEditingIdentity(msg.snapshot.identity.state === 'problem');
+                // Never take the form away from someone who is typing in it: a
+                // snapshot can arrive from a recheck they started, and seeding
+                // the fields again would discard the draft.
+                if (!editingRef.current) {
+                    setName(msg.snapshot.identity.name);
+                    setEmail(msg.snapshot.identity.email);
+                    setEditing(msg.snapshot.identity.state === 'problem');
+                }
                 break;
             }
             case ExtensionMsg.SubmissionSetupResult: {
                 setStatusMessage(msg.message);
                 setStatusType(msg.status);
-                if (msg.status !== 'success') { setBusy(null); }
+                // Every result ends the action that produced it. A success is
+                // followed by a snapshot, but the page must not depend on that
+                // arriving to give the buttons back.
+                setBusy(null);
+                if (msg.status === 'success') { setEditing(false); }
                 if (statusTimerRef.current) { clearTimeout(statusTimerRef.current); }
+                const serial = ++statusSerialRef.current;
                 if (msg.status === 'success') {
-                    statusTimerRef.current = setTimeout(() => setStatusMessage(''), SUCCESS_CLEAR_MS);
+                    statusTimerRef.current = setTimeout(() => {
+                        if (statusSerialRef.current === serial) { setStatusMessage(''); }
+                    }, SUCCESS_CLEAR_MS);
                 }
                 break;
             }
@@ -74,6 +104,7 @@ export function SubmissionSetupView({ vscodeApi }: SubmissionSetupViewProps) {
         if (!trimmedName || !trimmedEmail) {
             setStatusMessage('Enter both a name and an email address.');
             setStatusType('warning');
+            ++statusSerialRef.current;
             return;
         }
         setBusy('save');
@@ -121,7 +152,7 @@ export function SubmissionSetupView({ vscodeApi }: SubmissionSetupViewProps) {
     const renderAction = (row: Row) => {
         if (row.id === 'identity' && row.state === 'ok' && !editingIdentity) {
             return (
-                <Button variant="secondary" onClick={() => setEditingIdentity(true)} testId="setup-identity-change">
+                <Button variant="secondary" onClick={() => setEditing(true)} testId="setup-identity-change">
                     Change
                 </Button>
             );
@@ -154,7 +185,14 @@ export function SubmissionSetupView({ vscodeApi }: SubmissionSetupViewProps) {
                 subtitle="Everything Git needs before you can submit."
             />
 
-            <div className={`${styles.banner} ${styles[`banner${banner.tone}`]}`} data-testid="setup-banner">
+            {/* A live region: a recheck or a renewal repaints the rows, and the
+                banner is the one line that says what the new state means. */}
+            <div
+                className={`${styles.banner} ${styles[`banner${banner.tone}`]}`}
+                role="status"
+                aria-live="polite"
+                data-testid="setup-banner"
+            >
                 {banner.text}
             </div>
 

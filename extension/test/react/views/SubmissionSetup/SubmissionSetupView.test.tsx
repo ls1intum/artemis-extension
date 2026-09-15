@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { SubmissionSetupSnapshot } from '@shared/types/submissionSetup';
 
@@ -25,6 +25,8 @@ function renderedRowOrder(): string[] {
 }
 
 describe('SubmissionSetupView', () => {
+    afterEach(() => { vi.useRealTimers(); });
+
     it('shows a skeleton until the first snapshot arrives', () => {
         const mockApi = createMockVsCodeApi();
         render(<SubmissionSetupView vscodeApi={mockApi} />);
@@ -154,7 +156,8 @@ describe('SubmissionSetupView', () => {
         expect(screen.getByTestId('setup-access-recheck')).toBeInTheDocument();
     });
 
-    it('shows a result line and clears a success by itself', async () => {
+    it('shows a success line and clears it once the delay is up', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
         await renderWithSnapshot();
 
         await act(async () => {
@@ -165,6 +168,69 @@ describe('SubmissionSetupView', () => {
             });
         });
         expect(screen.getByTestId('setup-status')).toHaveTextContent('Access renewed.');
+
+        await act(async () => { vi.advanceTimersByTime(5000); });
+
+        expect(screen.queryByTestId('setup-status')).not.toBeInTheDocument();
+    });
+
+    it('a later warning survives the timer that an earlier success started', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        await renderWithSnapshot({ identity: { state: 'problem', name: '', email: '' } });
+
+        await act(async () => {
+            dispatchExtensionMessage({
+                type: 'submissionSetupResult', status: 'success', message: 'Saved.',
+            });
+        });
+        await act(async () => { vi.advanceTimersByTime(3000); });
+
+        // The student's own validation warning must not be swept away two
+        // seconds later by a timer that belongs to a message already gone.
+        await userEvent.type(screen.getByTestId('setup-identity-name'), '   ');
+        await userEvent.type(screen.getByTestId('setup-identity-email'), 'alex@tum.de');
+        await userEvent.click(screen.getByTestId('setup-identity-save'));
+        await act(async () => { vi.advanceTimersByTime(3000); });
+
+        expect(screen.getByTestId('setup-status')).toHaveTextContent('Enter both a name and an email address.');
+    });
+
+    it('keeps a draft when a snapshot arrives while the identity is being edited', async () => {
+        await renderWithSnapshot();
+
+        await userEvent.click(screen.getByTestId('setup-identity-change'));
+        await userEvent.clear(screen.getByTestId('setup-identity-name'));
+        await userEvent.type(screen.getByTestId('setup-identity-name'), 'Half typed');
+
+        await act(async () => {
+            dispatchExtensionMessage(createSubmissionSetupPayload());
+        });
+
+        expect(screen.getByTestId('setup-identity-name')).toHaveValue('Half typed');
+    });
+
+    it('gives the buttons back when an action fails', async () => {
+        await renderWithSnapshot({ access: { state: 'problem', reason: 'refused' } });
+
+        await userEvent.click(screen.getByTestId('setup-access-renew'));
+        expect(screen.getByTestId('setup-access-renew')).toBeDisabled();
+
+        await act(async () => {
+            dispatchExtensionMessage({
+                type: 'submissionSetupResult',
+                status: 'error',
+                message: 'Could not reach Artemis, so nothing was changed.',
+            });
+        });
+
+        expect(screen.getByTestId('setup-access-renew')).toBeEnabled();
+    });
+
+    it('announces the verdict, because a recheck repaints rows without moving focus', async () => {
+        await renderWithSnapshot();
+
+        expect(screen.getByTestId('setup-banner')).toHaveAttribute('aria-live', 'polite');
+        expect(screen.getByTestId('setup-banner')).toHaveAttribute('role', 'status');
     });
 
     it('keeps an error line on screen', async () => {

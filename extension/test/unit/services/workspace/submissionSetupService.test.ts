@@ -22,6 +22,9 @@ function fakeGit(overrides: Partial<Record<keyof GitService, unknown>> = {}): Gi
         readIdentity: sinon.stub().resolves({ name: 'Alex Example', email: 'alex@tum.de' }),
         isInsideWorkTree: sinon.stub().resolves(true),
         getRemoteUrl: sinon.stub().resolves(GRADED_URL),
+        // Empty means "nothing unusual configured" for both of these: the
+        // service only refuses when it finds more than one.
+        getAllRemoteUrls: sinon.stub().resolves([]),
         getPushUrls: sinon.stub().resolves([]),
         getCurrentBranch: sinon.stub().resolves('main'),
         getConfigValue: sinon.stub().resolves('origin'),
@@ -174,6 +177,35 @@ suite('SubmissionSetupService', () => {
             getConfigValue: sinon.stub().resolves('upstream'),
         })).buildSnapshot();
         assert.strictEqual(otherRemote.repository.blocker, 'other-push-remote');
+    });
+
+    test('refuses several origin URLs, which git would push to all of', async () => {
+        const git = fakeGit({ getAllRemoteUrls: sinon.stub().resolves([GRADED_URL, PRACTICE_URL]) });
+
+        const snapshot = await makeService(git).buildSnapshot();
+
+        assert.strictEqual(snapshot.repository.blocker, 'multiple-push-urls');
+    });
+
+    test('refuses a branch whose upstream ref is missing, which a plain push cannot use', async () => {
+        const getConfigValue = sinon.stub();
+        getConfigValue.withArgs('branch.main.remote', sinon.match.any).resolves('origin');
+        getConfigValue.withArgs('branch.main.merge', sinon.match.any).resolves(undefined);
+
+        const snapshot = await makeService(fakeGit({ getConfigValue })).buildSnapshot();
+
+        assert.strictEqual(snapshot.repository.blocker, 'no-push-upstream');
+    });
+
+    test('an unexpected git failure leaves the row unknown with no invented reason', async () => {
+        // Guessing which of the known shapes an unreadable config resembles
+        // would put a repair button on a repository nobody has understood.
+        const git = fakeGit({ getPushUrls: sinon.stub().rejects(new Error('fatal: bad config line 3')) });
+
+        const snapshot = await makeService(git).buildSnapshot();
+
+        assert.strictEqual(snapshot.repository.state, 'unknown');
+        assert.strictEqual(snapshot.repository.blocker, undefined);
     });
 
     test('refuses a push URL that is a different repository than the participation', async () => {

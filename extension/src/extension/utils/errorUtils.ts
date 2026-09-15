@@ -13,10 +13,11 @@ export function extractErrorMessage(error: unknown): string {
  * a git failure is a credential leak into logs and notifications. Redact before
  * the string reaches the logger: it prints the message and the stack.
  */
-function redactUrlCredentials(text: string): string {
-    return text
-        .replace(/(\bhttps?:\/\/)[^/\s@]+:[^/\s@]+@/gi, '$1***:***@')
-        .replace(/(\bhttps?:\/\/)[^/\s@]+@/gi, '$1***@');
+export function redactUrlCredentials(text: string): string {
+    // One rule, not one per shape: the userinfo part is everything before the
+    // `@`, whether it is `user:token` or a bare token, and a second pass over
+    // an already-redacted string would only rewrite its own output.
+    return text.replace(/(\bhttps?:\/\/)[^/\s@]+@/gi, '$1***@');
 }
 
 /** `extractErrorMessage` with the credential redaction every git error needs. */

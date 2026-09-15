@@ -160,19 +160,23 @@ describe('Accessibility Tests (WCAG 2.1 AA)', function () {
 					8000,
 				);
 				await setupBtn.click();
-				await driver.sleep(2000);
+				// Navigating replaces the webview document, so the driver is
+				// still attached to a frame that no longer exists: axe would run
+				// against nothing and report a clean page.
+				await reattachWebviewFrame(driver);
 			} catch {
 				await takeScreenshot(driver, 'a11y-skip-submission-setup');
 				this.skip();
 				return;
 			}
 
-			// Accept any content (form, input, section) as evidence of mount.
+			// The checklist rows are the evidence it mounted; a form only exists
+			// while the identity is missing or being edited.
 			try {
 				await driver.wait(
 					() =>
 						driver
-							.findElement(By.xpath('//form | //input | //section | //main'))
+							.findElement(By.css('[data-testid="setup-row-git"]'))
 							.then((el) => el)
 							.catch(() => null),
 					8000,

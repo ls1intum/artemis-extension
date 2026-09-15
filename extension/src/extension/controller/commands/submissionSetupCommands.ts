@@ -33,12 +33,24 @@ export class SubmissionSetupCommands {
         };
     }
 
-    /** Recompute and post the snapshot. Shared by both commands and by a successful identity save. */
+    /**
+     * Recompute and post the snapshot.
+     *
+     * A snapshot is also what releases the page's busy state, so a failure here
+     * must still send something: a silent throw would leave a button spinning
+     * for the rest of the session.
+     */
     public async postSnapshot(): Promise<void> {
         const service = this.context.submissionSetup;
         if (!service) { return; }
-        const snapshot = await service.buildSnapshot();
-        this.context.sendMessage({ type: ExtensionMsg.SubmissionSetupInfo, snapshot });
+        try {
+            const snapshot = await service.buildSnapshot();
+            this.context.sendMessage({ type: ExtensionMsg.SubmissionSetupInfo, snapshot });
+        } catch (error: unknown) {
+            logger.error('Could not build the submission setup snapshot', LogCategory.SUBMISSION,
+                extractRedactedErrorMessage(error));
+            this.sendResult('error', 'Could not check your setup. See the Artemis log for details.');
+        }
     }
 
     private sendResult(status: 'success' | 'error' | 'warning' | 'info', message: string): void {
@@ -84,7 +96,10 @@ export class SubmissionSetupCommands {
                 this.sendResult('error', 'Your Artemis session expired. Sign in again, then retry.');
                 return;
             }
-            logger.error('Could not create a VCS access token', LogCategory.SUBMISSION, error);
+            // The logger prints message and stack, and a git or fetch error can
+            // quote the tokenised URL, so it is redacted before it gets there.
+            logger.error('Could not create a VCS access token', LogCategory.SUBMISSION,
+                extractRedactedErrorMessage(error));
             this.sendResult('error', `Could not renew your access: ${extractRedactedErrorMessage(error)}`);
             return;
         }
@@ -111,10 +126,14 @@ export class SubmissionSetupCommands {
         }
 
         try {
+            // Read the push URL before deciding, and let a failure abort: a
+            // read that quietly answered "none" would repair the fetch URL and
+            // leave the push using the dead credential.
             const pushUrls = await this.git.getPushUrls(folder);
             await this.git.setRemoteUrl(folder, authenticatedUrl, { alsoPush: pushUrls.length === 1 });
         } catch (error: unknown) {
-            logger.error('Could not update the git remote', LogCategory.SUBMISSION, error);
+            logger.error('Could not update the git remote', LogCategory.SUBMISSION,
+                extractRedactedErrorMessage(error));
             this.sendResult('error', `Could not update your repository: ${extractRedactedErrorMessage(error)}`);
             await this.postSnapshot();
             return;
@@ -128,7 +147,8 @@ export class SubmissionSetupCommands {
         try {
             return (await this.context.artemisApi.getCurrentUser())?.login;
         } catch (error: unknown) {
-            logger.warn('Could not read the current user for a renewal', LogCategory.SUBMISSION, error);
+            logger.warn('Could not read the current user for a renewal', LogCategory.SUBMISSION,
+                extractRedactedErrorMessage(error));
             return undefined;
         }
     }

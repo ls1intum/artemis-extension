@@ -149,6 +149,19 @@ suite('GitService remote probing', () => {
         ]);
     });
 
+    test('reads a missing push URL as none, but lets a real config failure through', async () => {
+        const absent = new GitService();
+        // `git config --get-all` exits 1 when the key is simply not set.
+        sandbox.stub(absent, 'runGit').rejects(Object.assign(new Error('exit 1'), { code: 1 }));
+        assert.deepStrictEqual(await absent.getPushUrls('/tmp/repo'), []);
+
+        const broken = new GitService();
+        sandbox.stub(broken, 'runGit').rejects(Object.assign(new Error('fatal: bad config line 3'), { code: 128 }));
+        // Swallowed, this would read as "no push URL configured", and a renewal
+        // would repair the fetch URL while the push kept the dead credential.
+        await assert.rejects(() => broken.getPushUrls('/tmp/repo'));
+    });
+
     test('reports a detached HEAD as no branch rather than as the literal "HEAD"', async () => {
         const service = new GitService();
         sandbox.stub(service, 'runGit').resolves({ stdout: 'HEAD\n', stderr: '' });
@@ -200,6 +213,30 @@ suite('GitService.setRemoteUrl', () => {
         await assert.rejects(() => service.setRemoteUrl('/tmp/repo', NEW_URL, { alsoPush: true }));
 
         assert.deepStrictEqual(runGit.thirdCall.args[0], ['remote', 'set-url', 'origin', previous]);
+    });
+
+    test('refuses to write at all when the current URL cannot be read, because that write could not be undone', async () => {
+        const service = new GitService();
+        sandbox.stub(service, 'getRemoteUrl').resolves(undefined);
+        const runGit = sandbox.stub(service, 'runGit').resolves({ stdout: '', stderr: '' });
+
+        await assert.rejects(() => service.setRemoteUrl('/tmp/repo', NEW_URL, { alsoPush: true }));
+
+        sinon.assert.notCalled(runGit);
+    });
+
+    test('redacts the credential when the first write fails', async () => {
+        const service = new GitService();
+        sandbox.stub(service, 'getRemoteUrl').resolves('https://old@artemis.example.com/git/x.git');
+        sandbox.stub(service, 'runGit').rejects(new Error(`fatal: cannot set ${NEW_URL}`));
+
+        await assert.rejects(
+            () => service.setRemoteUrl('/tmp/repo', NEW_URL, { alsoPush: false }),
+            (error: Error) => {
+                assert.ok(!error.message.includes('token'), error.message);
+                return true;
+            },
+        );
     });
 
     test('surfaces a failed rollback instead of swallowing it, and redacts the credentials in both errors', async () => {

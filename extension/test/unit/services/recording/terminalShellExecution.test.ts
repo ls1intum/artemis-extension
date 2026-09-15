@@ -232,6 +232,40 @@ suite('TerminalCollector characterization tests', () => {
         assert.ok(typeof ev.timestamp === 'number' && ev.timestamp > 0, 'timestamp must be a positive number');
     });
 
+    test('a recorded git command carries no VCS access token, in the command line or in the output', async () => {
+        recorder.enable();
+        await recorder.startSession(1);
+        const liveGeneration: number = (recorder as unknown as { _currentGeneration: number })._currentGeneration;
+
+        // Cloning and pushing run against a URL with the student's token in it,
+        // and a recording is uploaded and kept.
+        const entry = makeEntry({
+            output: "remote: Invalid token\nfatal: Authentication failed for "
+                + "'https://ge38nac:vcs-token-9f3a@artemis.example.com/git/x.git/'\n",
+            startTime: Date.now() - 100,
+            truncated: false,
+            readerDone: true,
+            generation: liveGeneration,
+            endInfo: {
+                exitCode: 128,
+                terminalName: 'bash',
+                command: 'git clone https://ge38nac:vcs-token-9f3a@artemis.example.com/git/x.git',
+                cwd: '/home/student',
+            },
+        });
+
+        emitTerminalCommand(recorder, entry);
+        await recorder.endSession();
+
+        const events = collectWrittenEvents(fs);
+        const ev = events.find(e => e.type === 'terminalCommand') as { command: string; output: string };
+        assert.ok(ev, 'the command must still be recorded, only without the credential');
+        assert.ok(!ev.command.includes('vcs-token-9f3a'), ev.command);
+        assert.ok(!ev.output.includes('vcs-token-9f3a'), ev.output);
+        assert.ok(ev.command.includes('***@'), ev.command);
+        assert.ok(ev.command.includes('git clone'), 'the command itself stays readable');
+    });
+
     test('_emitTerminalCommand does NOT emit when the recorder is not in recording phase', async () => {
         recorder.enable();
         await recorder.startSession(1);
