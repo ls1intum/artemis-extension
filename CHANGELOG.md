@@ -18,6 +18,8 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 - **Access tokens no longer appear in error messages or logs.** Every repository URL the extension installs carries one, and Git quotes the URL it failed on, so submission errors, clone errors and their log lines could print it. They are redacted now, everywhere they can occur.
 
+- **The course rows on the Dashboard work with a keyboard and a screen reader.** A row was one large button with the "open course" button sitting inside it. Nested controls are announced unpredictably and can trap focus, so a screen reader could not reliably tell the two actions apart, and tabbing through the row was inconsistent. Expanding a course and opening it are now two separate buttons side by side. Clicking anywhere on the row still expands it, as before.
+
 - **Repositories the extension must not touch are named, not guessed at.** If your checkout pushes somewhere other than the Artemis repository it fetches from, has several push URLs, uses SSH, or sits on a detached HEAD, the page says so and changes nothing, instead of repairing a remote your pushes do not use.
 
 ## [1.0.0] - 2026-09-14

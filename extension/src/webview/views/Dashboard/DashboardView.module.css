@@ -157,23 +157,21 @@
 .courseHeader {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 4px;
 }
 
 .courseHeader:hover {
     background: var(--vscode-list-hoverBackground);
 }
 
-/* Carries the whole row's width so the click target stays what it was when the
-   row itself was the control. */
+/* Carries the row's padding, not just its content, so the click target is the
+   whole row the way it was when the row itself was the control. */
 .courseToggle {
     display: flex;
     align-items: center;
     gap: 8px;
     flex: 1;
     min-width: 0;
-    padding: 0;
+    padding: 8px 4px;
     cursor: pointer;
     border: none;
     background: none;
@@ -202,7 +200,9 @@
 .courseArrow {
     background: none;
     border: none;
-    padding: 4px 8px;
+    /* Matches the toggle's height so the two halves of the row are the same
+       size to hit. */
+    padding: 8px;
     cursor: pointer;
     font-size: 14px;
     color: var(--vscode-foreground);
