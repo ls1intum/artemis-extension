@@ -4,6 +4,24 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+### Changed
+
+- **The Git Credentials page is now Submission Setup, and it checks what it claims to.** The old page was named after credentials it never touched: it set your Git name and email, explained that in three places, and left the one credential that actually breaks a submission alone. The new page is a checklist of everything that has to be true before a push reaches Artemis: Git installed, your identity, which exercise this folder belongs to, and whether Artemis still accepts the access token in your repository. Anything broken sorts to the top and carries its own fix, so a missing identity is a form in the row rather than a separate page.
+
+### Added
+
+- **"Renew" repairs Artemis access from the page.** The access token the extension puts into your repository when it clones can stop working, and until now a push that failed because of it showed a raw Git error and nothing else. Renew asks Artemis for the token of this exercise and tries it against your repository before changing anything. If that one is refused as well, it revokes it and has Artemis issue a new one, and only a token that has been shown to work is written into your repository. If nothing works, or Artemis cannot be reached, your repository is left exactly as it was. This repairs an expired token, a repository cloned by hand from the Artemis website, and a remote whose token went stale.
+
+- **A push refused by Artemis now offers the repair.** The submission error names what happened and opens Submission Setup, instead of showing Git's own message with the access token in it.
+
+### Fixed
+
+- **Access tokens no longer appear in error messages or logs.** Every repository URL the extension installs carries one, and Git quotes the URL it failed on, so submission errors, clone errors and their log lines could print it. They are redacted now, everywhere they can occur.
+
+- **The course rows on the Dashboard work with a keyboard and a screen reader.** A row was one large button with the "open course" button sitting inside it. Nested controls are announced unpredictably and can trap focus, so a screen reader could not reliably tell the two actions apart, and tabbing through the row was inconsistent. Expanding a course and opening it are now two separate buttons side by side. Clicking anywhere on the row still expands it, as before.
+
+- **Repositories the extension must not touch are named, not guessed at.** If your checkout pushes somewhere other than the Artemis repository it fetches from, has several push URLs, uses SSH, or sits on a detached HEAD, the page says so and changes nothing, instead of repairing a remote your pushes do not use.
+
 ## [1.0.0] - 2026-09-14
 
 ### Added

@@ -51,20 +51,29 @@ suite('RepositorySubmitCommands', () => {
         sendMessage?: sinon.SinonStub;
         recheckRepoStatus?: sinon.SinonStub;
         getWebsocketService?: () => unknown;
-        showGitCredentials?: sinon.SinonStub;
+        showSubmissionSetup?: sinon.SinonStub;
+        buildSnapshot?: sinon.SinonStub;
     } = {}): {
         ctx: CommandContext;
         sendMessage: sinon.SinonStub;
-        showGitCredentials: sinon.SinonStub;
+        showSubmissionSetup: sinon.SinonStub;
         recheckRepoStatus: sinon.SinonStub;
         fireSubmission: sinon.SinonStub;
+        buildSnapshot: sinon.SinonStub;
     } {
         const sendMessage = overrides.sendMessage ?? sandbox.stub();
         const recheckRepoStatus = overrides.recheckRepoStatus ?? sandbox.stub().resolves();
-        const showGitCredentials = overrides.showGitCredentials ?? sandbox.stub();
+        const showSubmissionSetup = overrides.showSubmissionSetup ?? sandbox.stub();
         const fireSubmission = sandbox.stub();
+        const buildSnapshot = overrides.buildSnapshot ?? sandbox.stub().resolves({
+            git: { state: 'ok' },
+            identity: { state: 'ok', name: 'Alice', email: 'alice@example.com' },
+            repository: { state: 'unknown' },
+            access: { state: 'unknown', reason: 'not-checked' },
+        });
         const ctx = {
-            actionHandler: { showGitCredentials },
+            actionHandler: { showSubmissionSetup },
+            submissionSetup: { buildSnapshot },
             sendMessage,
             recheckRepoStatus,
             getWebsocketService: overrides.getWebsocketService,
@@ -72,7 +81,7 @@ suite('RepositorySubmitCommands', () => {
                 getArtemisWebviewProvider: () => ({ fireSubmission }),
             },
         } as unknown as CommandContext;
-        return { ctx, sendMessage, showGitCredentials, recheckRepoStatus, fireSubmission };
+        return { ctx, sendMessage, showSubmissionSetup, recheckRepoStatus, fireSubmission, buildSnapshot };
     }
 
     setup(() => {
@@ -274,11 +283,11 @@ suite('RepositorySubmitCommands', () => {
 
     test('submitExercise does NOT show an error message when the inner pipeline throws GIT_IDENTITY_NOT_CONFIGURED', async () => {
         // Identity not present -> ensureGitIdentityConfigured throws the sentinel
-        const { ctx, showGitCredentials } = buildContext();
+        const { ctx, showSubmissionSetup } = buildContext();
         const { svc } = makeGitService({
             getIdentity: sandbox.stub().resolves(undefined),
         });
-        // User accepts the warning so showGitCredentials is invoked
+        // User accepts the warning so showSubmissionSetup is invoked
         showWarningMessage.resolves('Configure Git Identity' as never);
 
         const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
@@ -289,13 +298,13 @@ suite('RepositorySubmitCommands', () => {
             payload: { exerciseTitle: 'Foo', commitMessage: '' },
         } as never);
 
-        sinon.assert.calledOnce(showGitCredentials);
+        sinon.assert.calledOnce(showSubmissionSetup);
         // The outer catch suppresses error messages when the inner error is the sentinel.
         sinon.assert.notCalled(showErrorMessage);
     });
 
-    test('identity-not-configured path: when user selects "Configure Git Identity", actionHandler.showGitCredentials is invoked and the pipeline aborts', async () => {
-        const { ctx, showGitCredentials } = buildContext();
+    test('identity-not-configured path: when user selects "Configure Git Identity", actionHandler.showSubmissionSetup is invoked and the pipeline aborts', async () => {
+        const { ctx, showSubmissionSetup } = buildContext();
         const { svc, stubs } = makeGitService({
             getIdentity: sandbox.stub().resolves(undefined),
         });
@@ -309,7 +318,7 @@ suite('RepositorySubmitCommands', () => {
             payload: { exerciseTitle: 'Foo', commitMessage: '' },
         } as never);
 
-        sinon.assert.calledOnce(showGitCredentials);
+        sinon.assert.calledOnce(showSubmissionSetup);
         // commit is called AFTER ensureGitIdentityConfigured in the production flow, so when the identity
         // check throws, commit/pull/push must not run.
         sinon.assert.notCalled(stubs.commit);
@@ -317,7 +326,54 @@ suite('RepositorySubmitCommands', () => {
         sinon.assert.notCalled(stubs.push);
     });
 
-    test('saveGitIdentity rejects empty name with a "warning" GitCredentialsResult and an error popup', async () => {
+    test('a push refused by Artemis offers the repair page and never shows the token', async () => {
+        const { ctx, showSubmissionSetup, fireSubmission } = buildContext();
+        const { svc } = makeGitService({
+            push: sandbox.stub().rejects(new Error(
+                "fatal: Authentication failed for 'https://ge38nac:vcs-token-9f3a@artemis.example.com/git/x.git/'",
+            )),
+        });
+        showErrorMessage.resolves('Open Submission Setup' as never);
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.SubmitExercise]({
+            type: 'command',
+            command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 5, exerciseTitle: 'Foo', commitMessage: '' },
+        } as never);
+
+        const shown = showErrorMessage.getCalls().map(c => String(c.args[0])).join('\n');
+        assert.ok(shown.includes('Artemis refused your access'), shown);
+        // The raw git output quotes the remote URL, which carries the token.
+        assert.ok(!shown.includes('vcs-token-9f3a'), shown);
+        sinon.assert.calledOnce(showSubmissionSetup);
+
+        // The recording contract keeps its existing vocabulary: this is still a
+        // failed push, and the goldens must not have to learn a new reason.
+        const failure = fireSubmission.getCalls()
+            .map(c => c.args[0] as { status: string; failureReason?: string })
+            .find(p => p.status === 'failed');
+        assert.strictEqual(failure?.failureReason, 'push-failed');
+    });
+
+    test('a push that fails for any other reason keeps the plain error, without the repair offer', async () => {
+        const { ctx, showSubmissionSetup } = buildContext();
+        const { svc } = makeGitService({
+            push: sandbox.stub().rejects(new Error('error: failed to push some refs (non-fast-forward)')),
+        });
+        const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.SubmitExercise]({
+            type: 'command',
+            command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 5, exerciseTitle: 'Foo', commitMessage: '' },
+        } as never);
+
+        sinon.assert.notCalled(showSubmissionSetup);
+        assert.ok(showErrorMessage.getCalls().some(c => String(c.args[0]).includes('non-fast-forward')));
+    });
+
+    test('saveGitIdentity rejects empty name with a "warning" SubmissionSetupResult and an error popup', async () => {
         const { ctx, sendMessage } = buildContext();
         const { svc, stubs } = makeGitService();
         const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
@@ -332,9 +388,9 @@ suite('RepositorySubmitCommands', () => {
 
         const warningMessage = sendMessage.getCalls().find(c => {
             const arg = c.args[0] as { type: string; status?: string };
-            return arg.type === ExtensionMsg.GitCredentialsResult && arg.status === 'warning';
+            return arg.type === ExtensionMsg.SubmissionSetupResult && arg.status === 'warning';
         });
-        assert.ok(warningMessage, 'Expected a "warning" GitCredentialsResult');
+        assert.ok(warningMessage, 'Expected a "warning" SubmissionSetupResult');
 
         const popup = showErrorMessage.getCalls().find(c => {
             const arg = c.args[0] as string;
@@ -343,7 +399,7 @@ suite('RepositorySubmitCommands', () => {
         assert.ok(popup, 'Expected an error popup mentioning "provide a name"');
     });
 
-    test('saveGitIdentity rejects invalid email with a "warning" GitCredentialsResult and an error popup', async () => {
+    test('saveGitIdentity rejects invalid email with a "warning" SubmissionSetupResult and an error popup', async () => {
         const { ctx, sendMessage } = buildContext();
         const { svc, stubs } = makeGitService();
         const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
@@ -358,9 +414,9 @@ suite('RepositorySubmitCommands', () => {
 
         const warningMessage = sendMessage.getCalls().find(c => {
             const arg = c.args[0] as { type: string; status?: string };
-            return arg.type === ExtensionMsg.GitCredentialsResult && arg.status === 'warning';
+            return arg.type === ExtensionMsg.SubmissionSetupResult && arg.status === 'warning';
         });
-        assert.ok(warningMessage, 'Expected a "warning" GitCredentialsResult for invalid email');
+        assert.ok(warningMessage, 'Expected a "warning" SubmissionSetupResult for invalid email');
 
         const popup = showErrorMessage.getCalls().find(c => {
             const arg = c.args[0] as string;
@@ -369,8 +425,8 @@ suite('RepositorySubmitCommands', () => {
         assert.ok(popup, 'Expected an error popup mentioning a valid email');
     });
 
-    test('saveGitIdentity calls gitService.setGlobalIdentity, sends a success result, and shows an information popup', async () => {
-        const { ctx, sendMessage } = buildContext();
+    test('saveGitIdentity saves, reports success in the page, and refreshes the snapshot instead of popping a notification', async () => {
+        const { ctx, sendMessage, buildSnapshot } = buildContext();
         const { svc, stubs } = makeGitService();
         const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
 
@@ -384,11 +440,22 @@ suite('RepositorySubmitCommands', () => {
 
         const successMessage = sendMessage.getCalls().find(c => {
             const arg = c.args[0] as { type: string; status?: string };
-            return arg.type === ExtensionMsg.GitCredentialsResult && arg.status === 'success';
+            return arg.type === ExtensionMsg.SubmissionSetupResult && arg.status === 'success';
         });
-        assert.ok(successMessage, 'Expected a "success" GitCredentialsResult');
+        assert.ok(successMessage, 'Expected a "success" SubmissionSetupResult');
 
-        sinon.assert.calledOnce(showInformationMessage);
+        // The page renders a snapshot, not the form's own state: without this
+        // refresh the identity row would keep reporting the old answer.
+        sinon.assert.calledOnce(buildSnapshot);
+        const snapshotMessage = sendMessage.getCalls().find(c => {
+            const arg = c.args[0] as { type: string };
+            return arg.type === ExtensionMsg.SubmissionSetupInfo;
+        });
+        assert.ok(snapshotMessage, 'Expected a fresh SubmissionSetupInfo after saving');
+
+        // The page already says it. A second VS Code notification for the same
+        // event is noise the student has to dismiss.
+        sinon.assert.notCalled(showInformationMessage);
     });
 
     test('happy path emits started then succeeded (exactly one terminal)', async () => {

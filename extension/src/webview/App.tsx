@@ -11,9 +11,9 @@ import { CourseDetailView } from './views/CourseDetail';
 import { CourseListView } from './views/CourseList';
 import { DashboardView } from './views/Dashboard';
 import { ExerciseDetailView } from './views/ExerciseDetail';
-import { GitCredentialsView } from './views/GitCredentials';
 import { IrisChatView } from './views/IrisChat';
 import { LoginView } from './views/Login';
+import { SubmissionSetupView } from './views/SubmissionSetup';
 
 interface AppProps {
 	vscodeApi: VsCodeApi;
@@ -32,8 +32,8 @@ export function App({ vscodeApi }: AppProps) {
 
 	const view = (() => {
 		switch (viewName) {
-			case 'gitCredentials':
-				return <GitCredentialsView vscodeApi={vscodeApi} />;
+			case 'submissionSetup':
+				return <SubmissionSetupView vscodeApi={vscodeApi} />;
 			case 'login':
 				return <LoginView vscodeApi={vscodeApi} />;
 			case 'dashboard':

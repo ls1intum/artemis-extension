@@ -12,7 +12,7 @@ const STATE_TO_VIEW: Record<AppState, string> = {
     'course-detail': 'courseDetail',
     'exercise-detail': 'exerciseDetail',
     'struggle-detection': 'struggleDetection',
-    'git-credentials': 'gitCredentials',
+    'submission-setup': 'submissionSetup',
 };
 
 export function getViewHtml(state: AppState, extensionUri: vscode.Uri, webview: vscode.Webview): string {

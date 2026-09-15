@@ -8,7 +8,6 @@ import type { WebViewMessageHandler } from '@extension/controller/webViewMessage
 import type { HandoverFailureStore } from '@extension/services/auth/handoverFailureStore';
 import { COURSE_ACCESS_DISPLAY_LIMIT, type CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import { LogCategory, logger } from '@extension/services/loggingService';
-import { GitService } from '@extension/services/workspace/gitService';
 import {
     collectExerciseSources,
     detectWorkspaceExercise,
@@ -26,7 +25,6 @@ type ExerciseRepoStatus = Awaited<ReturnType<typeof detectWorkspaceForRepoUris>>
 
 export class ViewInitDataService {
     private _initGeneration = 0;
-    private readonly _gitService = new GitService();
 
     constructor(
         private readonly _appStateManager: AppStateManager,
@@ -49,7 +47,7 @@ export class ViewInitDataService {
             case 'course-detail':          return this.sendCourseDetailInit();
             case 'exercise-detail':        return this.sendExerciseDetailInit();
             case 'struggle-detection':     return this.sendStruggleDetectionInit();
-            case 'git-credentials':        return this.sendGitCredentialsInit();
+            case 'submission-setup':       return this.sendSubmissionSetupInit();
             case 'login':                  return this.sendLoginInit();
         }
     }
@@ -347,16 +345,32 @@ export class ViewInitDataService {
         this._postMessage(this.buildStruggleDetectionInit());
     }
 
-    public sendGitCredentialsInit(): void {
+    /**
+     * The Submission Setup page's opening state.
+     *
+     * The snapshot comes from the message handler's service rather than a
+     * second instance, so the page's first render and everything it does
+     * afterwards are answered by the same code. The generation check keeps a
+     * slow probe from painting a view the student has already navigated away
+     * from.
+     */
+    public sendSubmissionSetupInit(): void {
         const gen = this._initGeneration;
-        const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
-        this._gitService.readIdentity(cwd).then(({ name, email }) => {
+        this._messageHandler.submissionSetup.buildSnapshot().then((snapshot) => {
             if (gen !== this._initGeneration) { return; }
-            this._postMessage({ type: ExtensionMsg.GitIdentityInfo, name, email });
+            this._postMessage({ type: ExtensionMsg.SubmissionSetupInfo, snapshot });
         }).catch((error) => {
             if (gen !== this._initGeneration) { return; }
-            logger.error('Failed to read git identity', LogCategory.VIEW, error);
-            this._postMessage({ type: ExtensionMsg.GitIdentityInfo, name: '', email: '' });
+            logger.error('Failed to build the submission setup snapshot', LogCategory.VIEW, error);
+            this._postMessage({
+                type: ExtensionMsg.SubmissionSetupInfo,
+                snapshot: {
+                    git: { state: 'unknown' },
+                    identity: { state: 'unknown', name: '', email: '' },
+                    repository: { state: 'unknown' },
+                    access: { state: 'unknown', reason: 'not-checked' },
+                },
+            });
         });
     }
 

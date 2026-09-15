@@ -109,3 +109,15 @@ export function parseArtemisParticipation(data: unknown): ArtemisParticipation {
         buildPlanId: typeof d.buildPlanId === 'string' ? d.buildPlanId : undefined,
     };
 }
+
+/**
+ * One VCS access token as Artemis' token overview describes it: metadata only,
+ * never the secret. `repositoryUri` is what ties an entry to a participation,
+ * which is the only way to learn the id needed to revoke it.
+ */
+export interface VcsAccessTokenOverview {
+    id: number;
+    tokenType: string;
+    exerciseId?: number;
+    repositoryUri?: string;
+}

@@ -15,6 +15,8 @@ import { describe, expect, it } from 'vitest';
 import type { ExtensionToWebviewMessage, ExtMsg, WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { isExtensionMessage, isWebviewMessage } from '@shared/messageContracts';
 
+import { createSubmissionSetupSnapshot } from '@test/react/fixtures';
+
 describe('Message contracts: ExtensionToWebviewMessage types', () => {
     it('LoginSuccessMessage has required type and payload fields', () => {
         const msg = {
@@ -65,26 +67,27 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
         expect(connected.status).toBe('connected');
     });
 
-    it('GitIdentityInfoMessage has name and email fields', () => {
+    it('SubmissionSetupInfoMessage carries a whole snapshot and no repository URL', () => {
         const msg = {
-            type: 'gitIdentityInfo' as const,
-            name: 'John Doe',
-            email: 'john@tum.de',
-        } satisfies ExtMsg<'gitIdentityInfo'>;
+            type: 'submissionSetupInfo' as const,
+            snapshot: createSubmissionSetupSnapshot(),
+        } satisfies ExtMsg<'submissionSetupInfo'>;
 
-        expect(msg.name).toBe('John Doe');
-        expect(msg.email).toBe('john@tum.de');
+        expect(msg.snapshot.identity.email).toBe('test@example.com');
+        // The page renders a state, never a credential: every remote URL the
+        // extension installs carries a token, so none may reach the webview.
+        expect(JSON.stringify(msg)).not.toMatch(/https?:\/\//);
     });
 
-    it('GitCredentialsResultMessage has status and message fields', () => {
+    it('SubmissionSetupResultMessage has status and message fields', () => {
         const success = {
-            type: 'gitCredentialsResult' as const,
+            type: 'submissionSetupResult' as const,
             status: 'success' as const,
-            message: 'Git credentials saved successfully',
-        } satisfies ExtMsg<'gitCredentialsResult'>;
+            message: 'Access renewed. You can submit again.',
+        } satisfies ExtMsg<'submissionSetupResult'>;
 
         expect(success.status).toBe('success');
-        expect(success.message).toBe('Git credentials saved successfully');
+        expect(success.message).toBe('Access renewed. You can submit again.');
     });
 
     it('IrisChatAddMessage has correct message shape', () => {

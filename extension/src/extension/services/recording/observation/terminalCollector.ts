@@ -4,6 +4,7 @@ import { LogCategory, logger } from '@extension/services/loggingService';
 import type { RecorderLifecycleState } from '@extension/services/recording/lifecycleController';
 import type { RecordedEvent } from '@extension/services/recording/types';
 import type { SensorHub } from '@extension/services/sensing';
+import { redactUrlCredentials } from '@extension/utils';
 
 interface PendingExecution {
     output: string;
@@ -116,12 +117,16 @@ export class TerminalCollector {
         if (!entry.endInfo) { return; }
         if (this._deps.state.phase !== 'recording') { return; }
         const now = Date.now();
+        // Cloning and pushing run against a URL that carries the student's VCS
+        // access token, so both the command line and whatever git printed can
+        // contain a live credential. A recording is uploaded and kept; a token
+        // must not be part of one.
         this._deps.record({
             type: 'terminalCommand',
             timestamp: now,
-            command: entry.endInfo.command,
+            command: redactUrlCredentials(entry.endInfo.command),
             exitCode: entry.endInfo.exitCode,
-            output: entry.output,
+            output: redactUrlCredentials(entry.output),
             outputTruncated: entry.truncated,
             cwd: entry.endInfo.cwd,
             terminalName: entry.endInfo.terminalName,

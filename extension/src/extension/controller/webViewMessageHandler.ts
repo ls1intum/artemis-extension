@@ -12,6 +12,7 @@ import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ProactivePreferenceService } from '@extension/services/proactivePreferenceService';
 import type { IProviderRegistry } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
+import { GitService, SubmissionSetupService } from '@extension/services/workspace';
 
 import { AppStateManager } from './appStateManager';
 import { AuthCommandModule } from './commands/authCommands';
@@ -25,6 +26,7 @@ import { ProblemStatementTrackingCommandModule } from './commands/problemStateme
 import { RepositoryCloneCommands } from './commands/repositoryCloneCommands';
 import { RepositoryStatusCommands } from './commands/repositoryStatusCommands';
 import { RepositorySubmitCommands } from './commands/repositorySubmitCommands';
+import { SubmissionSetupCommands } from './commands/submissionSetupCommands';
 import { TestResultsTrackingCommandModule } from './commands/testResultsTrackingCommands';
 import type { CommandContext, CommandHandler, CommandMap } from './commands/types';
 import { UtilityCommandModule } from './commands/utilityCommands';
@@ -40,6 +42,12 @@ export class WebViewMessageHandler {
     };
     private readonly commandHandlers: Map<string, CommandHandler> = new Map();
     private readonly repositoryStatusModule: RepositoryStatusCommands;
+    /**
+     * The Submission Setup snapshot source, owned here because the command
+     * modules and the init service must answer with the same one.
+     */
+    public readonly submissionSetup: SubmissionSetupService;
+    private readonly submissionSetupModule: SubmissionSetupCommands;
     private _websocketService?: ArtemisWebsocketService;
     private _senderQueue: Promise<void> = Promise.resolve();
 
@@ -87,12 +95,23 @@ export class WebViewMessageHandler {
         this.repositoryStatusModule = new RepositoryStatusCommands(context);
         context.recheckRepoStatus = () => this.repositoryStatusModule.recheckCurrentRepoStatus();
 
+        const submissionSetupGit = new GitService();
+        this.submissionSetup = new SubmissionSetupService({
+            git: submissionSetupGit,
+            getWorkspaceFolder: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+            getExerciseSources: () => courseCatalog?.projection().exercises ?? [],
+            getExerciseDetails: (exerciseId: number) => this.artemisApi.getExerciseDetails(exerciseId),
+        });
+        context.submissionSetup = this.submissionSetup;
+        this.submissionSetupModule = new SubmissionSetupCommands(context, submissionSetupGit);
+
         const modules = [
             new AuthCommandModule(context),
             new NavigationCommandModule(context),
             this.repositoryStatusModule,
             new RepositoryCloneCommands(context),
             new RepositorySubmitCommands(context),
+            this.submissionSetupModule,
             new IrisCommandModule(context),
             new UtilityCommandModule(context),
             new TestResultsTrackingCommandModule(context),
