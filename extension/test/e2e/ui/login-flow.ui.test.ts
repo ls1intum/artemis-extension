@@ -19,7 +19,7 @@ describe('Login Flow UI Tests', function () {
 	let password: string;
 
 	before(async function () {
-		this.timeout(30000);
+		this.timeout(90000);
 
 		try {
 			({ username, password } = getCredentials());

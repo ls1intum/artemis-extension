@@ -96,13 +96,46 @@ export function getCredentials(): { username: string; password: string } {
  *
  * Must be called AFTER `switchToWebviewFrame`.
  */
-export async function submitUsername(driver: WebDriver, username: string): Promise<void> {
-	const usernameInput = await waitForElement(driver, '#username');
+export async function submitUsername(driver: WebDriver, username: string, timeout = 10000): Promise<void> {
+	const usernameInput = await waitForElement(driver, '#username', timeout);
 	await usernameInput.clear();
 	await usernameInput.sendKeys(username);
 
 	const continueButton = await waitForElement(driver, '[data-testid="login-next"]');
 	await continueButton.click();
+}
+
+/**
+ * Enter the webview that actually holds the login form.
+ *
+ * `WebviewView.switchToFrame()` binds to whatever webview iframe exists at that
+ * moment, and on a fresh test profile that is VS Code's own Getting Started
+ * page: the frame answers, it simply contains the theme picker, so every
+ * selector matches nothing and the Artemis view looks like it never rendered.
+ * Closing the editors is what removes it, and it has to happen before each
+ * attempt rather than once up front, because the page can appear after the view
+ * is already open.
+ */
+export async function attachToLoginForm(driver: WebDriver, attempts = 6): Promise<void> {
+	for (let attempt = 1; attempt <= attempts; attempt++) {
+		try {
+			await new EditorView().closeAllEditors();
+		} catch {
+			// Nothing open, which is the state we wanted anyway.
+		}
+		try {
+			await switchToWebviewFrame(driver);
+			const found = await driver
+				.wait(async () => (await driver.findElements(By.css('#username'))).length > 0, 5000)
+				.catch(() => false);
+			if (found) { return; }
+			await switchBackFromWebview(driver);
+		} catch {
+			await switchBackFromWebview(driver).catch(() => undefined);
+		}
+		await driver.sleep(1500);
+	}
+	throw new Error('Login form never appeared in any Artemis webview frame');
 }
 
 /**
@@ -120,7 +153,7 @@ export async function performLogin(
 	password: string,
 ): Promise<void> {
 	await openArtemisView();
-	await switchToWebviewFrame(driver);
+	await attachToLoginForm(driver);
 
 	await submitUsername(driver, username);
 

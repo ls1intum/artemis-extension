@@ -42,9 +42,9 @@ suite('SubmissionSetupCommands.renewArtemisAccess', () => {
             repository: { state: 'ok', participationId: 99 },
             access: { state: 'ok' },
         });
-        const createVcsAccessToken = overrides.createVcsAccessToken ?? sandbox.stub().resolves(TOKEN);
-        const getVcsAccessToken = sandbox.stub().resolves('dead-token');
-        const getOrCreateVcsAccessToken = sandbox.stub().resolves('dead-token');
+        const createVcsAccessToken = sandbox.stub().resolves('put-token');
+        const getVcsAccessToken = sandbox.stub().resolves(TOKEN);
+        const getOrCreateVcsAccessToken = overrides.createVcsAccessToken ?? sandbox.stub().resolves(TOKEN);
         const ctx = {
             sendMessage,
             artemisApi: {
@@ -77,13 +77,16 @@ suite('SubmissionSetupCommands.renewArtemisAccess', () => {
         return call?.args[0] as { status: string; message: string } | undefined;
     }
 
-    test('mints a fresh token with PUT, never the get-or-create that would hand back the dead one', async () => {
+    test('asks for the participation token with get-or-create, because PUT does not rotate one', async () => {
+        // Measured against Artemis develop: PUT with a token already on record
+        // answers 500, so a renewal built on it would fail for every student who
+        // has ever cloned.
         const { renew, createVcsAccessToken, getOrCreateVcsAccessToken, git } = build();
 
         await renew();
 
-        sinon.assert.calledOnceWithExactly(createVcsAccessToken, 99);
-        sinon.assert.notCalled(getOrCreateVcsAccessToken);
+        sinon.assert.calledOnceWithExactly(getOrCreateVcsAccessToken, 99);
+        sinon.assert.notCalled(createVcsAccessToken);
         const url = (git.setRemoteUrl as unknown as sinon.SinonStub).firstCall.args[1] as string;
         assert.ok(url.includes('ge38nac'), 'the URL must authenticate as the logged-in student');
         assert.ok(url.includes(TOKEN));
@@ -110,8 +113,12 @@ suite('SubmissionSetupCommands.renewArtemisAccess', () => {
 
         await renew();
 
+        // The token Artemis handed back is refused too, which is the case this
+        // page cannot repair. Saying so beats installing it and letting the next
+        // push fail.
         sinon.assert.notCalled(setRemoteUrl);
         assert.match(lastResult(sendMessage)!.message, /nothing was changed/);
+        assert.match(lastResult(sendMessage)!.message, /renewed in Artemis itself/);
         assert.strictEqual(lastResult(sendMessage)!.status, 'error');
     });
 
@@ -151,24 +158,24 @@ suite('SubmissionSetupCommands.renewArtemisAccess', () => {
     test('refuses to build a URL that authenticates as nobody when the login is unknown', async () => {
         // The clone path falls back to the literal "user" here; a renewal that
         // did the same would replace a dead remote with an unusable one.
-        const { renew, sendMessage, createVcsAccessToken } = build({
+        const { renew, sendMessage, getOrCreateVcsAccessToken } = build({
             getCurrentUser: sandbox.stub().rejects(new Error('offline')),
         });
 
         await renew();
 
-        sinon.assert.notCalled(createVcsAccessToken);
+        sinon.assert.notCalled(getOrCreateVcsAccessToken);
         assert.match(lastResult(sendMessage)!.message, /Sign in again/);
     });
 
     test('says so when the folder matches no participation, instead of asking Artemis for a token anyway', async () => {
-        const { renew, sendMessage, createVcsAccessToken } = build({
+        const { renew, sendMessage, getOrCreateVcsAccessToken } = build({
             resolveParticipation: sandbox.stub().resolves(undefined),
         });
 
         await renew();
 
-        sinon.assert.notCalled(createVcsAccessToken);
+        sinon.assert.notCalled(getOrCreateVcsAccessToken);
         assert.match(lastResult(sendMessage)!.message, /which Artemis participation/);
     });
 

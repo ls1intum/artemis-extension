@@ -86,9 +86,21 @@ export class SubmissionSetupCommands {
 
         let token: string;
         try {
-            // PUT, never get-or-create: the GET hands back the very token that
-            // stopped working, so a "renewal" would reinstall the dead one.
-            token = await this.context.artemisApi.createVcsAccessToken(participation.participationId);
+            // Get-or-create, not PUT. The plan called for PUT on the assumption
+            // that it rotates a participation's token; measured against Artemis
+            // develop it does not. With a token already on record it answers 500
+            // (InvalidDataAccessApiUsageException server-side), so a renewal
+            // built on it would fail for every student who has ever cloned.
+            //
+            // What this repairs is therefore the common case: the token in
+            // `.git/config` is stale or absent (a hand-cloned repository, a
+            // remote rewritten elsewhere) while the server's own token is good.
+            // A token that is genuinely dead on the server cannot be replaced
+            // from here, and the probe below is what keeps that honest: the
+            // credential is tested before anything is written, so the student is
+            // told it is still refused instead of being handed a repaired-looking
+            // remote that fails on the next push.
+            token = await this.context.artemisApi.getOrCreateVcsAccessToken(participation.participationId);
         } catch (error: unknown) {
             if (error instanceof ApiError && error.status === 401) {
                 // makeRequest has already cleared the session and started the
@@ -118,7 +130,8 @@ export class SubmissionSetupCommands {
             this.sendResult(
                 'error',
                 probe === 'refused'
-                    ? 'Artemis refused the new access token, so nothing was changed.'
+                    ? 'Artemis still refuses this repository, so nothing was changed. '
+                        + 'Your access token needs to be renewed in Artemis itself.'
                     : 'Could not reach Artemis, so nothing was changed.',
             );
             await this.postSnapshot();
