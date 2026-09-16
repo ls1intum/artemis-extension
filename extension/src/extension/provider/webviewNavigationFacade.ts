@@ -113,7 +113,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         }
     }
 
-    public async showDashboard(userInfo: UserInfo): Promise<void> {
+    public async showDashboard(userInfo: UserInfo, options?: { force?: boolean }): Promise<void> {
         // Captured before anything is awaited, because the archive search below
         // is the longest-running producer in the extension: it issues one
         // detail request per archived course, and a logout, a 401 or a
@@ -125,7 +125,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
 
         // Error swallowed: the dashboard renders with an empty state.
         try {
-            await this.deps.courseCatalog?.fetch();
+            await this.deps.courseCatalog?.fetch(options);
         } catch (error) {
             logger.error('Error loading courses for dashboard', LogCategory.VIEW, error);
         }

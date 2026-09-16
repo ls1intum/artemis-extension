@@ -297,6 +297,47 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.called(stubs.sendInitData);
     });
 
+    test('showDashboard: fetches unforced by default, so ordinary navigation spends no request', async () => {
+        const { deps, stubs } = buildDeps();
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.showDashboard({ username: 'alice', serverUrl: 'https://x/' });
+        await flushBackgroundWork();
+
+        sinon.assert.calledOnceWithExactly(stubs.courseCatalog.fetch, undefined);
+    });
+
+    test('showDashboard: forwards force to the catalog, so a reload reaches the server', async () => {
+        const { deps, stubs } = buildDeps();
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.showDashboard({ username: 'alice', serverUrl: 'https://x/' }, { force: true });
+        await flushBackgroundWork();
+
+        sinon.assert.calledOnceWithExactly(stubs.courseCatalog.fetch, { force: true });
+    });
+
+    // The state transition has to be committed before the fetch is awaited. Were it
+    // to happen afterwards, a logout landing while the request is open would be undone
+    // the moment the request settles, putting a signed-out user back on the dashboard.
+    test('showDashboard: commits the state transition before it awaits the fetch', async () => {
+        let resolveFetch: (() => void) | undefined;
+        const fetch = sandbox.stub().returns(new Promise<void>(resolve => { resolveFetch = resolve; }));
+        const { deps, stubs } = buildDeps({
+            courseCatalog: { fetch, upsertSupplemental: sandbox.stub(), currentEpoch: 0 },
+        });
+        const facade = new WebviewNavigationFacade(deps);
+
+        const pending = facade.showDashboard({ username: 'alice', serverUrl: 'https://x/' }, { force: true });
+
+        sinon.assert.called(stubs.appStateManager.showDashboard);
+        sinon.assert.notCalled(stubs.render);
+
+        resolveFetch?.();
+        await pending;
+        await flushBackgroundWork();
+    });
+
     test('showDashboard: logs but does not crash when suggestion helper throws', async () => {
         // Force the suggestion path to throw by making getConfiguration throw.
         getConfiguration.throws(new Error('config blew up'));

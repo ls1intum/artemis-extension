@@ -571,3 +571,77 @@ suite('handleOpenExercise parent-course lookup', () => {
         assert.strictEqual(shownTitle(), 'Holder');
     });
 });
+
+/**
+ * The Recent Courses reload button. Its whole point is to go and ask the server
+ * again, so it must not be answered out of the catalog's memoised list: a course
+ * created, renamed or unarchived since the first fetch would stay invisible
+ * while the button still flashed its skeleton and returned the same rows.
+ */
+suite('handleReloadDashboard', () => {
+    let sandbox: sinon.SinonSandbox;
+    let showErrorMessage: sinon.SinonStub;
+    let showDashboard: sinon.SinonStub;
+    let sendInitData: sinon.SinonStub;
+
+    const userInfo = { id: 1, login: 'ab12cde' };
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        showErrorMessage = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as never);
+        showDashboard = sandbox.stub().resolves();
+        sendInitData = sandbox.stub();
+    });
+
+    teardown(() => sandbox.restore());
+
+    function buildContext(overrides: { userInfo?: unknown } = {}): CommandContext {
+        return {
+            appStateManager: { userInfo: 'userInfo' in overrides ? overrides.userInfo : userInfo },
+            artemisApi: {},
+            actionHandler: { showDashboard, sendInitData, render: sandbox.stub() },
+            courseCatalog: { fetch: sandbox.stub().resolves(undefined) },
+            sessionEpoch: () => 0,
+        } as unknown as CommandContext;
+    }
+
+    function reload(ctx: CommandContext): Promise<void> {
+        return new NavigationCommandModule(ctx).getHandlers().reloadDashboard({
+            type: 'command',
+            command: 'reloadDashboard',
+        } as WebCmd<'reloadDashboard'>);
+    }
+
+    test('asks for a forced load, so the list comes from the server and not the catalog', async () => {
+        await reload(buildContext());
+
+        sinon.assert.calledOnceWithExactly(showDashboard, userInfo, { force: true });
+    });
+
+    // The reload must ask THROUGH showDashboard. Fetching here first and calling
+    // showDashboard after would move its state transition behind an await, and a
+    // logout landing during the fetch would then be undone by the call that follows.
+    test('does not fetch behind showDashboard on its own', async () => {
+        const ctx = buildContext();
+
+        await reload(ctx);
+
+        const catalogFetch = (ctx.courseCatalog as unknown as { fetch: sinon.SinonStub }).fetch;
+        assert.strictEqual(catalogFetch.callCount, 0, 'the handler must not reach past showDashboard to the catalog');
+    });
+
+    test('renders nothing when no one is signed in', async () => {
+        await reload(buildContext({ userInfo: undefined }));
+
+        assert.strictEqual(showDashboard.callCount, 0);
+    });
+
+    test('reports a reload that threw and puts the webview back', async () => {
+        showDashboard.rejects(new Error('navigation failed'));
+
+        await reload(buildContext());
+
+        sinon.assert.calledOnceWithExactly(showErrorMessage, 'Error reloading dashboard');
+        assert.strictEqual(sendInitData.callCount, 1, 'the webview is taken out of its loading state');
+    });
+});

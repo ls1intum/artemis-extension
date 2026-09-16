@@ -9,7 +9,12 @@ import type { UserInfo } from './appStateManager';
  */
 export interface WebViewActionHandler {
     showCourseList(): Promise<void>;
-    showDashboard(userInfo: UserInfo): Promise<void>;
+    /**
+     * `force` makes the course list come from the server rather than the catalog's memoised
+     * copy. Optional, and absent on every navigation path: only an explicit reload gesture
+     * spends a request.
+     */
+    showDashboard(userInfo: UserInfo, options?: { force?: boolean }): Promise<void>;
     navigateToStartPage(userInfo: UserInfo): Promise<void>;
     showStruggleDetection(): void;
     showSubmissionSetup(): void;
