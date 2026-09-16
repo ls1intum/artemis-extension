@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
-import { extractErrorMessage } from '@extension/utils';
+import { extractErrorMessage } from '@extension/utils/errorUtils';
 
 const DATA_BRIDGE_COMMAND = 'dataBridge.getEnv';
 const POLL_INTERVAL_MS = 500;
