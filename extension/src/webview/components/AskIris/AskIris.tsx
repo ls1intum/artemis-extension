@@ -2,7 +2,8 @@ import clsx from 'clsx';
 
 import type { ProactiveCardReason, ProactiveCardState, ProactiveLevel } from '@shared/messageContracts';
 
-import { Button, Container } from '@webview/components';
+import { Button } from '@webview/components/Button';
+import { Container } from '@webview/components/Container';
 
 import styles from './AskIris.module.css';
 

@@ -1,6 +1,10 @@
 import { displayedResult } from '@shared/utils/latestById';
 
-interface ParticipationWithFeedbacks {
+/**
+ * Minimal participation shape: submissions carrying results carrying feedbacks.
+ * Shared by every surface that resolves the feedbacks a participation should display.
+ */
+export interface ParticipationWithFeedbacks {
     readonly submissions?: ReadonlyArray<{
         readonly id?: number;
         readonly results?: ReadonlyArray<{

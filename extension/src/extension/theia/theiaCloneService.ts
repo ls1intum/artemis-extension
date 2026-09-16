@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
-import { extractRedactedErrorMessage } from '@extension/utils';
+import { extractRedactedErrorMessage } from '@extension/utils/errorUtils';
 
 const execFileAsync = promisify(execFile);
 

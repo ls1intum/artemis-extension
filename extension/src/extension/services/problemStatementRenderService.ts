@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import type { ArtemisApiService } from '@extension/api/artemisApi';
 import type { ProblemStatementRenderRequest, TestFeedbackInput } from '@extension/domain/problemStatementRendering';
 import { VSCODE_CONFIG } from '@extension/utils/constants';
+import type { ParticipationWithFeedbacks } from '@extension/utils/participationHelpers';
 import { extractLatestFeedbacks } from '@extension/utils/participationHelpers';
 import { resolveServerUrl } from '@extension/utils/serverUrl';
 
@@ -23,19 +24,8 @@ interface ExerciseLike {
     readonly problemStatement?: string;
 }
 
-/** Minimal participation shape (has submissions with results with feedbacks) */
-interface ParticipationLike {
-    readonly submissions?: ReadonlyArray<{
-        readonly id?: number;
-        readonly results?: ReadonlyArray<{
-            readonly id?: number;
-            readonly feedbacks?: unknown[];
-        }>;
-    }>;
-}
-
 interface RenderOptions {
-    readonly participation?: ParticipationLike;
+    readonly participation?: ParticipationWithFeedbacks;
     /**
      * Whether a build is in flight for that participation. A pending submission carries no result,
      * so without this the statement renders no task markers for the length of every build.
