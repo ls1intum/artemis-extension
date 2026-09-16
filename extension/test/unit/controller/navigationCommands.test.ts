@@ -571,3 +571,85 @@ suite('handleOpenExercise parent-course lookup', () => {
         assert.strictEqual(shownTitle(), 'Holder');
     });
 });
+
+/**
+ * The Recent Courses reload button. Its whole point is to go and ask the server
+ * again, so it must not be answered out of the catalog's memoised list: a course
+ * created, renamed or unarchived since the first fetch would stay invisible
+ * while the button still flashed its skeleton and returned the same rows.
+ */
+suite('handleReloadDashboard', () => {
+    let sandbox: sinon.SinonSandbox;
+    let showErrorMessage: sinon.SinonStub;
+    let showDashboard: sinon.SinonStub;
+    let sendInitData: sinon.SinonStub;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        showErrorMessage = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as never);
+        showDashboard = sandbox.stub().resolves();
+        sendInitData = sandbox.stub();
+    });
+
+    teardown(() => sandbox.restore());
+
+    function buildContext(overrides: {
+        userInfo?: unknown;
+        catalogFetch?: sinon.SinonStub;
+    } = {}): CommandContext {
+        return {
+            appStateManager: {
+                userInfo: 'userInfo' in overrides ? overrides.userInfo : { id: 1, login: 'ab12cde' },
+            },
+            artemisApi: {},
+            actionHandler: { showDashboard, sendInitData, render: sandbox.stub() },
+            courseCatalog: { fetch: overrides.catalogFetch ?? sandbox.stub().resolves(undefined) },
+            sessionEpoch: () => 0,
+        } as unknown as CommandContext;
+    }
+
+    function reload(ctx: CommandContext): Promise<void> {
+        return new NavigationCommandModule(ctx).getHandlers().reloadDashboard({
+            type: 'command',
+            command: 'reloadDashboard',
+        } as WebCmd<'reloadDashboard'>);
+    }
+
+    test('asks the catalog for a fresh list rather than its cached one', async () => {
+        const catalogFetch = sandbox.stub().resolves(undefined);
+
+        await reload(buildContext({ catalogFetch }));
+
+        sinon.assert.calledOnceWithExactly(catalogFetch, { force: true });
+    });
+
+    test('re-fetches before re-rendering, so the dashboard shows the new list', async () => {
+        const catalogFetch = sandbox.stub().resolves(undefined);
+
+        await reload(buildContext({ catalogFetch }));
+
+        assert.strictEqual(showDashboard.callCount, 1, 'the dashboard is still rendered');
+        assert.ok(
+            catalogFetch.calledBefore(showDashboard),
+            'the forced fetch must land before the render, or the render shows the stale list',
+        );
+    });
+
+    test('renders nothing and fetches nothing when no one is signed in', async () => {
+        const catalogFetch = sandbox.stub().resolves(undefined);
+
+        await reload(buildContext({ userInfo: undefined, catalogFetch }));
+
+        assert.strictEqual(catalogFetch.callCount, 0);
+        assert.strictEqual(showDashboard.callCount, 0);
+    });
+
+    test('reports a failed reload and puts the webview back', async () => {
+        const catalogFetch = sandbox.stub().rejects(new Error('network down'));
+
+        await reload(buildContext({ catalogFetch }));
+
+        sinon.assert.calledOnceWithExactly(showErrorMessage, 'Error reloading dashboard');
+        assert.strictEqual(sendInitData.callCount, 1, 'the webview is taken out of its loading state');
+    });
+});

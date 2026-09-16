@@ -201,6 +201,12 @@ export class NavigationCommandModule {
         try {
             const userInfo = this.context.appStateManager.userInfo;
             if (userInfo) {
+                // Forced, exactly as `handleReloadCourses` above does it: `showDashboard` fetches
+                // unforced, because it is also the ordinary navigation path, where reusing the
+                // catalog is right and a request per visit would not be. Only the button that says
+                // "reload" gets to spend one, so it asks the catalog here and leaves the fetch
+                // inside `showDashboard` to hit the list this just filled.
+                await this.context.courseCatalog?.fetch({ force: true });
                 await this.context.actionHandler.showDashboard(userInfo);
             }
         } catch (error: unknown) {
