@@ -584,6 +584,8 @@ suite('handleReloadDashboard', () => {
     let showDashboard: sinon.SinonStub;
     let sendInitData: sinon.SinonStub;
 
+    const userInfo = { id: 1, login: 'ab12cde' };
+
     setup(() => {
         sandbox = sinon.createSandbox();
         showErrorMessage = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as never);
@@ -593,17 +595,12 @@ suite('handleReloadDashboard', () => {
 
     teardown(() => sandbox.restore());
 
-    function buildContext(overrides: {
-        userInfo?: unknown;
-        catalogFetch?: sinon.SinonStub;
-    } = {}): CommandContext {
+    function buildContext(overrides: { userInfo?: unknown } = {}): CommandContext {
         return {
-            appStateManager: {
-                userInfo: 'userInfo' in overrides ? overrides.userInfo : { id: 1, login: 'ab12cde' },
-            },
+            appStateManager: { userInfo: 'userInfo' in overrides ? overrides.userInfo : userInfo },
             artemisApi: {},
             actionHandler: { showDashboard, sendInitData, render: sandbox.stub() },
-            courseCatalog: { fetch: overrides.catalogFetch ?? sandbox.stub().resolves(undefined) },
+            courseCatalog: { fetch: sandbox.stub().resolves(undefined) },
             sessionEpoch: () => 0,
         } as unknown as CommandContext;
     }
@@ -615,39 +612,34 @@ suite('handleReloadDashboard', () => {
         } as WebCmd<'reloadDashboard'>);
     }
 
-    test('asks the catalog for a fresh list rather than its cached one', async () => {
-        const catalogFetch = sandbox.stub().resolves(undefined);
+    test('asks for a forced load, so the list comes from the server and not the catalog', async () => {
+        await reload(buildContext());
 
-        await reload(buildContext({ catalogFetch }));
-
-        sinon.assert.calledOnceWithExactly(catalogFetch, { force: true });
+        sinon.assert.calledOnceWithExactly(showDashboard, userInfo, { force: true });
     });
 
-    test('re-fetches before re-rendering, so the dashboard shows the new list', async () => {
-        const catalogFetch = sandbox.stub().resolves(undefined);
+    // The reload must ask THROUGH showDashboard. Fetching here first and calling
+    // showDashboard after would move its state transition behind an await, and a
+    // logout landing during the fetch would then be undone by the call that follows.
+    test('does not fetch behind showDashboard on its own', async () => {
+        const ctx = buildContext();
 
-        await reload(buildContext({ catalogFetch }));
+        await reload(ctx);
 
-        assert.strictEqual(showDashboard.callCount, 1, 'the dashboard is still rendered');
-        assert.ok(
-            catalogFetch.calledBefore(showDashboard),
-            'the forced fetch must land before the render, or the render shows the stale list',
-        );
+        const catalogFetch = (ctx.courseCatalog as unknown as { fetch: sinon.SinonStub }).fetch;
+        assert.strictEqual(catalogFetch.callCount, 0, 'the handler must not reach past showDashboard to the catalog');
     });
 
-    test('renders nothing and fetches nothing when no one is signed in', async () => {
-        const catalogFetch = sandbox.stub().resolves(undefined);
+    test('renders nothing when no one is signed in', async () => {
+        await reload(buildContext({ userInfo: undefined }));
 
-        await reload(buildContext({ userInfo: undefined, catalogFetch }));
-
-        assert.strictEqual(catalogFetch.callCount, 0);
         assert.strictEqual(showDashboard.callCount, 0);
     });
 
-    test('reports a failed reload and puts the webview back', async () => {
-        const catalogFetch = sandbox.stub().rejects(new Error('network down'));
+    test('reports a reload that threw and puts the webview back', async () => {
+        showDashboard.rejects(new Error('navigation failed'));
 
-        await reload(buildContext({ catalogFetch }));
+        await reload(buildContext());
 
         sinon.assert.calledOnceWithExactly(showErrorMessage, 'Error reloading dashboard');
         assert.strictEqual(sendInitData.callCount, 1, 'the webview is taken out of its loading state');
