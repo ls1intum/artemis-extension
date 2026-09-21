@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-import { getTheiaEnvironment } from '@extension/theia';
+import { getTheiaEnvironment } from '@extension/theia/theiaEnvironment';
 
 import { CONFIG, VSCODE_CONFIG } from './constants';
 

@@ -441,14 +441,33 @@ jobs:
   release:
     name: Tag + GitHub Release
     needs: [prepare, build, publish_openvsx, publish_marketplace]
-    # Run release if not cancelled, not dry_run, prepare+build succeeded, no
-    # publish failed, and at least one publish actually succeeded.
+    # Run release if not cancelled, not dry_run, prepare+build succeeded, and at
+    # least one publish actually succeeded. A failure of the OTHER publish target
+    # does NOT block the tag: the successful publish has already reached its
+    # registry and nothing here can take it back, so withholding the tag only
+    # removes the record of what is shipping. The run still goes red via the
+    # failed publish job.
+    #
+    # This is not "tag the moment one target publishes": the job needs BOTH
+    # publish jobs, so it waits for the slower one to reach a terminal result.
+    # A pending 'production' approval keeps it waiting too, and the two publish
+    # jobs can be approved independently even though they share the environment.
+    #
+    # Catching the failed target up is "Re-run failed jobs" ON THIS RUN, not a
+    # fresh dispatch: the tag now exists, so "Verify tag does not already exist"
+    # in prepare rejects a second dispatch of the same version. The re-run reuses
+    # this run's build artifacts (30-day retention) and may ask for the
+    # 'production' approval again. It also re-runs 'release' and 'notify_eduide'
+    # as dependents, which is safe: create-or-converge below handles the existing
+    # release, both publish steps are idempotent ('vsce publish --skip-duplicate',
+    # the Open VSX checksum pre-check), and a repeated EduIDE dispatch converges
+    # rather than duplicating: once its bump PR is merged the pin already matches
+    # and the workflow exits before opening one, and while the PR is still open
+    # it updates that same fixed branch instead of opening a second PR.
     if: |
       !cancelled() && !inputs.dry_run &&
       needs.prepare.result == 'success' &&
       needs.build.result == 'success' &&
-      (needs.publish_openvsx.result == 'success' || needs.publish_openvsx.result == 'skipped') &&
-      (needs.publish_marketplace.result == 'success' || needs.publish_marketplace.result == 'skipped') &&
       (needs.publish_openvsx.result == 'success' || needs.publish_marketplace.result == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 5
