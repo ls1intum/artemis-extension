@@ -2,6 +2,19 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [1.2.0] - 2026-09-21
+
+### Fixed
+
+- **The Recent Courses reload asks Artemis again instead of redrawing the same list.** The button re-rendered the section without re-fetching, because it reached the course catalog through the ordinary navigation path, which serves the memoised list. A course created, renamed or unarchived since the first fetch stayed invisible until the whole window was reloaded, while the button still flashed its skeleton and returned the same rows. The reload now forces the fetch. Ordinary navigation to the dashboard keeps using the cached list, since a request per visit is not what the button is for.
+
+### Internal
+
+- **A failed publish to one store no longer withholds the release tag.** The release pipeline required both Open VSX and the VS Marketplace to succeed or be skipped before tagging. The successful publish has already reached its registry by then and nothing in the pipeline can take it back, so blocking the tag only removed the record of what was shipping. One successful target is now enough, once both publish jobs have finished. The run still fails through the failed publish job, and the failed store is caught up with "Re-run failed jobs" on that same run, which is safe because the publish steps, the release job and the EduIDE notification all converge rather than duplicate.
+- **The two runtime import cycles are gone.** `utils` and `theia` each value-imported the other's barrel, as did `components` and `AskIris`, so module initialisation order depended on the cycle rather than on the imports. Each side now names the concrete module it needs.
+- **The struggle-debug data model left the message contract.** 175 of the 771 lines in `extensionMessages.ts` were not messages but the struggle engine's own telemetry shapes, which travel to the developer-only Struggle Detection view and nowhere else. They now live in `struggleDebug.ts`. The barrel re-exports it, so no importer changed and both bundle profiles still verify clean.
+- **The participation-with-feedbacks shape is declared once.** `problemStatementRenderService` carried a character-for-character copy of the nine-line shape it already imported a reader for.
+
 ## [1.1.0] - 2026-09-15
 
 ### Changed
