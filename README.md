@@ -10,7 +10,7 @@ Seamlessly integrate **Artemis: Interactive Learning with Individual Feedback** 
 
 ### Dashboard & Course Overview
 ![Dashboard](https://raw.githubusercontent.com/ls1intum/artemis-extension/main/extension/media/screenshots/dashboard.png)
-*Access your courses, exercises, and get started with Iris AI tutor from the main dashboard*
+*Jump back into your current exercise and recent courses from the main dashboard*
 
 ### Iris AI Chat - Intelligent Tutoring
 ![Iris Chat](https://raw.githubusercontent.com/ls1intum/artemis-extension/main/extension/media/screenshots/iris-chat.png)
