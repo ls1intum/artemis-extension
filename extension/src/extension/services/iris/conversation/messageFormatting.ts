@@ -4,7 +4,7 @@ import type { IrisChatMessage } from '@shared/types/apiResponses';
 import type { SessionDetail } from '@shared/types/serverContext';
 
 import { extractIrisMessageContent } from '@extension/services/iris/chat/messageUtils';
-import { describeContextSwap, isContextSwap, parseContextSwap } from '@extension/services/iris/context/contextMarkers';
+import { describeContextSwap, isContextSwap, isHiddenMarker, parseContextSwap } from '@extension/services/iris/context/contextMarkers';
 import { isIrisActivity } from '@extension/services/iris/parseIrisWs';
 
 /** One transcript row as the webview renders it. */
@@ -38,10 +38,12 @@ function toActivities(message: IrisChatMessage) {
  * renders it as a divider, and calling it an assistant message puts an
  * unreadable JSON blob in the conversation. `SessionDetail.messages` carries
  * every persisted sender, markers included, so this is the only place that can
- * tell them apart.
+ * tell them apart. Hidden markers are not projected at all: reconnect recovery
+ * reads this output, and a point-out row persisted before the answer would
+ * otherwise count as that answer.
  */
 export function toWireMessages(messages: IrisChatMessage[] | undefined): WireMessage[] {
-    return (messages ?? []).map((message) => {
+    return (messages ?? []).filter((message) => !isHiddenMarker(message)).map((message) => {
         const timestamp = message.sentAt ? new Date(message.sentAt).getTime() : Date.now();
         if (isContextSwap(message)) {
             const swap = parseContextSwap(message);

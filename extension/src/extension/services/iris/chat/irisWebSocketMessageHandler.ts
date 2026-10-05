@@ -5,7 +5,7 @@ import { ExtensionMsg } from '@shared/messageContracts';
 import type { IrisChatMessage } from '@shared/types/apiResponses';
 
 import { classifyIrisFrame } from '@extension/services/iris/chat/classifyIrisFrame';
-import { describeContextSwap, isContextSwap, parseContextSwap } from '@extension/services/iris/context/contextMarkers';
+import { describeContextSwap, isContextSwap, isHiddenMarker, parseContextSwap } from '@extension/services/iris/context/contextMarkers';
 import type { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
 import { IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
 import type { IrisWebSocketMessage } from '@extension/services/iris/parseIrisWs';
@@ -102,6 +102,15 @@ export class IrisWebSocketMessageHandler {
             if (data.type === 'MESSAGE' && data.message) {
                 conversation.state.upsertMessage(data.message);
             }
+        }
+
+        // A marker the transcript never shows (see isHiddenMarker) ends here,
+        // after the upsert so host state still mirrors the server. Outside the
+        // block above so it is dropped with no conversation open too, and
+        // before proactive routing and admission so it can never bind,
+        // finalize or render a run, whatever runId or origin it carries.
+        if (data.type === 'MESSAGE' && data.message && isHiddenMarker(data.message)) {
+            return;
         }
 
         // Proactive pushes are routed BEFORE run admission but AFTER the source

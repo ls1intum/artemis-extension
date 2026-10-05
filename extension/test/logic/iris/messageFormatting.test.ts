@@ -74,6 +74,32 @@ describe('toWireMessages', () => {
     it('returns an empty list for undefined input', () => {
         expect(toWireMessages(undefined)).toEqual([]);
     });
+
+    it('drops COMMAND and SUMMARY markers and keeps the rows around them in order', () => {
+        const pointOut = [{ type: 'json', attributes: { type: 'pointOut', parameters: { lectureUnitId: 42, page: 3 } } }];
+        const rows = toWireMessages([
+            assistant({ id: 1, sender: 'USER', content: [{ type: 'text', textContent: 'where is this?' }] }),
+            assistant({ id: 2, sender: 'COMMAND', content: pointOut }),
+            assistant({ id: 3 }),
+            assistant({ id: 4, sender: 'SUMMARY', content: [{ type: 'text', textContent: 'summary' }] }),
+        ]);
+
+        expect(rows.map((r) => r.id)).toEqual([1, 3]);
+        expect(rows.map((r) => r.role)).toEqual(['user', 'assistant']);
+    });
+
+    it('still renders every other sender, unknown and missing ones included, as an Iris answer', () => {
+        // Closed list on purpose: hiding an unknown sender would lose a future
+        // chat sender's content and keep reconnect recovery waiting for it.
+        const rows = toWireMessages([
+            assistant({ id: 1, sender: 'LLM' }),
+            assistant({ id: 2, sender: 'ARTIFACT' }),
+            assistant({ id: 3, sender: 'SOMETHING_NEW' }),
+            assistant({ id: 4, sender: undefined }),
+        ]);
+
+        expect(rows.map((r) => r.role)).toEqual(['assistant', 'assistant', 'assistant', 'assistant']);
+    });
 });
 
 describe('transcriptMessage', () => {

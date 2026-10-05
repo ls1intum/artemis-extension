@@ -2,6 +2,17 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [1.2.1] - 2026-10-05
+
+### Fixed
+
+- **Quizzes from Iris no longer vanish.** Asking Iris in a course or lecture chat to quiz you produced the intro line ("Here is a question for you:") and no question, or nothing at all when the answer had no text. The extension read only the text parts of an answer and dropped the quiz Artemis sends alongside them. A quiz now shows as a line pointing you to the same chat in Artemis, where it can be answered and graded.
+- **Slide point-outs no longer show up as empty Iris messages.** When Iris points you to a slide or video position in a lecture chat, Artemis stores a marker in the conversation. After a reload the extension drew that marker as an empty Iris bubble with feedback buttons and counted it as a message. Worse, because the marker is stored before Iris's answer, a connection drop during the answer could make the extension treat the answer as already arrived and stop showing it. Markers are now kept out of the transcript, the message count and the answer tracking.
+
+### Changed
+
+- **The store listing shows current screenshots.** The dashboard, Iris chat and test result screenshots in the README were replaced with ones from the current version, in light mode.
+
 ## [1.2.0] - 2026-09-21
 
 ### Fixed
