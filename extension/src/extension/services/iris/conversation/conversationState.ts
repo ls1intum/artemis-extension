@@ -3,7 +3,7 @@ import type { ServerContext, SessionDetail, SessionSummary } from '@shared/types
 import { sameContext, summaryOfDetail } from '@shared/types/serverContext';
 
 import type { ContextSwap } from '@extension/services/iris/context/contextMarkers';
-import { isContextSwap } from '@extension/services/iris/context/contextMarkers';
+import { isContextSwap, isHiddenMarker } from '@extension/services/iris/context/contextMarkers';
 
 /**
  * `unknown` is NOT `empty`. It holds while no detail for the current session is
@@ -531,7 +531,7 @@ export class ConversationState {
 
     /** Display value only. NEVER a content predicate: it hides markers. */
     public displayMessageCount(): number {
-        return (this._detail?.messages ?? []).filter((m: IrisChatMessage) => !isContextSwap(m)).length;
+        return (this._detail?.messages ?? []).filter((m: IrisChatMessage) => !isContextSwap(m) && !isHiddenMarker(m)).length;
     }
 
     public snapshot(): ConversationSnapshot {

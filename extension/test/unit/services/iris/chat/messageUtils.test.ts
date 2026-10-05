@@ -81,3 +81,45 @@ suite('extractIrisMessageContent: object content parts', () => {
         );
     });
 });
+
+suite('extractIrisMessageContent: quiz content', () => {
+    const SINGLE = '*Iris created a quiz question. Open this chat in Artemis to answer it.*';
+    const question = { question: 'q?', options: [{ text: 'a', correct: true }, { text: 'b', correct: false }], explanation: 'e' };
+    const json = (attributes: unknown) => ({ type: 'json', attributes });
+
+    test('keeps the intro text and appends one placeholder for a single question', () => {
+        assert.strictEqual(
+            extractIrisMessageContent([{ type: 'text', textContent: 'Here is a question:' }, json({ type: 'mcq', ...question })]),
+            `Here is a question:\n${SINGLE}`,
+        );
+    });
+
+    test('names the number of questions in a set', () => {
+        assert.strictEqual(
+            extractIrisMessageContent([json({ type: 'mcq-set', questions: [question, question, question] })]),
+            '*Iris created 3 quiz questions. Open this chat in Artemis to answer them.*',
+        );
+    });
+
+    test('uses the singular wording for a set of one, and for a set without a usable question list', () => {
+        assert.strictEqual(extractIrisMessageContent([json({ type: 'mcq-set', questions: [question] })]), SINGLE);
+        assert.strictEqual(extractIrisMessageContent([json({ type: 'mcq-set' })]), SINGLE);
+        assert.strictEqual(extractIrisMessageContent([json({ type: 'mcq-set', questions: [] })]), SINGLE);
+        assert.strictEqual(extractIrisMessageContent([json({ type: 'mcq-set', questions: 'three' })]), SINGLE);
+    });
+
+    test('reads attributes serialised as a string', () => {
+        assert.strictEqual(extractIrisMessageContent([json(JSON.stringify({ type: 'mcq', ...question }))]), SINGLE);
+    });
+
+    test('an unparseable attributes string contributes nothing', () => {
+        assert.strictEqual(extractIrisMessageContent([json('{"type":"mcq"')]), '');
+    });
+
+    test('json that is not a quiz contributes nothing', () => {
+        assert.strictEqual(
+            extractIrisMessageContent([json({ type: 'pointOut', parameters: { lectureUnitId: 42, page: 3 } })]),
+            '',
+        );
+    });
+});

@@ -352,3 +352,105 @@ describe('_handleSessionTitle notifies the conversation service', () => {
         expect(getNotifyChangedCalls()).toBe(1);
     });
 });
+
+/**
+ * COMMAND (and SUMMARY) rows are markers Artemis persists, not chat. The real
+ * point-out push carries no runId, which alone keeps it off the run today; the
+ * gate must hold even when a marker carries a runId, a terminal runState, a
+ * title or a proactive origin, with or without an open conversation.
+ */
+describe('IrisWebSocketMessageHandler: hidden markers', () => {
+    const pointOut = { type: 'json', attributes: { type: 'pointOut', parameters: { lectureUnitId: 42, page: 3 } } };
+
+    function commandFrame(frameOver: Record<string, unknown> = {}, messageOver: Record<string, unknown> = {}) {
+        return {
+            type: 'MESSAGE',
+            ...frameOver,
+            message: { id: 90, sender: 'COMMAND', content: [pointOut], ...messageOver },
+        };
+    }
+
+    it('with a conversation open, a marker scoped to the bound run is stored and touches nothing else', () => {
+        const { handler, posted, state, runs, getNotifyChangedCalls } = makeHandler({ currentSessionId: 1, irisSessionId: 1 });
+        const fire = vi.spyOn(handler['_onDidReceiveIrisChatMessage'], 'fire');
+        runs.beginGeneration();
+        handler.handleIrisWebSocketMessage({ type: 'PARTIAL', runId: 'A', partialResult: 'first draft', partialSeq: 1 }, 1);
+        const titleBefore = state.snapshot().detail?.title;
+        posted.length = 0;
+
+        handler.handleIrisWebSocketMessage(commandFrame({ runId: 'A', runState: 'FINISHED', sessionTitle: 'X' }), 1);
+
+        expect(state.snapshot().detail?.messages.map((m) => m.id)).toEqual([90]);
+        expect(runs.currentRunId).toBe('A');
+        expect(runs.waiting).toBe(true);
+        expect(posted).toEqual([]);
+        expect(state.snapshot().detail?.title).toBe(titleBefore);
+        expect(getNotifyChangedCalls()).toBe(0);
+        expect(fire).not.toHaveBeenCalled();
+
+        // The run is not finalized: its next PARTIAL still lands on the draft.
+        handler.handleIrisWebSocketMessage({ type: 'PARTIAL', runId: 'A', partialResult: 'second draft', partialSeq: 2 }, 1);
+        const update = posted.find((m) => m.type === 'updateIrisRunUi') as
+            Extract<ExtensionToWebviewMessage, { type: 'updateIrisRunUi' }> | undefined;
+        expect(update?.projection.draft).toEqual({ runId: 'A', text: 'second draft' });
+    });
+
+    it('with no conversation open, a marker is neither admitted as a run nor rendered', () => {
+        const { handler, posted, runs } = makeHandler();
+
+        handler.handleIrisWebSocketMessage(commandFrame({ runId: 'B', runState: 'FINISHED' }), 1);
+
+        expect(runs.currentRunId).toBeUndefined();
+        expect(posted).toEqual([]);
+    });
+
+    it('a marker with a proactive origin and a text part is neither rendered nor recorded', () => {
+        // The text part matters: without it the proactive path would drop the
+        // frame for having no content, and this test would pass without the gate.
+        const { handler, posted } = makeHandler({ currentSessionId: 1 });
+        const fire = vi.spyOn(handler['_onDidReceiveIrisChatMessage'], 'fire');
+
+        handler.handleIrisWebSocketMessage(commandFrame({}, {
+            origin: 'PROACTIVE_STRUGGLE',
+            content: [{ type: 'text', textContent: 'look here' }, pointOut],
+        }), 1);
+
+        expect(posted.filter((m) => m.type === 'addMessage')).toEqual([]);
+        expect(fire).not.toHaveBeenCalled();
+    });
+});
+
+describe('IrisWebSocketMessageHandler: quiz answers', () => {
+    const PLACEHOLDER = '*Iris created a quiz question. Open this chat in Artemis to answer it.*';
+    const mcq = {
+        type: 'json',
+        attributes: { type: 'mcq', question: 'q?', options: [{ text: 'a', correct: true }, { text: 'b', correct: false }], explanation: 'e' },
+    };
+    const addedContents = (posted: ExtensionToWebviewMessage[]) => posted
+        .filter((m): m is Extract<ExtensionToWebviewMessage, { type: 'addMessage' }> => m.type === 'addMessage')
+        .map((m) => m.message.content);
+
+    it('a quiz-only final answer renders the placeholder and records it', () => {
+        const { handler, posted, runs } = makeHandler({ currentSessionId: 1 });
+        const fire = vi.spyOn(handler['_onDidReceiveIrisChatMessage'], 'fire');
+        runs.beginGeneration();
+        handler.handleIrisWebSocketMessage({ type: 'PARTIAL', runId: 'A', partialResult: 'Here', partialSeq: 1 }, 1);
+
+        handler.handleIrisWebSocketMessage({ type: 'MESSAGE', runId: 'A', message: { id: 91, sender: 'LLM', content: [mcq] } }, 1);
+
+        expect(addedContents(posted)).toEqual([PLACEHOLDER]);
+        expect(fire).toHaveBeenCalledTimes(1);
+        expect(fire.mock.calls[0][0]).toMatchObject({ content: PLACEHOLDER });
+    });
+
+    it('a quiz-only proactive push renders the placeholder', () => {
+        const { handler, posted } = makeHandler({ currentSessionId: 1 });
+
+        handler.handleIrisWebSocketMessage({
+            type: 'MESSAGE',
+            message: { id: 92, sender: 'LLM', origin: 'PROACTIVE_STRUGGLE', content: [mcq] },
+        }, 1);
+
+        expect(addedContents(posted)).toEqual([PLACEHOLDER]);
+    });
+});
