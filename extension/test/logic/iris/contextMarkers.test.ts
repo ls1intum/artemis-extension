@@ -75,6 +75,8 @@ describe('parseContextSwap', () => {
         expect(parseContextSwap(marker('["added"]'))).toBeUndefined();
         expect(parseContextSwap(marker(['added']))).toBeUndefined();
         expect(parseContextSwap(marker(42))).toBeUndefined();
+        expect(parseContextSwap(marker('null'))).toBeUndefined();
+        expect(parseContextSwap(marker('"added"'))).toBeUndefined();
     });
 });
 
