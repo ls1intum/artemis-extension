@@ -69,6 +69,15 @@ describe('parseContextSwap', () => {
         const swap = parseContextSwap(marker({ transition: 'added', entityMode: 'FUTURE_CHAT', entityId: 1 }));
         expect(swap?.context?.mode).toBe('FUTURE_CHAT');
     });
+
+    it('is undefined for attributes that are not a JSON object', () => {
+        expect(parseContextSwap(marker('{"transition":'))).toBeUndefined();
+        expect(parseContextSwap(marker('["added"]'))).toBeUndefined();
+        expect(parseContextSwap(marker(['added']))).toBeUndefined();
+        expect(parseContextSwap(marker(42))).toBeUndefined();
+        expect(parseContextSwap(marker('null'))).toBeUndefined();
+        expect(parseContextSwap(marker('"added"'))).toBeUndefined();
+    });
 });
 
 describe('isContextSwap', () => {

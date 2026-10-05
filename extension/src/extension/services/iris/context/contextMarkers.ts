@@ -1,6 +1,8 @@
 import type { IrisChatMessage } from '@shared/types/apiResponses';
 import type { ContextSwapTransition, ServerContext } from '@shared/types/serverContext';
 
+import { readJsonAttributes } from '@extension/services/iris/chat/messageUtils';
+
 export interface ContextSwap {
     transition: ContextSwapTransition;
     /** Absent for `removed`, which carries no entity fields. */
@@ -18,6 +20,21 @@ export function isContextSwap(message: IrisChatMessage): boolean {
     return message.sender === 'CTXSWAP';
 }
 
+/**
+ * Senders Artemis persists as markers rather than chat: a point-out the
+ * student's client carried out (`COMMAND`) and a compaction summary Iris reads
+ * instead of older turns (`SUMMARY`). Host state keeps them (and
+ * `contentState` counts them); the transcript, the display count and run
+ * handling never see them. Deliberately a closed list: an unknown sender still
+ * renders as an Iris answer, because hiding a future chat sender would lose
+ * content and keep reconnect recovery waiting.
+ */
+const HIDDEN_MARKER_SENDERS: ReadonlySet<string> = new Set(['COMMAND', 'SUMMARY']);
+
+export function isHiddenMarker(message: IrisChatMessage): boolean {
+    return message.sender !== undefined && HIDDEN_MARKER_SENDERS.has(message.sender);
+}
+
 /** `undefined` when this is not a marker or its payload cannot be read. */
 export function parseContextSwap(message: IrisChatMessage): ContextSwap | undefined {
     if (!isContextSwap(message)) { return undefined; }
@@ -29,20 +46,7 @@ export function parseContextSwap(message: IrisChatMessage): ContextSwap | undefi
     const item = (message.content ?? []).find((part) => part?.type === 'json' && part.attributes !== undefined);
     if (!item) { return undefined; }
 
-    // @JsonRawValue serialises it as an inline object. The string branch is
-    // defensive only, for a server that ever drops that annotation.
-    const raw = item.attributes;
-    let attrs: Record<string, unknown> | undefined;
-    if (typeof raw === 'string') {
-        try {
-            const parsed: unknown = JSON.parse(raw);
-            attrs = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined;
-        } catch {
-            attrs = undefined;
-        }
-    } else if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-        attrs = raw as Record<string, unknown>;
-    }
+    const attrs = readJsonAttributes(item.attributes);
     if (!attrs) { return undefined; }
 
     const transition = attrs['transition'];

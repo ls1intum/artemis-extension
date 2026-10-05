@@ -57,6 +57,21 @@ describe('ConversationState content', () => {
         expect(state.displayMessageCount()).toBe(2);
         expect(state.contentState()).toBe('content');
     });
+
+    it('excludes COMMAND and SUMMARY markers from the DISPLAY count', () => {
+        install(state, detail({
+            messages: [{ id: 1, sender: 'USER' }, { id: 2, sender: 'COMMAND' }, { id: 3, sender: 'LLM' }, { id: 4, sender: 'SUMMARY' }],
+        }));
+        expect(state.displayMessageCount()).toBe(2);
+        expect(state.contentState()).toBe('content');
+    });
+
+    it('counts a marker-only history as content, so the session is never silently re-topicked', () => {
+        // An event-triggered run can point out before any student message.
+        install(state, detail({ messages: [{ id: 1, sender: 'COMMAND' }] }));
+        expect(state.displayMessageCount()).toBe(0);
+        expect(state.contentState()).toBe('content');
+    });
 });
 
 describe('ConversationState learns about messages received after the load', () => {
