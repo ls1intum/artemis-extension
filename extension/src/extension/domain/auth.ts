@@ -5,6 +5,8 @@ export interface ProfileInfo {
     readonly activeModuleFeatures: string[];
     /** Artemis' own `build.version`, e.g. "9.9.2". Absent on a server that does not report one. */
     readonly serverVersion?: string;
+    readonly buildName?: string;
+    readonly buildArtifact?: string;
     readonly ribbonEnv?: string;
     readonly inProduction?: boolean;
     readonly openApiEnabled?: boolean;
@@ -26,6 +28,8 @@ export function parseProfileInfo(data: unknown): ProfileInfo {
         activeProfiles: Array.isArray(d.activeProfiles) ? d.activeProfiles.map(String) : [],
         activeModuleFeatures: Array.isArray(d.activeModuleFeatures) ? d.activeModuleFeatures.map(String) : [],
         serverVersion: readBuildVersion(d.build),
+        buildName: readBuildName(d.build),
+        buildArtifact: readBuildArtifact(d.build),
         ribbonEnv: typeof d.ribbonEnv === 'string' ? d.ribbonEnv : undefined,
         inProduction: typeof d.inProduction === 'boolean' ? d.inProduction : undefined,
         openApiEnabled: typeof d.openApiEnabled === 'boolean' ? d.openApiEnabled : undefined,
@@ -51,6 +55,22 @@ function readBuildVersion(build: unknown): string | undefined {
     }
     const version = (build as Record<string, unknown>).version;
     return typeof version === 'string' ? version : undefined;
+}
+
+function readBuildName(build: unknown): string | undefined {
+    if (!build || typeof build !== 'object') {
+        return undefined;
+    }
+    const name = (build as Record<string, unknown>).name;
+    return typeof name === 'string' ? name : undefined;
+}
+
+function readBuildArtifact(build: unknown): string | undefined {
+    if (!build || typeof build !== 'object') {
+        return undefined;
+    }
+    const artifact = (build as Record<string, unknown>).artifact;
+    return typeof artifact === 'string' ? artifact : undefined;
 }
 
 export interface AuthenticationResult {

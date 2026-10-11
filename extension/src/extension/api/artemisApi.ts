@@ -205,21 +205,20 @@ export class ArtemisApiService {
             }
             return (JSON.parse(body) as unknown) as LoginOptionsResponse;
         } catch(error) {
-            const is404 = (error instanceof ApiError && error.status === 404)
-
-            if (is404) {
+            if (error instanceof ApiError && error.status === 404) {
                 return this.getLegacyLoginOptions(error);
             }
             throw error;
         }
     }
+
     // Get the login option for legacy Artemis instances that do not have /login-options endpoint
     private async getLegacyLoginOptions(originalError: unknown): Promise<LoginOptionsResponse> {
         let profileInfo: ProfileInfo;
         // Make sure that provided server url is actually the Artemis instance url
         try {
             profileInfo = await this.getProfileInfo();
-        } catch (profileError) {
+        } catch {
             throw originalError;
         }
 
@@ -235,22 +234,20 @@ export class ArtemisApiService {
                 idpName: saml2.identityProviderName || saml2.buttonLabel || 'SAML2',
             };
         }
-        // Otherwise, provide the only suitable option for the extension
+        // Otherwise, provide the only suitable option for the extension: the password
         return {
             loginMethod: 'PASSWORD',
             idpName: null,
         };
     }
+
     /**
-     * Checks if server URL is an Artemis instance
-     * If at least one of Artemis patterns can be seen -> this is an Artemis instance
+     * Checks if the server response from /management/info corresponds to an Artemis instance.
      */
     private isArtemisInstance(profileInfo: ProfileInfo): boolean {
         return (
-            (Array.isArray(profileInfo.activeProfiles) && profileInfo.activeProfiles.includes('artemis')) ||
-            (Array.isArray(profileInfo.activeModuleFeatures) && profileInfo.activeModuleFeatures.length > 0) ||
-            profileInfo.serverVersion !== undefined ||
-            profileInfo.saml2 !== undefined
+            profileInfo.buildName?.toLowerCase() === 'artemis' ||
+            profileInfo.buildArtifact?.toLowerCase() === 'artemis'
         );
     }
 
