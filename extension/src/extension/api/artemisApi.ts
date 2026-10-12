@@ -193,16 +193,62 @@ export class ArtemisApiService {
 
     // Get the login option (OIDC or password) for given username
     async getLoginOptions(username: string, signal?: AbortSignal): Promise<LoginOptionsResponse> {
-        const response = await this.makeRequest(
-            `/api/core/public/login-options?usernameOrEmail=${encodeURIComponent(username)}`,
-            { signal },
-        );
-        const body = (await response.text()).trim();
-        if (!body) {
-            // if request is empty, the problem lies on the server side
-            throw new ApiError('Server error', 500);
+        try {
+            const response = await this.makeRequest(
+                `/api/core/public/login-options?usernameOrEmail=${encodeURIComponent(username)}`,
+                { signal },
+            );
+            const body = (await response.text()).trim();
+            if (!body) {
+                // If request is empty, the problem lies on the server side
+                throw new ApiError('Server error', 500);
+            }
+            return (JSON.parse(body) as unknown) as LoginOptionsResponse;
+        } catch(error) {
+            if (error instanceof ApiError && error.status === 404) {
+                return this.getLegacyLoginOptions(error);
+            }
+            throw error;
         }
-        return (JSON.parse(body) as unknown) as LoginOptionsResponse;
+    }
+
+    // Get the login option for legacy Artemis instances that do not have /login-options endpoint
+    private async getLegacyLoginOptions(originalError: unknown): Promise<LoginOptionsResponse> {
+        let profileInfo: ProfileInfo;
+        // Make sure that provided server url is actually the Artemis instance url
+        try {
+            profileInfo = await this.getProfileInfo();
+        } catch {
+            throw originalError;
+        }
+
+        if (!this.isArtemisInstance(profileInfo)) {
+            throw originalError;
+        }
+        // Then show either password or SAML2 option for legacy instances
+        const saml2 = profileInfo.saml2;
+        // Show SAML2 option only if no other authentication methods enabled
+        if (saml2 && saml2.enablePassword === false) {
+            return {
+                loginMethod: 'SAML2',
+                idpName: saml2.identityProviderName || saml2.buttonLabel || 'SAML2',
+            };
+        }
+        // Otherwise, provide the only suitable option for the extension: the password
+        return {
+            loginMethod: 'PASSWORD',
+            idpName: null,
+        };
+    }
+
+    /**
+     * Checks if the server response from /management/info corresponds to an Artemis instance.
+     */
+    private isArtemisInstance(profileInfo: ProfileInfo): boolean {
+        return (
+            profileInfo.buildName?.toLowerCase() === 'artemis' ||
+            profileInfo.buildArtifact?.toLowerCase() === 'artemis'
+        );
     }
 
     /**
