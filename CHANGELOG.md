@@ -2,6 +2,12 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [1.2.2] - 2026-10-12
+
+### Fixed
+
+- **Signing in works again on Artemis servers older than the identifier-first login.** The login screen asks the server which sign-in method an account uses, and servers that predate that endpoint answered 404, so the login failed before a password could even be entered. The extension now falls back to the server's public profile. A server that only offers single sign-on through SAML2 gets the hint to log in on the Artemis website, every other server gets the password form. An address that is not an Artemis server at all still reports that no Artemis API was found there.
+
 ## [1.2.1] - 2026-10-05
 
 ### Fixed
