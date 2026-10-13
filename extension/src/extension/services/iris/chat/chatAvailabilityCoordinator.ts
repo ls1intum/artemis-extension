@@ -23,6 +23,9 @@ import { IrisAvailabilityService } from './irisAvailabilityService';
 export class ChatAvailabilityCoordinator {
     private readonly _service: IrisAvailabilityService;
 
+    /** Bumped by every `clearBanners`, so an answer that outlived it can tell. */
+    private _bannerGeneration = 0;
+
     constructor(
         /**
          * A GETTER, not a value. `_conversation` would work as a value in
@@ -104,6 +107,7 @@ export class ChatAvailabilityCoordinator {
      * comes back enabled.
      */
     public clearBanners(): void {
+        this._bannerGeneration++;
         this._service.resetAvailability();
         this._postMessage({ type: ExtensionMsg.HideDisabledState });
         this._postMessage({ type: ExtensionMsg.HideUnavailableState });
@@ -137,7 +141,11 @@ export class ChatAvailabilityCoordinator {
      * is usually the one that kept a conversation from opening at all.
      */
     public async explainFailure(): Promise<AiBlock | undefined> {
+        const generation = this._bannerGeneration;
         const choice = await checkAiChoice(this._artemisApi);
+        // The banners were cleared while the account was read: a navigation or
+        // a new login moved on, and this answer may describe another account.
+        if (generation !== this._bannerGeneration) { return undefined; }
         if (choice !== 'none' && choice !== 'no-ai') { return undefined; }
         this.post({ kind: 'ai-not-allowed', block: choice }, null);
         return choice;

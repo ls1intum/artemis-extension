@@ -74,8 +74,10 @@ describe('classifyIrisCourseAvailability (§14, shared by chat + card)', () => {
 
     it('account cannot be read → unavailable, not a guess about the AI choice', async () => {
         const r = await classifyIrisCourseAvailability(
-            api({ settings: { settings: { enabled: true } }, userThrows: new Error('net') }) as never, undefined, { type: 'course', id: 7, title: 'C' });
+            api({ settings: { settings: { enabled: true, proactiveStruggleEnabled: false } }, userThrows: new Error('net') }) as never, undefined, { type: 'course', id: 7, title: 'C' });
         expect(r.availability.kind).toBe('unavailable');
+        // The course answer is still good, and the proactive card reads it.
+        expect(r.settings?.settings?.proactiveStruggleEnabled).toBe(false);
     });
 
     it('a course with Iris off stays disabled whatever the AI choice', async () => {

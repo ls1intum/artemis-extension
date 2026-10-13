@@ -42,6 +42,25 @@ suite('ChatAvailabilityCoordinator.explainFailure', () => {
         assert.match(posted.find(m => m.type === ExtensionMsg.ShowUnavailableState)?.message ?? '', /chose not to use AI/);
     });
 
+    test('an answer that arrives after the banners were cleared puts nothing back', async () => {
+        // A new login clears the banners while the old account is still being
+        // read; its late answer must not land in the new account's chat.
+        let resolveUser!: (user: unknown) => void;
+        const posted: Posted[] = [];
+        const coordinator = new ChatAvailabilityCoordinator(
+            () => undefined, undefined,
+            { getCurrentUser: sinon.stub().returns(new Promise(res => { resolveUser = res; })) } as never,
+            m => posted.push(m as Posted));
+
+        const pending = coordinator.explainFailure();
+        coordinator.clearBanners();
+        posted.length = 0;
+        resolveUser({ login: 's' });
+
+        assert.strictEqual(await pending, undefined);
+        assert.deepStrictEqual(posted, []);
+    });
+
     test('explains nothing for an opted-in account or an unreadable one', async () => {
         const posted: Posted[] = [];
         const optedIn = new ChatAvailabilityCoordinator(() => undefined, undefined, apiWithUser({ login: 's', selectedLLMUsage: 'CLOUD_AI' }), m => posted.push(m as Posted));
