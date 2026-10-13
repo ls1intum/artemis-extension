@@ -63,7 +63,8 @@ export class ProactiveControlCommandModule {
                     this.context.courseCatalog,
                     { type: 'course', id: courseId, title: this.context.courseCatalog?.courseTitle(courseId) ?? `course ${courseId}` },
                 );
-                irisAvailability = availability.kind;
+                // The card files a missing LLM opt-in under Iris off, like a course that disabled it.
+                irisAvailability = availability.kind === 'ai-not-allowed' ? 'disabled' : availability.kind;
                 courseProactiveEnabled = settings?.settings?.proactiveStruggleEnabled;
             } catch {
                 irisAvailability = 'unavailable';   // never let a probe failure crash the card; self-heals next push

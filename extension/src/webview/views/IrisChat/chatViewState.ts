@@ -143,6 +143,11 @@ export function deriveComposerPlaceholder(
     // "Choose a course" would send the student back to the picker they just
     // used, past a banner that already gives the real reason.
     if (state.disabledMessage) { return 'Iris chat is not available here'; }
+    // Same reasoning for the unavailable banner. A cold start that failed
+    // leaves no conversation either, and when the account's AI choice is the
+    // cause, no course in the picker can work until the student acts in Artemis.
+    // `.noai` keeps its precedence over it (see below).
+    if (showsUnavailableBanner(state) && !state.isNoAiDetected) { return state.unavailableMessage ?? undefined; }
     // Ahead of `detectionUnavailable` on purpose: once the student has
     // bypassed the outage screen, the message area is showing the course
     // picker, not the outage explanation, and the composer must agree with
@@ -156,7 +161,6 @@ export function deriveComposerPlaceholder(
     if (startup.detectionUnavailable) { return 'Detecting your Artemis exercise failed. Retry above.'; }
     if (state.currentSessionId === null) { return 'Choose a course to start chatting'; }
     if (state.isNoAiDetected) { return 'AI assistance is disabled (.noai detected)'; }
-    if (showsUnavailableBanner(state)) { return 'Iris is temporarily unavailable. Retry to reload.'; }
     return undefined;
 }
 

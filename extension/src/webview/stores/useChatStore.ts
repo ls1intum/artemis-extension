@@ -103,12 +103,15 @@ export interface ChatShellState {
     webSocketStatus: ChatWebSocketStatus;
     disabledMessage: string | null;   // Non-null = Iris disabled (reason as string)
     /**
-     * Non-null = Iris is currently unreachable due to a transient infrastructure
-     * failure (network, 5xx, timeout). Distinct from `disabledMessage`, which
-     * means Iris is intentionally off for this context. Mutually exclusive: a
-     * Set on one always clears the other.
+     * Non-null = Iris is currently unreachable, either through a transient
+     * infrastructure failure (network, 5xx, timeout) or because the account's
+     * AI choice blocks it; both end in Retry. Distinct from `disabledMessage`,
+     * which means Iris is intentionally off for this context. Mutually
+     * exclusive: a Set on one always clears the other.
      */
     unavailableMessage: string | null;
+    /** A page in Artemis that resolves the unavailable banner's cause. Lives and dies with the banner. */
+    unavailableLink: { label: string; path: string } | null;
     isNoAiDetected: boolean;
     referencedFiles: ReferencedFilesData | null;
     showDiagnostics: boolean;
@@ -119,7 +122,7 @@ export interface ChatShellState {
     setLoading: (loading: boolean) => void;
     setWebSocketStatus: (status: ChatWebSocketStatus) => void;
     setDisabledMessage: (message: string | null) => void;
-    setUnavailableMessage: (message: string | null) => void;
+    setUnavailableMessage: (message: string | null, link?: { label: string; path: string }) => void;
     setNoAiDetected: (detected: boolean) => void;
     setReferencedFiles: (data: ReferencedFilesData | null) => void;
     setShowDiagnostics: (show: boolean) => void;
@@ -165,6 +168,7 @@ export const useChatStore = create<ChatState>()(
             webSocketStatus: 'unknown',
             disabledMessage: null,
             unavailableMessage: null,
+            unavailableLink: null,
             isNoAiDetected: false,
             referencedFiles: null,
             showDiagnostics: false,
@@ -227,20 +231,20 @@ export const useChatStore = create<ChatState>()(
                 set(
                     message === null
                         ? { disabledMessage: null }
-                        : { disabledMessage: message, unavailableMessage: null },
+                        : { disabledMessage: message, unavailableMessage: null, unavailableLink: null },
                     false,
                     'setDisabledMessage',
                 );
             },
 
-            setUnavailableMessage: (message) => {
+            setUnavailableMessage: (message, link) => {
                 // Symmetric to setDisabledMessage: setting a real unavailable
                 // reason clears any stale disabled banner (defensive; the
                 // extension-side helper normally enforces this already).
                 set(
                     message === null
-                        ? { unavailableMessage: null }
-                        : { unavailableMessage: message, disabledMessage: null },
+                        ? { unavailableMessage: null, unavailableLink: null }
+                        : { unavailableMessage: message, unavailableLink: link ?? null, disabledMessage: null },
                     false,
                     'setUnavailableMessage',
                 );

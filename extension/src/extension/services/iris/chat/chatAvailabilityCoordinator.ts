@@ -5,6 +5,8 @@ import type { ArtemisApiService } from '@extension/api';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
 
+import type { AiBlock } from './aiChoice';
+import { checkAiChoice } from './aiChoice';
 import type { AvailabilityContext, IrisAvailability } from './irisAvailabilityService';
 import { IrisAvailabilityService } from './irisAvailabilityService';
 
@@ -30,10 +32,10 @@ export class ChatAvailabilityCoordinator {
          */
         private readonly _getConversation: () => IrisConversationService | undefined,
         private readonly _catalog: CourseCatalog | undefined,
-        artemisApi: ArtemisApiService | undefined,
+        private readonly _artemisApi: ArtemisApiService | undefined,
         private readonly _postMessage: (message: ExtensionToWebviewMessage) => void,
     ) {
-        this._service = new IrisAvailabilityService(_catalog, artemisApi, _postMessage);
+        this._service = new IrisAvailabilityService(_catalog, _artemisApi, _postMessage);
     }
 
     /**
@@ -122,6 +124,23 @@ export class ChatAvailabilityCoordinator {
             return;
         }
         this.post(availability, context);
+    }
+
+    /**
+     * Names the cause of a failed Artemis request when it is the account's AI
+     * choice, and puts up its banner. Artemis answers that case with a bare 403
+     * and no `errorKey`, so the account is asked instead of the error.
+     *
+     * Only for a request that actually failed: a local refusal (a send in
+     * flight, no course) has its own reason, and the account must not be
+     * blamed for it. Not tied to a context, because the failure this explains
+     * is usually the one that kept a conversation from opening at all.
+     */
+    public async explainFailure(): Promise<AiBlock | undefined> {
+        const choice = await checkAiChoice(this._artemisApi);
+        if (choice !== 'none' && choice !== 'no-ai') { return undefined; }
+        this.post({ kind: 'ai-not-allowed', block: choice }, null);
+        return choice;
     }
 
     /**

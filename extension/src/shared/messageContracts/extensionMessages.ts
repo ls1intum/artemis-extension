@@ -447,7 +447,11 @@ interface ExtensionMsgPayloads {
     updateWebSocketStatus: { status: WebSocketDisplayStatus };
     showDisabledState: { message: string };
     hideDisabledState: undefined;
-    showUnavailableState: { message: string };
+    showUnavailableState: {
+        message: string;
+        /** A page in Artemis that resolves the cause, opened through `openWebsite`. */
+        link?: { label: string; path: string };
+    };
     hideUnavailableState: undefined;
     updateNoAiStatus: {
         isNoAiDetected: boolean;
@@ -488,6 +492,7 @@ interface ExtensionMsgPayloads {
             | 'no-context'
             | 'iris-disabled'
             | 'iris-unavailable'
+            | 'ai-not-allowed'
             | 'send-in-flight'
             | 'navigation-in-flight'
             | 'no-conversation'

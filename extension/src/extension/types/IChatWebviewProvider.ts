@@ -1,6 +1,6 @@
 import type { ServerContext } from '@shared/types/serverContext';
 
-import type { TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
+import type { AskIrisOutcome } from '@extension/services/iris/chat/chatNavigationController';
 
 /**
  * Minimal interface for ChatWebviewProvider, consumed by ProviderRegistry for dependency inversion.
@@ -17,7 +17,7 @@ export interface IChatWebviewProvider {
      * open. `courseHint` travels with the target because a cold start has no
      * course of its own; see `ChatWebviewProvider.askIrisAbout`.
      */
-    askIrisAbout(target: ServerContext, courseHint?: number): Promise<TopicChangeOutcome>;
+    askIrisAbout(target: ServerContext, courseHint?: number): Promise<AskIrisOutcome>;
     /**
      * Cancels the automatic cold start: the student has explicitly navigated
      * somewhere, so a late background detection must not pull them back out.

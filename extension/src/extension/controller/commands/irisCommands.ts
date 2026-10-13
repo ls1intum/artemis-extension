@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 import { getPayload, WebviewCmd } from '@shared/messageContracts';
 
-import type { TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
+import type { AskIrisOutcome } from '@extension/services/iris/chat/chatNavigationController';
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { extractErrorMessage } from '@extension/utils';
 
@@ -16,7 +16,7 @@ import type { CommandContext, CommandMap } from './types';
  * conversation and there was nothing on screen to replace. Returns `undefined`
  * when there is nothing worth saying.
  */
-export function askIrisOutcomeMessage(outcome: TopicChangeOutcome, title: string): string | undefined {
+export function askIrisOutcomeMessage(outcome: AskIrisOutcome, title: string): string | undefined {
     switch (outcome.kind) {
         case 'staged':
         case 'noop':
@@ -27,6 +27,10 @@ export function askIrisOutcomeMessage(outcome: TopicChangeOutcome, title: string
         // banner, and the move itself succeeded. A notification on top would be
         // a second, retry-shaped answer to something no retry can change.
         case 'course-disabled':
+            return undefined;
+        // Same reasoning: the chat's banner names the AI choice and links to
+        // the page that changes it. No retry here can change the account.
+        case 'ai-not-allowed':
             return undefined;
         case 'stale':
             return undefined;

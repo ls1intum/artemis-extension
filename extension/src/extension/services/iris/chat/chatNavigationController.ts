@@ -14,6 +14,8 @@ import type {
 } from '@extension/services/iris/conversation/conversationService';
 import { LogCategory, logger } from '@extension/services/loggingService';
 
+import type { AiBlock } from './aiChoice';
+import { aiBlockRefusalText } from './aiChoice';
 import type { ChatAvailabilityCoordinator } from './chatAvailabilityCoordinator';
 
 /** The four navigations the webview can ask for. Each has its own refusal surface. */
@@ -39,13 +41,11 @@ interface ChatNavigationDeps {
 }
 
 /**
- * Wording for a navigation that could not be made. Opening a history row in a
- * disabled course reaches this, and a "please try again" would promise
- * something no retry can deliver.
+ * What an Ask-Iris click did. Beyond the topic change itself, the click can
+ * fail because the account's AI choice blocks Iris; the banner then says so,
+ * and the command must not add a retry-shaped notice on top.
  */
-function navigationFailureMessage(error: unknown, fallback: string): string {
-    return isIrisCourseDisabled(error) ? 'Iris chat is not enabled for that course.' : fallback;
-}
+export type AskIrisOutcome = TopicChangeOutcome | { kind: 'ai-not-allowed'; block: AiBlock };
 
 /**
  * Every way the chat's conversation can be pointed somewhere else: the cold
@@ -90,10 +90,15 @@ export class ChatNavigationController {
             // routes back through reloadIrisChat. Re-thrown, not swallowed, so
             // the coordinator can re-arm its latch.
             logger.error('Iris conversation start failed', LogCategory.IRIS_CHAT, error);
-            this._deps.postMessage({
-                type: ExtensionMsg.ShowUnavailableState,
-                message: 'Iris could not be reached. Retry to reload the conversation.',
-            });
+            // A blocking AI choice puts up its own banner. Still re-thrown: once
+            // the student has made the choice, the Retry has to reach the cold
+            // start again.
+            if (!await this._deps.availability.explainFailure()) {
+                this._deps.postMessage({
+                    type: ExtensionMsg.ShowUnavailableState,
+                    message: 'Iris could not be reached. Retry to reload the conversation.',
+                });
+            }
             throw error;
         }
         // The captured epoch stops a write crossing an identity. This stops
@@ -125,7 +130,7 @@ export class ChatNavigationController {
      * `undefined` and a resolution without it can only answer `no-course`.
      * A missing hint is resolved from the exercise before asking.
      */
-    public async askIrisAbout(target: ServerContext, courseHint?: number): Promise<TopicChangeOutcome> {
+    public async askIrisAbout(target: ServerContext, courseHint?: number): Promise<AskIrisOutcome> {
         const conversation = this._deps.getConversation();
         if (!conversation) {
             return { kind: 'rejected', reason: 'failed' };
@@ -158,12 +163,26 @@ export class ChatNavigationController {
             // and `rejected` is reported by the caller, once.
             if (switched.kind === 'disabled') { return this._answerCourseDisabled(courseId); }
             if (switched.kind === 'stale') { return { kind: 'stale' }; }
-            if (switched.kind === 'rejected') { return { kind: 'rejected', reason: switched.reason }; }
+            if (switched.kind === 'rejected') { return this._explainAskIrisRejection(switched.reason); }
         }
         const outcome = await conversation.resolveTopicChange(target, courseId);
         // The cold start reaches the same destination through the acquisition
         // rather than through a switch, and owes the student the same banner.
-        return outcome.kind === 'course-disabled' ? this._answerCourseDisabled(courseId) : outcome;
+        if (outcome.kind === 'course-disabled') { return this._answerCourseDisabled(courseId); }
+        return outcome.kind === 'rejected' ? this._explainAskIrisRejection(outcome.reason) : outcome;
+    }
+
+    /**
+     * `failed` is the only rejection behind which an Artemis request failed,
+     * so it is the only one the account's AI choice may explain. The others
+     * are local refusals with a reason of their own.
+     */
+    private async _explainAskIrisRejection(reason: Extract<TopicChangeOutcome, { kind: 'rejected' }>['reason']): Promise<AskIrisOutcome> {
+        if (reason === 'failed') {
+            const block = await this._deps.availability.explainFailure();
+            if (block) { return { kind: 'ai-not-allowed', block }; }
+        }
+        return { kind: 'rejected', reason };
     }
 
     public async selectTopic(target: ServerContext): Promise<void> {
@@ -183,7 +202,7 @@ export class ChatNavigationController {
             logger.info(`selectTopic rejected: ${outcome.reason}`, LogCategory.IRIS_CHAT);
             this._answerFailedNavigation(
                 'selectTopic',
-                this._rejectionMessage(outcome.reason, 'Could not change the topic. Please try again.'),
+                await this._rejectionMessage(outcome.reason, 'Could not change the topic. Please try again.'),
             );
         }
     }
@@ -217,7 +236,7 @@ export class ChatNavigationController {
             logger.error('openConversation failed', LogCategory.IRIS_CHAT, error);
             this._deps.postMessage({
                 type: ExtensionMsg.OpenSessionError,
-                message: navigationFailureMessage(error, 'Could not open that conversation. Please try again.'),
+                message: await this._navigationFailureMessage(error, 'Could not open that conversation. Please try again.'),
             });
         }
     }
@@ -245,7 +264,7 @@ export class ChatNavigationController {
             logger.error('switchCourse failed', LogCategory.IRIS_CHAT, error);
             this._deps.postMessage({
                 type: ExtensionMsg.OpenSessionError,
-                message: navigationFailureMessage(error, 'Could not open that course. Please try again.'),
+                message: await this._navigationFailureMessage(error, 'Could not open that course. Please try again.'),
             });
         }
     }
@@ -268,7 +287,7 @@ export class ChatNavigationController {
             logger.info(`newConversation rejected: ${outcome.reason}`, LogCategory.IRIS_CHAT);
             this._answerFailedNavigation(
                 'newConversation',
-                this._rejectionMessage(outcome.reason, 'Could not start a new conversation. Please try again.'),
+                await this._rejectionMessage(outcome.reason, 'Could not start a new conversation. Please try again.'),
             );
         }
     }
@@ -370,13 +389,29 @@ export class ChatNavigationController {
     }
 
     /** What a `{ kind: 'rejected' }` outcome says to the student. */
-    private _rejectionMessage(reason: Extract<TopicChangeOutcome, { kind: 'rejected' }>['reason'], failedMessage: string): string {
+    private async _rejectionMessage(reason: Extract<TopicChangeOutcome, { kind: 'rejected' }>['reason'], failedMessage: string): Promise<string> {
         switch (reason) {
             case 'send-in-flight': return 'Wait for Iris to finish answering before switching.';
             case 'loading': return 'Still loading this conversation. Try again in a moment.';
             case 'cross-course': return 'That topic belongs to a different course. Switch course first.';
             case 'no-course': return 'Choose a course first.';
-            case 'failed': return failedMessage;
+            case 'failed': return this._failedRequestMessage(failedMessage);
         }
+    }
+
+    /**
+     * Wording for a navigation whose request threw. Opening a history row in a
+     * disabled course reaches this, and a "please try again" would promise
+     * something no retry can deliver.
+     */
+    private async _navigationFailureMessage(error: unknown, fallback: string): Promise<string> {
+        if (isIrisCourseDisabled(error)) { return 'Iris chat is not enabled for that course.'; }
+        return this._failedRequestMessage(fallback);
+    }
+
+    /** A failed request names the account's AI choice when that is the cause. */
+    private async _failedRequestMessage(fallback: string): Promise<string> {
+        const block = await this._deps.availability.explainFailure();
+        return block ? aiBlockRefusalText(block) : fallback;
     }
 }

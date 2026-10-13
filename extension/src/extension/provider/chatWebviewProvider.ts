@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
 
 import type { ExtensionToWebviewMessage, WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
-import { ExtensionMsg, getPayload, WebviewCmd } from '@shared/messageContracts';
+import { ExtensionMsg, getOptionalPayload, getPayload, WebviewCmd } from '@shared/messageContracts';
 import type { ServerContext } from '@shared/types/serverContext';
 
 import { ArtemisApiService } from '@extension/api';
-import { openFileInWorkspace, openSettings } from '@extension/controller/commands/utilityCommands';
+import { openArtemisWebsite, openFileInWorkspace, openSettings } from '@extension/controller/commands/utilityCommands';
 import type { CourseAccessStorageService } from '@extension/services/courseAccessStorageService';
 import type { CourseCatalog } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
@@ -18,9 +18,9 @@ import {
     IrisWebSocketMessageHandler,
     IrisWebSocketSessionClient,
 } from '@extension/services/iris';
+import type { AskIrisOutcome } from '@extension/services/iris/chat/chatNavigationController';
 import type { IrisChatSendAttempt } from '@extension/services/iris/chat/chatSendController';
 import { ProactiveChatPresenter } from '@extension/services/iris/chat/proactiveChatPresenter';
-import type { TopicChangeOutcome } from '@extension/services/iris/conversation/conversationService';
 import { IrisConversationService } from '@extension/services/iris/conversation/conversationService';
 import { transcriptMessage } from '@extension/services/iris/conversation/messageFormatting';
 import { IrisRunStateMachine } from '@extension/services/iris/irisRunStateMachine';
@@ -574,7 +574,7 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
     }
 
     /** The Ask-Iris commands' entry point. See `ChatNavigationController.askIrisAbout`. */
-    public askIrisAbout(target: ServerContext, courseHint?: number): Promise<TopicChangeOutcome> {
+    public askIrisAbout(target: ServerContext, courseHint?: number): Promise<AskIrisOutcome> {
         return this._navigation.askIrisAbout(target, courseHint);
     }
 
@@ -745,6 +745,9 @@ export class ChatWebviewProvider extends BaseWebviewProvider implements vscode.W
                 }
                 return true;
             }
+            case WebviewCmd.OpenWebsite:
+                await openArtemisWebsite(getOptionalPayload<WebCmd<'openWebsite'>>(message)?.path);
+                return true;
             default:
                 return false;
         }
