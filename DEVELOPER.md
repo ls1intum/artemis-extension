@@ -1,236 +1,295 @@
-# Artemis VS Code Extension - Developer Guide
+# Developer guide
 
-> User documentation lives in **[README.md](README.md)**. The contribution workflow is in **[CONTRIBUTING.md](CONTRIBUTING.md)**. For a deep dive into the webview architecture, message contracts, and stores, see **[extension/docs/DEVELOPER-GUIDE.md](extension/docs/DEVELOPER-GUIDE.md)**.
+This guide covers setting up, understanding, building and releasing the Artemis Extension. How to get a change merged (branching, checks, PR titles, tests, docs) is in [CONTRIBUTING.md](CONTRIBUTING.md). User documentation is in [README.md](README.md), release notes are in [CHANGELOG.md](CHANGELOG.md).
 
-This guide covers building, running, and shipping the extension. The codebase is a React-based webview UI driving a VS Code extension host, bundled with esbuild and communicating over a typed message contract.
+## Contents
 
-## Prerequisites
+1. [Setup](#setup)
+2. [Repository layout](#repository-layout)
+3. [Architecture](#architecture)
+4. [Adding a view](#adding-a-view)
+5. [Conventions](#conventions)
+6. [Scripts](#scripts)
+7. [Running and debugging](#running-and-debugging)
+8. [Build variants](#build-variants)
+9. [Releasing](#releasing)
+10. [Other documentation](#other-documentation)
 
-- **Node.js** v22.x or higher
-- **npm**
-- **VS Code** version 1.93.0 or higher
-- *(Optional, for packaging)* `vsce`: `npm install -g @vscode/vsce`
+## Setup
 
-## Getting Started
-
-All npm commands run from the `extension/` directory.
+You need Node.js 22 (the version CI uses), npm and VS Code 1.93.0 or newer. Every npm command in this guide runs from `extension/`.
 
 ```bash
-# 1. Clone
 git clone https://github.com/ls1intum/artemis-extension.git
 cd artemis-extension/extension
-
-# 2. Install dependencies
 npm install
-
-# 3. Compile (type-check + lint + bundle)
-npm run compile
-
-# 4. Watch for changes during development
-npm run watch
+npm run compile   # type-check, lint, bundle
 ```
 
-Then press `F5` in VS Code to launch the extension (see [Running Locally](#running-locally)).
+Open the repository root in VS Code and press `F5`. A second window, the Extension Development Host, starts with the extension loaded; click the Artemis icon in its activity bar.
 
-## Repository Layout
+## Repository layout
 
 ```
 artemis-extension/
-├── README.md                     # User documentation (also shipped to the stores)
+├── README.md                     # User documentation, also the store listing
 ├── DEVELOPER.md                  # This file
-├── CONTRIBUTING.md               # Contribution workflow
-├── CHANGELOG.md                  # Single source of truth for release notes
-├── scripts/                      # Repo-level release helpers (shell)
-├── extension/                    # VS Code extension package (npm root)
+├── CHANGELOG.md                  # Release notes, single source
+├── extension/                    # The extension package (npm root)
 │   ├── src/
-│   │   ├── extension.ts          # Entry point & activation
+│   │   ├── extension.ts          # Entry point and activation
 │   │   ├── extension/            # Extension host (Node.js)
-│   │   │   ├── activation/       # Command registration, wiring
-│   │   │   ├── api/              # Artemis REST API client
-│   │   │   ├── controller/       # Message handling, state, routing
-│   │   │   ├── dataCollection/   # Consent-gated data collection (seam: index.ts | noop.ts)
-│   │   │   ├── domain/           # Domain model classes
+│   │   │   ├── activation/       # Command registration and wiring
+│   │   │   ├── api/              # Artemis REST client
+│   │   │   ├── controller/       # App state, view routing, webview command handlers
+│   │   │   ├── dataCollection/   # Recorder seam (index.ts | recording.ts | noop.ts)
+│   │   │   ├── domain/           # Domain model
 │   │   │   ├── provider/         # Webview providers, CodeLens
 │   │   │   ├── services/         # Business logic (see below)
-│   │   │   ├── telemetry/        # Struggle-detection seam & wiring (seam: index.ts | noop.ts)
-│   │   │   ├── theia/            # EduIDE/Theia environment detection (data bridge)
-│   │   │   ├── types/            # Domain types & ambient shims
-│   │   │   └── utils/            # Shared utilities (incl. serverUrl resolution)
-│   │   ├── shared/               # Cross-runtime types & message contracts
-│   │   └── webview/              # React UI (components, views, stores, hooks, styles)
-│   ├── test/                     # See "Tests" below
-│   ├── scripts/                  # Packaging & build helpers
-│   └── docs/                     # DEVELOPER-GUIDE.md, ADRs, diagrams
-└── recording-viewer/             # Standalone session recording viewer (Vite/React)
+│   │   │   ├── telemetry/        # Struggle-detection seam (index.ts | noop.ts)
+│   │   │   ├── theia/            # EduIDE/Theia detection and data bridge
+│   │   │   ├── types/            # Domain types and ambient shims
+│   │   │   └── utils/            # Shared utilities, including server URL resolution
+│   │   ├── shared/               # Types and message contracts used by both runtimes
+│   │   └── webview/              # React UI: views, components, hooks, stores, styles
+│   ├── test/                     # See the test table below
+│   ├── scripts/                  # Packaging and build helpers
+│   └── docs/adr/                 # Architecture decision records
+└── recording-viewer/             # Standalone viewer for session recordings (Vite, React)
 ```
 
-### `src/extension/services/`
+`src/extension/services/`:
 
 | Directory | Responsibility |
 |---|---|
 | `auth/` | Login, token lifecycle, consent |
 | `iris/` | Iris chat: conversations, context, availability |
 | `struggle/` | The struggle-detection engine (severity, boundaries, decision, alerting) |
-| `sensing/` | The SensorHub and its collectors, feeding the engine |
+| `sensing/` | The SensorHub and its collectors, which feed the engine |
 | `struggleIntervention/` | Requesting an intervention from Artemis and routing the reply |
 | `intervention/` | The in-editor surfaces (inline cue, ambient lamp) |
-| `recording/` | Session recorder (local recording build only) |
-| `session/`, `ui/`, `websocket/`, `workspace/` | Session state, UI helpers, the Artemis socket, workspace/exercise tracking |
+| `recording/` | Session recorder, present only in the local recording build |
+| `session/`, `ui/`, `websocket/`, `workspace/` | Session state, UI helpers, the Artemis socket, workspace and exercise tracking |
 
-No always-bundled code imports the struggle engine or the recorder as a runtime dependency
-(type-only imports are fine; the seam's own implementation naturally imports them). Both sit
-behind the `@telemetry` and `@dataCollection` esbuild aliases, which resolve to a `noop.ts` in
-the builds that exclude them (see
-[Build Variants](#build-variants--deployment) and
-[ADR 003](extension/docs/adr/003-theia-openvsx-telemetry-seam.md)).
-
-### Tests
+`extension/test/`:
 
 | Directory | Runner | Contents |
 |---|---|---|
-| `test/unit/` | `vscode-test` | Extension-host tests needing the real `vscode` API |
-| `test/react/` | vitest | Everything rendering-side: components, views, hooks, stores, flows, CSP |
-| `test/logic/` | vitest | Pure-logic tests (services, contracts, build scripts) |
-| `test/golden-replay/` | vitest | Replays recorded sessions against pinned engine output. Local only: it skips unless `IRIS_STUDY_DATA` and `GOLDEN_DIR` point at the study dataset |
-| `test/e2e/` | `vscode-test` | End-to-end flows in a real Extension Development Host |
-| `test/__shared__/` | - | Fixtures and fakes shared across suites |
+| `unit/` | vscode-test | Extension host tests that need the real `vscode` API. Shared mocks are in `unit/mocks/` |
+| `react/` | vitest | Rendering side: components, views, hooks, stores, flows, CSP. Helpers are described in [test/react/\_\_helpers\_\_/README.md](extension/test/react/__helpers__/README.md) |
+| `logic/` | vitest | Pure logic: services, contracts, build scripts |
+| `golden-replay/` | vitest | Replays recorded sessions against pinned engine output. Skips unless `IRIS_STUDY_DATA` and `GOLDEN_DIR` point at the study dataset, so it only runs locally |
+| `e2e/` | vscode-test | End-to-end flows in an Extension Development Host. `e2e/ui/` holds the Selenium suite |
+| `__shared__/` | | Fixtures and fakes shared across suites |
 
-## Architecture Overview
+## Architecture
 
-The codebase spans three runtimes:
+The code runs in three places. The extension host (`src/extension/`, Node.js) owns authentication, API calls, the WebSocket, navigation state and the struggle-detection engine. The webviews (`src/webview/`, React in a browser context) render the UI and send user actions back. `src/shared/` holds the types and message contracts both sides compile against.
 
-- **`extension/` (host, Node.js)** - services, providers, controllers, the REST client, and the struggle-detection engine behind its build seam.
-- **`webview/` (React)** - page-level views and components rendered in VS Code webview panels, with Zustand stores hydrated from extension messages.
-- **`shared/`** - types and the typed message contracts used by both sides.
+### Webviews
 
-UI styling uses CSS Modules scoped per component, integrated with VS Code themes via native CSS custom properties.
+There are two webview providers, both in `src/extension/provider/`:
 
-For the detailed walkthrough (adding a view, the message-contract system, store architecture, the build pipeline), read **[extension/docs/DEVELOPER-GUIDE.md](extension/docs/DEVELOPER-GUIDE.md)**.
+- `ArtemisWebviewProvider` renders the main sidebar: login, dashboard, course list, course detail, exercise detail, submission setup and the struggle-detection debug view.
+- `ChatWebviewProvider` renders the Iris chat.
+
+Both load the same React bundle. The extension host picks the view: `controller/viewRouter.ts` maps the current `AppState` to a view name, the HTML it renders carries that name in a `data-view` attribute on `#root`, and `webview/App.tsx` switches on it.
+
+A view becomes usable in four steps:
+
+1. The host renders the HTML with `data-view` set.
+2. React mounts. Each view registers its message listener in a `useEffect`.
+3. `App.tsx` posts `{ type: 'ready' }`. It is the only place that sends this signal. Child effects run before parent effects, so every listener is in place by then.
+4. The host answers with the init message for the current state (`services/ui/viewInitDataService.ts`).
+
+A view must not send its own ready signal.
+
+### Message contracts
+
+All traffic between host and webview is typed in `src/shared/messageContracts/`:
+
+- `extensionMessages.ts`: host to webview. Each message type is a key in the `ExtensionMsg` constant and an interface in the `ExtensionToWebviewMessage` union.
+- `webviewCommands.ts`: webview to host. User actions are `{ type: 'command', command, payload }`, with the command names in the `WebviewCmd` constant. A command whose payload is required must also be listed in `PAYLOAD_REQUIRED`.
+- `typeGuards.ts`: `isExtensionMessage` and `isWebviewMessage`. They read their allowed values from those constants, so a new message needs no change here.
+
+On the webview side, `hooks/useExtensionMessage.ts` registers a listener that only passes on messages the guard accepts. On the host side, `controller/webViewMessageHandler.ts` collects the handler maps of the command modules in `controller/commands/` and dispatches each command to its handler.
+
+### Stores
+
+The webview keeps UI state in Zustand stores in `src/webview/stores/`: `useDashboardStore`, `useCourseListStore`, `useCourseDetailStore`, `useExerciseDetailStore` and `useChatStore`. Each is created with `create<State>()(devtools(...))` and names its actions as the third argument to `set()`.
+
+The extension host is the source of truth and sends a view's data again whenever the view loads. Stores do not depend on each other; if two views need the same data, the host sends it to both. State that has to survive the webview being hidden goes through `vscodeApi.getState()` / `setState()`, as `CourseDetailView` does.
+
+### Build seams
+
+The struggle engine and the session recorder are left out of some builds (see [Build variants](#build-variants)). esbuild aliases decide what each build gets:
+
+| Alias | Full build | Excluded |
+|---|---|---|
+| `@telemetry` | `telemetry/index.ts` | `telemetry/noop.ts` (Open VSX) |
+| `@dataCollection` | `dataCollection/recording.ts` (local recording build) | `dataCollection/noop.ts` (every shipped build) |
+| `@struggleView` | `views/StruggleDetection/index.ts` | `views/StruggleDetection/stub.tsx` (Open VSX) |
+
+Code outside a seam must not import the engine or the recorder at runtime; type-only imports are fine. [ADR 003](extension/docs/adr/003-theia-openvsx-telemetry-seam.md) has the reasoning.
+
+### EduIDE and Theia
+
+The extension runs in desktop VS Code and in EduIDE, a browser-based managed Theia. In EduIDE it reads the server and credentials from the EduIDE data bridge (`DATA_BRIDGE_ENABLED` and the `dataBridge.getEnv` command) instead of the local settings, and authenticates with a Bearer token, while desktop uses the `jwt` cookie.
+
+`resolveServerUrl()` in `src/extension/utils/serverUrl.ts` returns the active server: the data bridge's `ARTEMIS_URL` in Theia, the `artemis.serverUrl` setting otherwise. Every server-facing link ("Open in Artemis", problem-statement assets) goes through it, so links point at the connected server instead of the configured default.
+
+## Adding a view
+
+1. Create `src/webview/views/YourView/` with `YourViewView.tsx`, `YourViewView.module.css` and an `index.ts` that exports the view. View-specific types go in `types.ts`, view-only components in `components/`.
+2. Add the host-to-webview init message and any new commands to the message contracts, as described above.
+3. If the view needs state beyond `useState`, add a store in `src/webview/stores/` following the existing ones.
+4. In the view, register the listener with `useExtensionMessage` and read the init message into the store or local state.
+5. Add a `case` for the view name in `src/webview/App.tsx`.
+6. Add the state to the `AppState` union in `controller/appStateManager.ts` and to `STATE_TO_VIEW` in `controller/viewRouter.ts`.
+7. Send the init data from `services/ui/viewInitDataService.ts` for the new state.
+8. Handle the new commands in the matching module in `controller/commands/`, or add a module and register it in `webViewMessageHandler.ts`.
+
+## Conventions
+
+### Imports
+
+Imports that leave the current directory use path aliases; sibling imports (`./foo`) stay relative. ESLint rejects relative imports that go upward, including in dynamic `import()`, `require()` and `vi.mock()`, and it rejects `@webview` imports from host code and the other way round.
+
+| Alias | Maps to |
+|---|---|
+| `@extension/*` | `src/extension/*` |
+| `@webview/*` | `src/webview/*` |
+| `@shared/*` | `src/shared/*` |
+| `@test/*` | `test/*` |
+| `@root/package.json` | `package.json` (the only valid `@root/` target) |
+
+```typescript
+import { Button } from '@webview/components/Button';
+import { logger } from '@extension/services/loggingService';
+import { MockExtensionContext } from '@test/unit/mocks/vscodeMocks';
+```
+
+Use `import type` for imports that are only types.
+
+### TypeScript
+
+`strict` is on. Use `unknown` and a type guard where a value's type is not known, not `any`. Messages and similar variants are discriminated unions.
+
+### React components
+
+- Views end in `View` (`LoginView`); components carry no suffix (`Button`, `Dropdown`). Hooks and stores start with `use`.
+- Every component has a props interface.
+- Event props pass values, not DOM events: `onChange={(value) => ...}`. That keeps handlers testable without building events.
+- Do not use `dangerouslySetInnerHTML`. Inline SVG or import it as a component.
+
+### Styling
+
+Every component has its own CSS Module next to it (`Button.module.css` for `Button.tsx`). Class names are camelCase so they read as `styles.errorMessage`. Combine conditional classes with `clsx`.
+
+Colors come from the VS Code theme variables (`var(--vscode-editor-background)`, `var(--vscode-button-background)` and so on, see the [theme color reference](https://code.visualstudio.com/api/references/theme-color)). Check every UI change in a light and a dark theme.
 
 ## Scripts
 
-Run from `extension/`:
-
 | Script | Purpose |
-|--------|---------|
-| `npm run compile` | Type-check, lint, and bundle (dev) |
-| `npm run watch` | Watch mode (esbuild + tsc) |
-| `npm run package` | Production bundle (type-check + lint + esbuild `--production`) |
-| `npm run package:vsix` | Build and package the full Desktop `.vsix` (VS Marketplace) |
-| `npm run package:openvsx` | Build and package the clean `.vsix` (Open VSX / EduIDE) |
-| `npm run package:rec` | Build the local recording variant (local only: the build itself is refused under CI) |
-| `npm run lint` | ESLint over `src` and `test` |
+|---|---|
+| `npm run compile` | Type-check, lint and bundle (development) |
+| `npm run watch` | esbuild and `tsc` in watch mode |
+| `npm run package` | Production bundle: type-check, lint `src`, minified esbuild |
+| `npm run package:vsix` | Package the desktop `.vsix` (VS Marketplace) |
+| `npm run package:openvsx` | Package the clean `.vsix` (Open VSX, EduIDE) |
+| `npm run package:rec` | Build the local recording variant. Refused under CI |
 | `npm run check-types` | Type-check without emitting |
-| `npm run knip` | Dead-code / unused-export check (its own CI job) |
-| `npm run test:vscode` | All extension host tests (vscode-test). What CI runs |
-| `npm run test:react` | vitest: `test/react/` **and** `test/logic/` |
-| `npm run test:all` | `test:vscode` + `test:react` |
-| `npm run test:golden-replay` | Replay recorded sessions against the pinned engine output |
+| `npm run lint` | ESLint over `src` and `test` |
+| `npm run knip` | Unused files, exports and dependencies |
+| `npm run test:vscode` | Extension host tests, as CI runs them. Needs `compile-tests` and `node esbuild.js` first |
+| `npm run test:react` | vitest over `test/react` and `test/logic` |
+| `npm run test:all` | `test:vscode`, then `test:react` |
 | `npm run test:e2e` | End-to-end suite in an Extension Development Host |
-| `npm run coverage:all` | Coverage for both main suites |
+| `npm run test:ui` | Selenium UI suite (`test/e2e/ui/run-tests.sh`, reads credentials from `extension/.env`) |
+| `npm run test:golden-replay` | Replay recorded sessions against the pinned engine output |
+| `npm run coverage:all` | Coverage for the extension host and vitest suites |
+| `npm run analyze` | Bundle treemap of the webview, from `dist/meta-webview.json` (`analyze:ext` for the host bundle) |
+| `npm run clean` | Remove `dist/`, `out/` and `.vsix` files |
 
-## Running Locally
+## Running and debugging
 
-1. Open the project in VS Code.
-2. Press `F5` (or Run → Start Debugging).
-3. A new Extension Development Host window opens with the extension loaded.
-4. Click the Artemis icon in the activity bar to test.
+The launch configurations in `.vscode/launch.json`:
 
-### Launch configurations
+- Run Extension: builds in watch mode and recompiles on change. Use this one by default.
+- Run Extension (No Watch): runs the last build.
+- Run Extension (Recording): watch build with the session recorder and the data-collection consent flow, for recorder and replay work.
+- Extension Tests: compiles the tests and runs the extension host suite.
 
-- **Run Extension** (recommended) - starts watch mode and recompiles on change.
-- **Run Extension (No Watch)** - runs without auto-recompilation.
-- **Run Extension (Recording)** - starts the local-recording watch build (session recorder and consent flow present) for recorder/replay development. Not for release builds.
-- **Extension Tests** - compiles tests, then runs the suite.
+Breakpoints set in the TypeScript sources work in the host. Logs go to the "Artemis Extension" output channel. `Ctrl+Shift+F5` restarts the host with the new build. For the React side, run "Developer: Open Webview Developer Tools" from the command palette of the Extension Development Host.
 
-### Debugging
+## Build variants
 
-- Set breakpoints in the gutter next to TypeScript line numbers.
-- Inspect via the Debug Console, Variables, and Call Stack panels.
-- Check the "Artemis" / "Extension Host" output panels for logs.
-- Use Restart (`Ctrl+Shift+F5`) to reload the extension with changes.
+The same source produces two shipped packages and one local-only build:
 
-## Build Variants & Deployment
+| Variant | Command | Struggle engine | Recorder and consent flow | Ships to |
+|---|---|---|---|---|
+| Desktop | `package:vsix` (`scripts/package-desktop.js`) | yes | no | VS Marketplace |
+| Clean | `package:openvsx` (`scripts/package-openvsx.js`) | no | no | Open VSX, bundled into EduIDE |
+| Recording | `package:rec`, or the "Run Extension (Recording)" launch config | yes | yes | nowhere |
 
-### Three build variants
+Both shipped packagers build in a staging directory and check the bundle with `scripts/verify-clean-bundle.js`, which fails the build if excluded code shows up in it. The recording build refuses to run when `GITHUB_ACTIONS` or `CI` is `true` (`scripts/resolveBuildVariant.js`), so it cannot reach a release.
 
-The release ships **two** packages from the same source, plus a third **local-only** variant for recorder development:
+### The staged manifest
 
-- **Full build** (VS Marketplace) - built by `scripts/package-desktop.js` from a staging directory using `scripts/generate-clean-manifest.js`. The Desktop VSIX now also **excludes** the session recorder and the data-collection consent flow while keeping the struggle-detection engine; `scripts/verify-clean-bundle.js` fails the build if the recorder reappears in the bundle.
-- **Clean build** (Open VSX, bundled into EduIDE) - built by `scripts/package-openvsx.js` from a staging directory using `scripts/generate-clean-manifest.js`. The clean variant **excludes** the struggle-detection engine, the recording pipeline, and the data-collection consent flow. `scripts/verify-clean-bundle.js --profile=openvsx` fails the build if any excluded code reappears in the bundle.
-- **Local recording build** (not shipped) - keeps the session recorder and consent flow for local development, via `npm run package:rec` or the "Run Extension (Recording)" launch config. It is refused under CI (`resolveBuildVariant` throws when `GITHUB_ACTIONS === 'true'` or `CI === 'true'`), so it never reaches a release.
+`scripts/generate-clean-manifest.js` writes the staged `package.json` and leaves the source manifest alone. The `desktop` profile only drops the recorder contributions. The `openvsx` profile drops more and changes defaults:
 
-#### What the clean manifest changes
+- Recorder group (both profiles): the `artemis.dataCollectionConsent` setting and the `artemis.replaySession` and `artemis.openRecordingsFolder` commands.
+- Struggle group (Open VSX): the `artemis.iris.proactiveCodeEgress` setting and the `artemis.forceStruggleIntervention` and `artemis.toggleStruggleWarmupSkip` commands.
+- Walkthrough (Open VSX): the getting-started walkthrough. In EduIDE every step but "Meet Iris" is already done for the student.
+- Cloud defaults (Open VSX): `artemis.startPage` becomes `workspace-exercise`, and `artemis.showStartPageSuggestion` and `artemis.showSetDefaultClonePathPrompt` become `false`, because the EduIDE workspace is provisioned in advance. See [ADR 002](extension/docs/adr/002-theia-openvsx-setting-defaults.md). Renaming one of these settings without updating the override fails the build.
+- The `vscode:prepublish` hook is removed, so packaging the staged manifest does not run the doc sync or a second bundle.
 
-`generate-clean-manifest.js` rewrites `package.json` into the staging directory without touching the source manifest. Three things happen there:
+A command whose handler lives in the struggle or recorder code has to be added to the matching drop list. Otherwise EduIDE shows a palette entry that fails with "command not found". `test/logic/scripts/generateCleanManifest.test.ts` catches the common case: for each profile it fails if a shipped command's id appears only in code that profile excludes. Settings have no such test yet.
 
-- **Dropped contributions.** Both profiles drop the recorder group: the `artemis.dataCollectionConsent` setting and the `artemis.openRecordingsFolder` command. Open VSX additionally drops the struggle commands, whose handlers live in excluded code: `artemis.showStruggleScore`, `artemis.forceStruggleIntervention`, `artemis.toggleStruggleWarmupSkip`. Contributing one of these without its handler puts a palette entry in EduIDE that fails with "command not found", so **a new command in the struggle or recorder modules must be added to the matching drop list**. `test/logic/scripts/generateCleanManifest.test.ts` guards that: for each profile it classifies every source file with `verify-clean-bundle.js`'s own predicate, then fails if a shipped command's id occurs only in the code that profile drops. That is a necessary condition, not a proof that a handler exists, but it catches the failure that actually occurs here. The legacy `artemis.struggleDetection.enabled` / `artemis.struggleDetection.showInterventions` settings are not part of this: they were removed from the extension entirely (#352).
-- **Cloud defaults (Open VSX only).** Three settings keep their entry but ship a different default, because the EduIDE workspace is pre-provisioned: `artemis.startPage` becomes `workspace-exercise`, and `artemis.showStartPageSuggestion` / `artemis.showSetDefaultClonePathPrompt` become `false`. See [ADR 002](extension/docs/adr/002-theia-openvsx-setting-defaults.md). Renaming one of these settings without updating the override fails the build rather than silently losing it.
-- **The `vscode:prepublish` hook is deleted**, because the staged manifest is packaged as-is and must not re-run the doc sync or a second bundle.
+### Store listing
 
-The equivalent guarantee does **not** yet exist for settings. `artemis.iris.proactiveCodeEgress` still ships in the Open VSX manifest although the only code that acts on it (`services/struggleIntervention/proactiveEgressConsent.ts`) is excluded there. It is inert rather than broken - the card that links to it never renders without the engine - but it is a setting describing an absent feature.
+The store listings show the repo-root `README.md` and `CHANGELOG.md`. Both packagers copy them into the staging directory. A plain `vsce package` (the `vscode:prepublish` hook, used by the recording build) runs `scripts/sync-marketplace-docs.js` instead, which writes `extension/README.md` and `extension/CHANGELOG.md`. Those two files are generated and git-ignored; edit the root copies.
 
-### EduIDE / Theia integration
+## Releasing
 
-The extension runs both in desktop VS Code and inside EduIDE (browser-based, managed Theia). In a managed environment it reads the connected server and credentials from the EduIDE **data bridge** (`DATA_BRIDGE_ENABLED` + the `dataBridge.getEnv` command) instead of the local config. `resolveServerUrl()` (`src/extension/utils/serverUrl.ts`) is the single source of truth for the active server: it returns the data-bridge `ARTEMIS_URL` in Theia, otherwise the `artemis.serverUrl` setting. All server-facing links ("Open in Artemis", problem-statement assets) resolve through it, so they point at the connected server rather than the config default.
-
-### Release & auto-deploy
-
-Releasing is driven by `.github/workflows/release-openvsx.yml` (manual `workflow_dispatch` from `main` or `dev`):
-
-1. Validates the branch, version (must match `extension/package.json`), changelog section, and the green CI gate.
-2. Builds both VSIX variants and attaches build provenance.
-3. Publishes to Open VSX and/or the VS Marketplace, then tags and creates a GitHub release with the changelog notes. The tag is cut if **one** target published, even when the other failed: the successful publish has already reached its registry and nothing in the pipeline can take it back, so withholding the tag would only hide what is shipping. It is not cut the instant that target finishes, though, since the release job waits for both publish jobs to reach a terminal result, a pending `production` approval included. Catch the failed target up with **"Re-run failed jobs" on that same run**, not with a second dispatch: the tag exists by then, so `Verify tag does not already exist` rejects a fresh dispatch of the same version. The re-run reuses the original artifacts (30-day retention) and may ask for the `production` approval again. It pulls `release` and `notify_eduide` along as dependents, which is harmless: the release job converges an existing release, both publish steps are idempotent, and a repeated EduIDE dispatch converges rather than duplicating: once its bump PR is merged the pin already matches and that workflow exits before opening another, and while the PR is still open it updates the same fixed branch.
-4. On a successful **Open VSX** publish, dispatches EduIDE's `artemis_extension_auto_update.yml`, which opens a PR bumping the bundled extension version. Reviewing, merging, building, and deploying in EduIDE stay manual.
+`.github/workflows/release-openvsx.yml` ("Release to Open VSX and VS Marketplace") is started by hand from `main` or `dev`. It checks the branch, that the version matches `extension/package.json`, that `CHANGELOG.md` has a section for it and that the commit has a green `CI gate`. Then it builds both packages with build provenance, publishes to Open VSX and the VS Marketplace, tags the commit and creates a GitHub release from the changelog section. After a successful Open VSX publish it dispatches EduIDE's `artemis_extension_auto_update.yml`, which opens a PR there bumping the bundled extension. Reviewing, merging and deploying that PR is done by hand in EduIDE.
 
 ### Cutting a release
 
-1. Bump the `version` in `extension/package.json` and add the matching `## [x.y.z]` section to `CHANGELOG.md`; merge to `dev` (or `main`).
-2. For a normal release, sync `dev` into `main` **with a real merge commit, never a squash**. A squash carries no parent link, so `main` never gets `dev` as an ancestor and the next sync computes its merge base from the release before it. The 0.4.7 and 0.4.8 syncs were squashed, and by 0.4.9 that produced conflicts in eight files that had nothing to do with the release. If the sync PR conflicts for this reason, the resolution is "main becomes dev": the tree should end up identical to `dev`, with `dev` recorded as the second parent.
-
-   **The GitHub UI cannot do this.** The repository allows squash merges only (`allow_merge_commit` is off), so the merge button on the sync PR would undo the point of the step and the API rejects `--merge` outright. Do it locally and push, which also lets you verify the result before it reaches `main`:
+1. Bump `version` in `extension/package.json` (`npm version X.Y.Z --no-git-tag-version` also updates the lockfile), add a `## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md`, and merge both into `dev` with a pull request.
+2. Sync `dev` into `main` with a real merge commit. A squash has no parent link to `dev`, so the next sync computes its merge base from an old release and runs into conflicts in files the release never touched. The repository allows only squash merges in the GitHub UI, so do the merge locally and push it (this needs admin rights, since `main` is protected):
 
    ```bash
    git fetch origin
    git checkout -B sync-main origin/main
    git merge --no-ff origin/dev -m "chore(release): sync dev → main for X.Y.Z (#PR)"
-   # verify before pushing: the tree must equal dev's, and dev must be a parent
+   # the tree must equal dev's, and dev must be the second parent
    [ "$(git rev-parse HEAD^{tree})" = "$(git rev-parse origin/dev^{tree})" ] && echo "tree ok"
-   git log -1 --format='%P'   # two parents: main, then dev
+   git log -1 --format='%P'
    git push origin HEAD:main
    ```
 
-   The push goes straight at a protected branch and needs admin rights. Open the sync PR anyway (`--base main --head dev`): it carries the release notes and CI runs on it, and GitHub closes it as merged once the push lands. Do **not** delete the branch afterwards, since the head branch is `dev` itself.
-3. Wait for CI to finish on the commit you are about to release. The workflow requires a green `CI gate` check run on that exact SHA and fails immediately if none exists yet, which is easy to trip by dispatching straight after a push.
-4. Go to **Actions → "Release to Open VSX and VS Marketplace" → Run workflow**.
-5. Pick the branch (`main` for a normal release, `dev` for an ad-hoc / hotfix release of pre-merge work), enter the exact `version` (must match `package.json`), and leave both publish toggles on - or tick **Dry run** to build and validate only.
-6. Approve the `production` environment gate when prompted.
-7. On success the workflow tags the commit, creates the GitHub release with the changelog notes, and (after the Open VSX publish) dispatches the EduIDE bundled-extension bump PR.
+   Before pushing, open a sync PR with `--base main --head dev` so the release has a PR and CI runs on it. GitHub marks it as merged once the push lands. Do not delete its head branch afterwards; it is `dev`. If the merge conflicts, resolve it so that `main` ends up identical to `dev`.
+3. Wait until CI is green on the commit you release. The workflow fails right away if that SHA has no `CI gate` check yet, which happens when you dispatch straight after a push.
+4. Under Actions, run "Release to Open VSX and VS Marketplace" on `main` with the exact version and both publish toggles on. Tick "Dry run" to build and validate without publishing. Running it on `dev` is for a hotfix of work that is not on `main` yet.
+5. Approve the `production` environment when GitHub asks.
 
-### Marketplace docs are generated
+Release tags have no `v` prefix (`1.2.2`).
 
-The store listings show the repo-root **`README.md`** (user docs) and **`CHANGELOG.md`**. At package time both shipped packagers (`scripts/package-desktop.js`, `scripts/package-openvsx.js`) copy them from the repo root into their staging directory, so the listing matches the release. A plain non-staged `vsce package` (e.g. the `vscode:prepublish` hook used by the local recording build) instead runs `scripts/sync-marketplace-docs.js`, which generates `extension/README.md` and `extension/CHANGELOG.md`. Those `extension/` copies are therefore **generated and git-ignored** - edit only the repo-root copies.
+### If one store fails
 
-## Documentation Map
+The release job waits until both publish jobs have finished, including a pending `production` approval. If one of them published, the tag and the GitHub release are still created, because that version is already live in one store and cannot be withdrawn.
 
-| File | Audience / purpose |
-|------|--------------------|
-| [README.md](README.md) | Users (also the store listing) |
-| [DEVELOPER.md](DEVELOPER.md) | This guide: build, run, release |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow & conventions |
-| [extension/docs/DEVELOPER-GUIDE.md](extension/docs/DEVELOPER-GUIDE.md) | Deep dive: webview architecture, message contracts, stores |
-| [recording-viewer/README.md](recording-viewer/README.md) | The standalone session recording viewer |
+Catch the failed store up with "Re-run failed jobs" on the same run. A new dispatch of the same version fails at "Verify tag does not already exist". The re-run reuses the original artifacts (kept 30 days) and may ask for the `production` approval again. It also re-runs the release and EduIDE jobs, which does no harm: the release job updates the existing release, both publish steps are idempotent, and the EduIDE workflow updates its open bump PR or exits if the bump is already merged.
+
+## Other documentation
+
+| File | Contents |
+|---|---|
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Workflow for getting a change merged |
 | [extension/docs/adr/](extension/docs/adr/) | Architecture decision records |
-| [CHANGELOG.md](CHANGELOG.md) | Release notes (single source) |
+| [extension/src/extension/services/recording/README.md](extension/src/extension/services/recording/README.md) | The session recorder |
+| [extension/test/react/\_\_helpers\_\_/README.md](extension/test/react/__helpers__/README.md) | Helpers for the React tests |
+| [recording-viewer/README.md](recording-viewer/README.md) | The standalone recording viewer |
 
-Per-change design specs and implementation plans are **not** in the repository. They are working
-notes for one change and age out as soon as it lands, so `docs/superpowers/`,
-`extension/docs/superpowers/` and `extension/docs/plans/` are git-ignored. Rationale that should
-outlive a pull request belongs in the code, in an ADR, or on the issue.
-
-## Resources
-
-- **Artemis Platform**: [artemisapp.github.io](https://artemisapp.github.io)
-- **Artemis Documentation**: [docs.artemis.cit.tum.de](https://docs.artemis.cit.tum.de)
-- **Artemis Repository**: [github.com/ls1intum/Artemis](https://github.com/ls1intum/Artemis)
-- **VS Code Extension Guidelines**: [code.visualstudio.com/api](https://code.visualstudio.com/api/references/extension-guidelines)
+Design specs and implementation plans for a single change are kept out of the repository (`docs/superpowers/`, `extension/docs/superpowers/` and `extension/docs/plans/` are git-ignored). Reasoning that should outlast a pull request goes into the code, an ADR or the issue.

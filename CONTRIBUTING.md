@@ -1,74 +1,40 @@
-# Contributing to the Artemis VS Code Extension
+# Contributing to the Artemis Extension
 
-Thanks for your interest in contributing! This guide covers the workflow and conventions. For build details and architecture, see **[DEVELOPER.md](DEVELOPER.md)**; for the deep webview/architecture walkthrough, see **[extension/docs/DEVELOPER-GUIDE.md](extension/docs/DEVELOPER-GUIDE.md)**.
+Thanks for helping out. This file covers how a change gets from your branch into a release. Setup, architecture, code conventions and the release process are in [DEVELOPER.md](DEVELOPER.md).
 
-## Quick Start
+## Workflow
 
-```bash
-git clone https://github.com/ls1intum/artemis-extension.git
-cd artemis-extension/extension
-npm install
-```
+1. Set up the project as described in [DEVELOPER.md](DEVELOPER.md#setup) and branch off `dev`.
+2. Make the change and try it in the Extension Development Host (`F5`).
+3. Run the checks CI runs, from `extension/`:
 
-Then open the repository in VS Code and press `F5` to launch the Extension Development Host with watch mode. Test your changes in the new window.
-
-## Development Workflow
-
-1. **Branch** off `dev`: `git checkout -b feature/your-feature-name`.
-2. **Make changes** in `extension/src/` (extension host, React webview, or shared contracts; see [DEVELOPER.md](DEVELOPER.md#repository-layout)).
-3. **Run it** with `F5` and verify in the Extension Development Host.
-4. **Verify quality** before committing:
    ```bash
-   npm run check-types   # type-check
-   npm run lint          # ESLint
-   npm run test:all      # extension host + React tests
+   npm run check-types
+   npm run lint
+   npx vitest run          # test/react and test/logic
+   npm run compile-tests && node esbuild.js && npm run test:vscode
+   npm run knip
    ```
 
-   `test:all` does not build first. Run `npm run compile-tests` and
-   `node esbuild.js` beforehand, or use `npm run pretest` to do both plus lint.
-5. **Open a Pull Request** against `dev` with a clear description.
+   The extension host suite reads compiled tests from `out/` and activates the real extension from `dist/`, so it fails with confusing errors unless both builds ran first. `npm run pretest` does both and lints as well.
+4. Open the pull request against `dev`. Pull requests are squash-merged, so the PR title becomes the commit on `dev`. Write it as a plain imperative sentence that says what changes, for example "Name the Artemis server on the login page".
 
-All commands run from the `extension/` directory.
+## Tests
 
-## Code Guidelines
-
-- **TypeScript**: use strict-mode features, define proper types (avoid `any`), and add JSDoc for public APIs.
-- **Styling**: use CSS Modules scoped to components and VS Code theme tokens (CSS variables); test in both light and dark themes.
-- **Naming**: meaningful, consistent with the surrounding code.
-- **Match the existing style** - it is enforced by ESLint.
-
-### Commit messages
-
-Use [Conventional Commits](https://www.conventionalcommits.org/):
-
-- `feat: add WebSocket reconnection logic`
-- `fix: resolve authentication token refresh issue`
-- `docs: update installation instructions`
-- `refactor: simplify view routing logic`
-
-## Testing
-
-- `npm run test:unit` - extension host tests (vscode-test).
-- `npm run test:react` - React component tests (vitest).
-- `npm run test:all` - both.
-
-Add tests for new behavior and fixes. Do not skip or disable failing tests.
+Add tests for new behavior and for every fix. A failing test gets fixed, never skipped or disabled. Which suite a test belongs in is listed under [Repository layout](DEVELOPER.md#repository-layout).
 
 ## Documentation
 
-Keep the docs in sync with your change:
+Update the documentation in the same pull request. A change users can see (feature, command, setting, behavior) goes into [README.md](README.md), which is also the store listing. A change to the build, scripts, architecture or workflow goes into [DEVELOPER.md](DEVELOPER.md).
 
-- **User-facing change** (feature, command, setting, behavior) → update **[README.md](README.md)** (this is also the store listing).
-- **Build, scripts, architecture, or workflow change** → update **[DEVELOPER.md](DEVELOPER.md)**.
+`extension/README.md` and `extension/CHANGELOG.md` are generated from the repo-root copies at package time. Do not edit them by hand.
 
-`extension/README.md` and `extension/CHANGELOG.md` are **generated** from the repo-root copies at package time - never edit them by hand.
+## Getting help
 
-## Getting Help
+- [Artemis documentation](https://docs.artemis.cit.tum.de)
+- [Open an issue](https://github.com/ls1intum/artemis-extension/issues)
 
-- 📖 [Artemis documentation](https://docs.artemis.cit.tum.de)
-- 🐛 [Open an issue](https://github.com/ls1intum/artemis-extension/issues)
-
-## Code of Conduct
+## Code of conduct
 
 - Use your real name and an authentic profile.
 - Be respectful and inclusive.
