@@ -197,6 +197,10 @@ export function useChatSend(vscodeApi: VsCodeApi, store: ChatState) {
                 return false;
             case 'no-ai':
                 return store.isNoAiDetected;
+            case 'ai-not-allowed':
+                // Inert while the banner still names the block; the banner's
+                // own Retry is the way back once the choice is made in Artemis.
+                return store.unavailableMessage !== null;
             case 'no-context':
                 return store.currentSessionId === null;
             default:

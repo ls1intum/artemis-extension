@@ -8,6 +8,9 @@ import { resolveCourseIdForExercise } from '@extension/services/iris/context/cou
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ApiError, type IrisSettingsResponse } from '@extension/types';
 
+import type { AiBlock } from './aiChoice';
+import { AI_CHOICE_SETTINGS_PATH, aiBlockBannerText, checkAiChoice } from './aiChoice';
+
 /**
  * What the availability check runs against. Derived from where the chat IS (see
  * `ChatAvailabilityCoordinator.context`), not from any stored selection:
@@ -23,16 +26,18 @@ export interface AvailabilityContext {
 }
 
 /**
- * Three-way availability classification for the Iris chat. The distinction
- * matters in the UI: `disabled` shows the persistent "instructor disabled
- * Iris" overlay, while `unavailable` shows a transient "temporarily
- * unavailable, retry" banner. Conflating the two misleads students into
- * thinking their course turned Iris off whenever the network blips.
+ * Availability classification for the Iris chat. The distinction matters in
+ * the UI: `disabled` shows the persistent "instructor disabled Iris" overlay,
+ * while `unavailable` shows a transient "temporarily unavailable, retry"
+ * banner. Conflating the two misleads students into thinking their course
+ * turned Iris off whenever the network blips. `ai-not-allowed` is the
+ * student's own account setting: only they can lift it, in Artemis.
  */
 export type IrisAvailability =
     | { kind: 'enabled' }
     | { kind: 'disabled' }
-    | { kind: 'unavailable'; reason: string };
+    | { kind: 'unavailable'; reason: string }
+    | { kind: 'ai-not-allowed'; block: AiBlock };
 
 /**
  * Tracked availability state with the context the classification belongs to,
@@ -114,6 +119,17 @@ export class IrisAvailabilityService {
                 this._postMessage({
                     type: ExtensionMsg.ShowUnavailableState,
                     message: UNAVAILABLE_USER_MESSAGE,
+                });
+                this._postMessage({ type: ExtensionMsg.HideDisabledState });
+                break;
+            // The retryable banner, not the disabled one: the student lifts this
+            // block in Artemis and comes back through Retry, and the disabled
+            // banner offers neither the link nor the Retry.
+            case 'ai-not-allowed':
+                this._postMessage({
+                    type: ExtensionMsg.ShowUnavailableState,
+                    message: aiBlockBannerText(availability.block),
+                    link: { label: 'Open Artemis settings', path: AI_CHOICE_SETTINGS_PATH },
                 });
                 this._postMessage({ type: ExtensionMsg.HideDisabledState });
                 break;
@@ -218,6 +234,18 @@ if (!api) {
     if (chatSettings.enabled === false) {
         logger.info('Iris chat is disabled in settings', LogCategory.IRIS_CHAT);
         return { availability: { kind: 'disabled' } };
+    }
+
+    // Step 4: the account's AI choice. After the course check on purpose: in a
+    // course with Iris off, making the choice would not help, and the student
+    // would be sent to Artemis for nothing.
+    const aiChoice = await checkAiChoice(api);
+    if (aiChoice === 'unknown') {
+        return { availability: { kind: 'unavailable', reason: 'Could not read the account' }, settings };
+    }
+    if (aiChoice !== 'opted-in') {
+        logger.info(`Iris is blocked by the account's AI choice (${aiChoice})`, LogCategory.IRIS_CHAT);
+        return { availability: { kind: 'ai-not-allowed', block: aiChoice }, settings };
     }
 
     logger.info('Iris chat is enabled, settings loaded:', LogCategory.IRIS_CHAT, {

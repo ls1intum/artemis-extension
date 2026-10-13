@@ -36,6 +36,7 @@ suite('IrisAvailabilityService Test Suite', () => {
         // Mock Iris profile check (required for all Iris settings checks)
         mockApiService.getProfileInfo.resolves({ activeProfiles: [], activeModuleFeatures: ['iris'] });
         mockApiService.isIrisProfileActive.returns(true);
+        mockApiService.getCurrentUser.resolves({ login: 'student', selectedLLMUsage: 'CLOUD_AI' });
 
         catalog = new CourseCatalog(mockApiService as never);
 
@@ -307,6 +308,25 @@ suite('IrisAvailabilityService Test Suite', () => {
         test('unavailable shows the unavailable banner and hides the disabled one', () => {
             service.postAvailability({ kind: 'unavailable', reason: 'boom' }, courseContext);
             assert.deepStrictEqual(postedTypes(), [ExtensionMsg.ShowUnavailableState, ExtensionMsg.HideDisabledState]);
+        });
+
+        // The retryable banner, because the student lifts the block in Artemis
+        // and returns through Retry; it carries the link to that page.
+        test('ai-not-allowed without a choice asks for one and links to the AI settings', () => {
+            service.postAvailability({ kind: 'ai-not-allowed', block: 'none' }, courseContext);
+            assert.deepStrictEqual(postedTypes(), [ExtensionMsg.ShowUnavailableState, ExtensionMsg.HideDisabledState]);
+            const banner = postMessageSpy.firstCall.args[0];
+            assert.match(banner.message, /needs your AI choice/);
+            assert.deepStrictEqual(banner.link, { label: 'Open Artemis settings', path: '/user-settings/llm-usage' });
+            assert.strictEqual(service.lastAvailability.kind, 'ai-not-allowed');
+        });
+
+        test('ai-not-allowed after choosing no AI says so instead of asking for a choice', () => {
+            service.postAvailability({ kind: 'ai-not-allowed', block: 'no-ai' }, courseContext);
+            const banner = postMessageSpy.firstCall.args[0];
+            assert.match(banner.message, /chose not to use AI/);
+            assert.doesNotMatch(banner.message, /needs your AI choice/);
+            assert.strictEqual(banner.link.path, '/user-settings/llm-usage');
         });
     });
 });

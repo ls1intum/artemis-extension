@@ -459,13 +459,13 @@ describe('ParticipationActions', () => {
 			);
 			const toggle = screen.getByRole('button', { name: 'More ▾' });
 
-			expect(screen.queryByText('Pull Changes')).not.toBeInTheDocument();
+			expect(screen.queryByText('Check workspace status')).not.toBeInTheDocument();
 
 			await userEvent.click(toggle);
-			expect(screen.getByText('Pull Changes')).toBeInTheDocument();
+			expect(screen.getByText('Check workspace status')).toBeInTheDocument();
 
 			await userEvent.click(toggle);
-			expect(screen.queryByText('Pull Changes')).not.toBeInTheDocument();
+			expect(screen.queryByText('Check workspace status')).not.toBeInTheDocument();
 		});
 
 		it('closes dropdown on Escape key', async () => {
@@ -477,10 +477,71 @@ describe('ParticipationActions', () => {
 			);
 
 			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
-			expect(screen.getByText('Pull Changes')).toBeInTheDocument();
+			expect(screen.getByText('Check workspace status')).toBeInTheDocument();
 
 			await userEvent.keyboard('{Escape}');
-			expect(screen.queryByText('Pull Changes')).not.toBeInTheDocument();
+			expect(screen.queryByText('Check workspace status')).not.toBeInTheDocument();
+		});
+	});
+
+	describe('Pull Changes entry', () => {
+		it.each(['clean', 'dirty'] as const)('is offered when the workspace is the exercise repository (%s)', async (workspaceStatus) => {
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus={workspaceStatus}
+					onPullChanges={vi.fn()}
+				/>
+			);
+
+			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			expect(screen.getByRole('button', { name: 'Pull Changes' })).toBeInTheDocument();
+		});
+
+		it.each(['disconnected', 'checking', 'wrong-repo'] as const)('is hidden while the workspace is not the exercise repository (%s)', async (workspaceStatus) => {
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus={workspaceStatus}
+					onPullChanges={vi.fn()}
+				/>
+			);
+
+			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			expect(screen.queryByRole('button', { name: 'Pull Changes' })).not.toBeInTheDocument();
+		});
+
+		it('is hidden when no handler is wired', async () => {
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="clean"
+				/>
+			);
+
+			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			expect(screen.queryByRole('button', { name: 'Pull Changes' })).not.toBeInTheDocument();
+		});
+
+		it('calls onPullChanges and closes the menu', async () => {
+			const handlePull = vi.fn();
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="clean"
+					onPullChanges={handlePull}
+				/>
+			);
+
+			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			await userEvent.click(screen.getByRole('button', { name: 'Pull Changes' }));
+
+			expect(handlePull).toHaveBeenCalledOnce();
+			expect(screen.queryByText('Check workspace status')).not.toBeInTheDocument();
 		});
 	});
 

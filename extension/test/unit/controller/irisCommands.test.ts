@@ -72,6 +72,11 @@ suite('askIrisOutcomeMessage', () => {
     test('a superseded navigation says nothing at all', () => {
         assert.strictEqual(askIrisOutcomeMessage({ kind: 'stale' }, 'BFS'), undefined);
     });
+
+    test('an AI-choice block says nothing: the chat banner names it, and no retry here helps', () => {
+        assert.strictEqual(askIrisOutcomeMessage({ kind: 'ai-not-allowed', block: 'none' }, 'BFS'), undefined);
+        assert.strictEqual(askIrisOutcomeMessage({ kind: 'ai-not-allowed', block: 'no-ai' }, 'BFS'), undefined);
+    });
 });
 
 suite('Ask Iris commands', () => {

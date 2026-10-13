@@ -10,6 +10,15 @@ import { extractErrorMessage, resolveServerUrl } from '@extension/utils';
 
 import type { CommandContext, CommandMap } from './types';
 
+/**
+ * Opens a page of the connected Artemis server in the browser. Resolved through
+ * the single source of truth so EduIDE/Theia (data-bridge ARTEMIS_URL) opens
+ * the connected server, not the config default.
+ */
+export async function openArtemisWebsite(path?: string): Promise<void> {
+    await vscode.env.openExternal(vscode.Uri.parse(`${resolveServerUrl()}${path || '/courses'}`));
+}
+
 export async function openSettings(settingId: string): Promise<void> {
     await vscode.commands.executeCommand('workbench.action.openSettings', settingId);
 }
@@ -102,12 +111,7 @@ export class UtilityCommandModule {
 
     private handleOpenWebsite = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            // Resolve via the single source of truth so EduIDE/Theia (data-bridge
-            // ARTEMIS_URL) opens the connected server, not the config default.
-            const serverUrl = resolveServerUrl();
-            const payload = getOptionalPayload<WebCmd<'openWebsite'>>(message);
-            const urlPath = payload?.path || '/courses';
-            await vscode.env.openExternal(vscode.Uri.parse(`${serverUrl}${urlPath}`));
+            await openArtemisWebsite(getOptionalPayload<WebCmd<'openWebsite'>>(message)?.path);
         } catch (error: unknown) {
             logger.error('Failed to open website:', LogCategory.VIEW, error);
             vscode.window.showErrorMessage(`Failed to open website: ${extractErrorMessage(error)}`);

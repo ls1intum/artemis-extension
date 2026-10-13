@@ -39,6 +39,24 @@ export interface ArtemisUser {
     readonly activated?: boolean;
     readonly langKey?: string;
     readonly authorities?: string[];
+    /** The account's AI choice (`CLOUD_AI`, `LOCAL_AI`, `NO_AI`). Absent when none was made. */
+    readonly selectedLLMUsage?: string;
+}
+
+/**
+ * Whether Artemis lets this account use Iris. `none` and `no-ai` are told apart
+ * because the student needs different advice: one has not chosen yet, the other
+ * chose against AI.
+ *
+ * Mirrors Artemis' own gate (`hasOptedIntoLlmUsage`, 9.9 onwards): any decision
+ * other than `NO_AI` opts in. Artemis serializes the account without empty
+ * fields, so a missing decision arrives as an absent field.
+ */
+export type AiChoice = 'opted-in' | 'none' | 'no-ai';
+
+export function aiChoiceOf(user: ArtemisUser): AiChoice {
+    if (user.selectedLLMUsage === undefined) { return 'none'; }
+    return user.selectedLLMUsage === 'NO_AI' ? 'no-ai' : 'opted-in';
 }
 
 export function parseArtemisUser(data: unknown): ArtemisUser {
@@ -55,6 +73,7 @@ export function parseArtemisUser(data: unknown): ArtemisUser {
         activated: typeof d.activated === 'boolean' ? d.activated : undefined,
         langKey: typeof d.langKey === 'string' ? d.langKey : undefined,
         authorities: Array.isArray(d.authorities) ? d.authorities.map(String) : undefined,
+        selectedLLMUsage: typeof d.selectedLLMUsage === 'string' ? d.selectedLLMUsage : undefined,
     };
 }
 

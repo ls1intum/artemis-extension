@@ -2,6 +2,21 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [1.2.3] - 2026-10-14
+
+### Fixed
+
+- **Iris says when your AI choice in Artemis blocks it.** Artemis refuses Iris to an account that has not made the AI choice, or that chose not to use AI. The extension showed only "Iris could not switch to that topic" or "Iris could not be reached", and retrying never helped. The chat now says which of the two applies, links to the AI settings page in Artemis, and offers Retry once the choice is made. A message sent in that state is marked as not sent with the same reason, and proactive help stays off like in a course with Iris switched off.
+- **Pull Changes works again.** The entry in the exercise's **More** menu did nothing since the exercise page was rebuilt. It now pulls the remote changes into the open exercise repository and only appears when that repository is the workspace. The pull only fast-forwards, so it never leaves a half-finished merge or rebase behind. When local edits or local commits are in the way, or Artemis refuses the access token, the message says so and what to do.
+
+### Changed
+
+- **The store listing describes the current extension.** The README no longer advertises the visual themes removed in 0.2.5. It also lost a few other claims that no longer held, and it now lists the **Set Default Exercise Folder** and **Reload Iris Chat** commands.
+
+### Internal
+
+- **The screenshots of the Artemis student guide are scripted.** `npm run screenshots:docs` drives the UI test suite against a local Artemis and captures every screenshot of the extension's guide in the Artemis documentation. DEVELOPER.md describes the fixture it needs.
+
 ## [1.2.2] - 2026-10-12
 
 ### Fixed

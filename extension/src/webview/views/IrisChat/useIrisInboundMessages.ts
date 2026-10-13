@@ -162,7 +162,7 @@ export function useIrisInboundMessages({ onCourseRefreshAnswered }: InboundOptio
                 break;
 
             case ExtensionMsg.ShowUnavailableState: {
-                setUnavailableMessage(msg.message);
+                setUnavailableMessage(msg.message, msg.link);
                 break;
             }
 

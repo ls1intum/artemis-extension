@@ -7,12 +7,18 @@ set -e
 
 cd "$(dirname "$0")/../../.."
 
-# Load credentials from .env if present (never committed — listed in .gitignore)
-if [ -f .env ]; then
+# Load credentials from .env if present (never committed — listed in .gitignore).
+# UI_ENV_FILE points at a different file, e.g. the docs screenshot account.
+UI_ENV_FILE="${UI_ENV_FILE:-.env}"
+if [ -f "$UI_ENV_FILE" ]; then
   set -a
-  source .env
+  source "$UI_ENV_FILE"
   set +a
 fi
+
+# Which compiled files run, relative to out/test/e2e/ui/. The docs screenshot
+# script sets its own so the regular suites and the screenshots never mix.
+UI_TEST_GLOB="${UI_TEST_GLOB:-*.ui.test.js}"
 
 echo "=== Phase 1: Compiling tests ==="
 # tsc emits JS despite type errors (noEmitOnError is not set).
@@ -58,17 +64,26 @@ extest install-vsix --vsix_file test-extension.vsix
 # ARTEMIS_URL is set (typically from .env), we splice it in as
 # `artemis.serverUrl` so contributors can switch between test servers
 # without editing the committed file. See .env.example.
+# UI_CODE_SETTINGS names an overlay merged on top (the docs screenshots use it
+# for theme and developer mode). ARTEMIS_URL is applied last, so neither wins
+# over the server the environment points at.
 SETTINGS_FILE="test/e2e/ui/code-settings.json"
-if [ -n "${ARTEMIS_URL:-}" ]; then
+if [ -n "${ARTEMIS_URL:-}" ] || [ -n "${UI_CODE_SETTINGS:-}" ]; then
   TMP_SETTINGS=$(mktemp "${TMPDIR:-/tmp}/code-settings.XXXXXX.json")
   SETTINGS_FILE="$SETTINGS_FILE" TMP_SETTINGS="$TMP_SETTINGS" node -e "
     const fs = require('fs');
     const settings = JSON.parse(fs.readFileSync(process.env.SETTINGS_FILE, 'utf8'));
-    settings['artemis.serverUrl'] = process.env.ARTEMIS_URL;
+    if (process.env.UI_CODE_SETTINGS) {
+      Object.assign(settings, JSON.parse(fs.readFileSync(process.env.UI_CODE_SETTINGS, 'utf8')));
+    }
+    if (process.env.ARTEMIS_URL) {
+      settings['artemis.serverUrl'] = process.env.ARTEMIS_URL;
+    }
     fs.writeFileSync(process.env.TMP_SETTINGS, JSON.stringify(settings, null, 4));
   "
   SETTINGS_FILE="$TMP_SETTINGS"
-  echo "Using ARTEMIS_URL=${ARTEMIS_URL} from environment"
+  [ -n "${ARTEMIS_URL:-}" ] && echo "Using ARTEMIS_URL=${ARTEMIS_URL} from environment"
+  [ -n "${UI_CODE_SETTINGS:-}" ] && echo "Merged settings overlay ${UI_CODE_SETTINGS}"
 fi
 
 echo "=== Phase 5: Running UI tests (isolated per file) ==="
@@ -81,8 +96,9 @@ FAILED_FILES=()
 SKIPPED_FILES=()
 
 set +e
-for test_file in out/test/e2e/ui/*.ui.test.js; do
-  name=$(basename "$test_file" .ui.test.js)
+for test_file in out/test/e2e/ui/$UI_TEST_GLOB; do
+  name=$(basename "$test_file" .js)
+  name=${name%.ui.test}
   log_file="reports/ui/${name}.log"
 
   echo ""

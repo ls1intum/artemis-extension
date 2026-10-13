@@ -579,6 +579,9 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                     onCheckWorkspace={() => {
                         postCommand(vscodeApi, 'checkRepositoryStatus');
                     }}
+                    onPullChanges={() => {
+                        postCommand(vscodeApi, 'pullChanges', { exerciseTitle: exercise.title || 'Exercise' });
+                    }}
                     onCopyCloneUrl={() => {
                         if (repositoryUri) {
                             postCommand(vscodeApi, 'copyToClipboard', { text: repositoryUri });

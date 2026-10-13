@@ -49,6 +49,7 @@ export const WebviewCmd = {
     OpenRepository: 'openRepository',
     OpenClonedRepository: 'openClonedRepository',
     SubmitExercise: 'submitExercise',
+    PullChanges: 'pullChanges',
     StartExercise: 'startExercise',
     StartPractice: 'startPractice',
     AskIrisAboutExercise: 'askIrisAboutExercise',
@@ -173,6 +174,7 @@ interface WebviewCmdPayloads {
     openRepository: { repositoryUri?: string };
     openClonedRepository: { participationId: number };
     submitExercise: { participationId: number; exerciseId?: number; exerciseTitle?: string; commitMessage?: string };
+    pullChanges: { exerciseTitle: string };
     startExercise: { exerciseId: number };
     startPractice: { exerciseId: number; exerciseTitle?: string };
     askIrisAboutExercise: { exerciseId: number; exerciseTitle: string; exerciseShortName?: string; releaseDate?: string; dueDate?: string; courseId?: number; courseTitle?: string; courseShortName?: string };
@@ -336,6 +338,7 @@ const PAYLOAD_REQUIRED: readonly Exclude<WebviewCmd, PayloadlessCmd>[] = [
     WebviewCmd.CloneRepository,
     WebviewCmd.CopyAuthenticatedCloneUrl,
     WebviewCmd.SubmitExercise,
+    WebviewCmd.PullChanges,
     WebviewCmd.StartExercise,
     WebviewCmd.StartPractice,
     WebviewCmd.AskIrisAboutExercise,

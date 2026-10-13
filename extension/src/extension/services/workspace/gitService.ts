@@ -75,6 +75,16 @@ export class GitService {
         });
     }
 
+    /**
+     * Updates the branch only when that needs no merge or rebase, so a failure
+     * leaves the repository exactly as it was. Runs in the C locale because the
+     * caller reads git's English messages to explain a refusal.
+     */
+    public async pullFastForwardOnly(options: GitCommandOptions): Promise<string> {
+        const { stdout } = await this.runGit(['pull', '--ff-only'], { ...options, env: { LC_ALL: 'C' } });
+        return stdout;
+    }
+
     public async addAll(options: GitCommandOptions): Promise<void> {
         await execFileAsync('git', ['add', '-A'], {
             cwd: options.cwd,

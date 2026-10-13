@@ -67,6 +67,7 @@ export interface ChatMessage {
         | 'no-context'
         | 'iris-disabled'
         | 'iris-unavailable'
+        | 'ai-not-allowed'
         | 'send-in-flight'
         | 'navigation-in-flight'
         | 'no-conversation'

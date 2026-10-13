@@ -546,6 +546,16 @@ describe('Message contracts: type guards', () => {
         expect(isWebviewMessage(msg)).toBe(false);
     });
 
+    it('isWebviewMessage rejects pullChanges command without payload', () => {
+        const msg = { type: 'command', command: 'pullChanges' };
+        expect(isWebviewMessage(msg)).toBe(false);
+    });
+
+    it('isWebviewMessage accepts pullChanges command with payload', () => {
+        const msg = { type: 'command', command: 'pullChanges', payload: { exerciseTitle: 'Sorting' } };
+        expect(isWebviewMessage(msg)).toBe(true);
+    });
+
     // The three payload-bearing conversation-first commands must be
     // registered in COMMANDS_REQUIRING_PAYLOAD; newConversation must not (it
     // has no payload). Dropping an entry from that set is exactly the

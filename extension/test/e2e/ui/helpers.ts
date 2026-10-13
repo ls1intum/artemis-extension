@@ -1,10 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { ActivityBar, By, EditorView, SideBarView, until, WebDriver, WebviewView, Workbench } from 'vscode-extension-tester';
+import { PNG } from 'pngjs';
+import { ActivityBar, By, EditorView, Origin, SideBarView, until, WebDriver, WebElement, WebviewView, Workbench } from 'vscode-extension-tester';
 
 // Resolve to the source tree screenshots dir (not the out/ compiled dir)
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 const SCREENSHOTS_DIR = path.join(PROJECT_ROOT, 'test', 'ui', 'screenshots');
+// At runtime __dirname is out/test/e2e/ui/, so four levels up reaches the package root.
+const DOCS_SCREENSHOTS_DIR = path.resolve(__dirname, '..', '..', '..', '..', 'reports', 'docs-screenshots');
 
 // At runtime __dirname is out/test/e2e/ui/, so four levels up reaches the package root.
 const AXE_SOURCE = fs.readFileSync(
@@ -285,6 +288,75 @@ export async function takeScreenshot(driver: WebDriver, name: string): Promise<s
 
 	console.log(`Screenshot saved: ${filepath}`);
 	return filepath;
+}
+
+/**
+ * Save an element crop under `reports/docs-screenshots/<name>.png`, overwriting the previous run.
+ *
+ * Stable names instead of timestamps: the files are copied as they are into the Artemis
+ * documentation, whose pages import them by name.
+ */
+export async function captureElement(element: WebElement, name: string): Promise<string> {
+	fs.mkdirSync(DOCS_SCREENSHOTS_DIR, { recursive: true });
+	const filepath = path.join(DOCS_SCREENSHOTS_DIR, `${name}.png`);
+	const png = trimEmptyBottom(PNG.sync.read(Buffer.from(await element.takeScreenshot(), 'base64')));
+	fs.writeFileSync(filepath, PNG.sync.write(png));
+	console.log(`Docs screenshot saved: ${filepath}`);
+	return filepath;
+}
+
+/**
+ * Cut the rows at the bottom that only repeat the bottom row, keeping a margin of `keep` rows.
+ *
+ * The sidebar and the editor fill the window height whatever their content, so an element crop
+ * ends in a large empty area. Trimming by content rather than by a fixed height keeps the shots
+ * correct when a page grows or shrinks.
+ */
+function trimEmptyBottom(png: PNG, keep = 16): PNG {
+	const rowBytes = png.width * 4;
+	const bottom = png.data.subarray((png.height - 1) * rowBytes, png.height * rowBytes);
+	let lastContentRow = png.height - 1;
+	while (lastContentRow > 0 && png.data.subarray(lastContentRow * rowBytes, (lastContentRow + 1) * rowBytes).equals(bottom)) {
+		lastContentRow--;
+	}
+	const height = Math.min(png.height, lastContentRow + 1 + keep);
+	if (height === png.height) {
+		return png;
+	}
+	const trimmed = new PNG({ width: png.width, height });
+	png.data.copy(trimmed.data, 0, 0, height * rowBytes);
+	return trimmed;
+}
+
+/**
+ * Drag the sash on the right edge of the primary sidebar until the sidebar is `width` CSS pixels wide.
+ *
+ * VS Code has no setting for the sidebar width, and the webview lays out differently at
+ * every width, so screenshots taken at whatever width the profile starts with would not
+ * be comparable between runs.
+ */
+export async function setSidebarWidth(driver: WebDriver, width: number): Promise<void> {
+	const sidebar = await driver.findElement(By.id('workbench.parts.sidebar'));
+	const rect = await sidebar.getRect();
+	const sashes = await driver.findElements(By.css('.monaco-sash.vertical'));
+	let sash: WebElement | undefined;
+	for (const candidate of sashes) {
+		const r = await candidate.getRect();
+		if (Math.abs(r.x + r.width / 2 - (rect.x + rect.width)) <= 4) { sash = candidate; break; }
+	}
+	if (!sash) {
+		throw new Error('No sash found on the right edge of the sidebar');
+	}
+	await driver.actions({ async: true })
+		.move({ origin: sash })
+		.press()
+		.move({ origin: Origin.POINTER, x: width - rect.width, y: 0, duration: 200 })
+		.release()
+		.perform();
+	const actual = (await sidebar.getRect()).width;
+	if (Math.abs(actual - width) > 2) {
+		throw new Error(`Sidebar is ${actual}px wide after resizing, expected ${width}px`);
+	}
 }
 
 /**

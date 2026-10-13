@@ -258,3 +258,27 @@ suite('GitService.setRemoteUrl', () => {
         );
     });
 });
+
+suite('GitService.pullFastForwardOnly', () => {
+    let sandbox: sinon.SinonSandbox;
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+    });
+
+    teardown(() => {
+        sandbox.restore();
+    });
+
+    test('pulls fast-forward only in the C locale and returns stdout', async () => {
+        const service = new GitService();
+        const runGit = sandbox.stub(service, 'runGit').resolves({ stdout: 'Already up to date.\n', stderr: '' });
+
+        const stdout = await service.pullFastForwardOnly({ cwd: '/tmp/repo' });
+
+        // The C locale is what keeps the caller's English message matching working
+        // on a git installed in another language.
+        sinon.assert.calledOnceWithExactly(runGit, ['pull', '--ff-only'], { cwd: '/tmp/repo', env: { LC_ALL: 'C' } });
+        assert.strictEqual(stdout, 'Already up to date.\n');
+    });
+});

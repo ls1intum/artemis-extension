@@ -352,6 +352,18 @@ export function IrisChatView({ vscodeApi }: IrisChatViewProps) {
                 <div className={styles.unavailableBanner} role="alert">
                     <Info size={16} />
                     <span>{store.unavailableMessage}</span>
+                    {store.unavailableLink && (
+                        <button
+                            className={styles.retryButton}
+                            onClick={() => {
+                                if (store.unavailableLink) {
+                                    postCommand(vscodeApi, WebviewCmd.OpenWebsite, { path: store.unavailableLink.path });
+                                }
+                            }}
+                        >
+                            {store.unavailableLink.label}
+                        </button>
+                    )}
                     {/* Only when nothing else offers one. A failed message's own
                         Retry reloads too, and two Retry buttons pointing at the
                         same reload read as one of them being broken. */}

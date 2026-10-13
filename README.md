@@ -27,10 +27,9 @@ Seamlessly integrate **Artemis: Interactive Learning with Individual Feedback** 
 - **Activity Bar Icons**: Quick access to Artemis and the Iris AI tutor from the activity bar
 - **Secure Authentication**: Log in directly with your Artemis credentials
 - **Course Browser**: View your enrolled courses and exercise details
-- **Interactive Dashboard**: Overview of exercises, deadlines, and course activities
+- **Interactive Dashboard**: Your current workspace exercise, recent courses, and tools in one place
 - **Exercise Management**: Clone repositories, submit solutions, and track your progress
 - **Real-Time Updates**: WebSocket integration for live build results and notifications
-- **Theme Support**: Choose from VSCode-native, modern, or synthwave visual themes
 
 ### 🤖 Iris AI Tutoring
 
@@ -40,21 +39,12 @@ Seamlessly integrate **Artemis: Interactive Learning with Individual Feedback** 
 - **Personalized Guidance**: Receive hints and explanations tailored to your work
 - **Exercise Q&A**: Ask questions about lectures, exercises, and learning performance
 - **Smart Hints**: Iris provides subtle guidance without giving away full solutions
-- **Pro-Active Support**: Receive motivational messages and learning suggestions
 - **Rate Limit Monitoring**: View your API usage and Iris availability status
 
 ### 📊 Connection Status
 
 - **WebSocket Status**: The status bar shows when the real-time connection drops or is reconnecting
 - **Server Compatibility**: A warning on sign-in when the Artemis server is too old for this extension
-- **Rate Limit Information**: Track your API usage quotas
-
-### 🎨 Customizable Themes
-
-Choose your preferred visual style:
-- **VSCode Theme**: Native styling that matches your editor
-- **Modern Theme**: Clean, card-based design with contemporary aesthetics
-- **Synthwave Theme**: Retro-futuristic neon aesthetic
 
 ## Getting Started
 
@@ -89,6 +79,8 @@ Access these via the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`):
 - `Artemis: Check WebSocket Connection Status` - Verify the real-time connection
 - `Artemis: Connect WebSocket` - Manually connect to the Artemis WebSocket
 - `Artemis: Set Server URL` - Change the connected Artemis server
+- `Artemis: Set Default Exercise Folder` - Choose the folder exercise repositories are cloned into
+- `Artemis: Reload Iris Chat` - Reload the Iris chat view
 
 ## Extension Settings
 
@@ -124,7 +116,7 @@ This extension integrates **Iris**, an AI-powered virtual tutor from the EduTell
 ## Privacy & Data
 
 - Your credentials are stored securely in VS Code's secret storage
-- Communication with Artemis servers uses HTTPS encryption
+- Communication with Artemis is encrypted when the server URL uses HTTPS, as the default server does
 - Iris interactions may be logged for quality improvement (per your institution's policies)
 
 ## Support

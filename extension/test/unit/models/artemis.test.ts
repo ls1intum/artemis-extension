@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 
 import {
+    aiChoiceOf,
     ApiError,
     parseArtemisFeedback,
     parseArtemisParticipation,
@@ -151,6 +152,28 @@ suite('ArtemisUser', () => {
     test('throws on invalid input', () => {
         assert.throws(() => parseArtemisUser(null), /Invalid/);
         assert.throws(() => parseArtemisUser(undefined), /Invalid/);
+    });
+
+    test('keeps the AI choice, and drops a non-string one', () => {
+        assert.strictEqual(parseArtemisUser({ login: 's', selectedLLMUsage: 'CLOUD_AI' }).selectedLLMUsage, 'CLOUD_AI');
+        assert.strictEqual(parseArtemisUser({ login: 's', selectedLLMUsage: 3 }).selectedLLMUsage, undefined);
+    });
+});
+
+suite('aiChoiceOf', () => {
+    // Mirrors Artemis' gate: any decision other than NO_AI opts in, and an
+    // account without a decision arrives with the field absent.
+    test('CLOUD_AI and LOCAL_AI opt in', () => {
+        assert.strictEqual(aiChoiceOf({ login: 's', selectedLLMUsage: 'CLOUD_AI' }), 'opted-in');
+        assert.strictEqual(aiChoiceOf({ login: 's', selectedLLMUsage: 'LOCAL_AI' }), 'opted-in');
+    });
+
+    test('NO_AI is a choice against AI, not a missing one', () => {
+        assert.strictEqual(aiChoiceOf({ login: 's', selectedLLMUsage: 'NO_AI' }), 'no-ai');
+    });
+
+    test('an absent decision is no choice yet', () => {
+        assert.strictEqual(aiChoiceOf({ login: 's' }), 'none');
     });
 });
 

@@ -35,15 +35,27 @@ function capRecordedCommitMessage(message: string | undefined): string | undefin
     return message.slice(0, MAX_RECORDED_COMMIT_MESSAGE_LENGTH);
 }
 
+/** The two git pipelines this module runs. They share one repository and one in-flight guard. */
+type GitOperation = 'submission' | 'pull';
+
 /**
  * User-facing message shown when a git step fails because another process holds
  * the repository's index lock. Replaces the raw `fatal: Unable to create
  * '.git/index.lock'` git output, which is opaque to students.
  */
-const GIT_LOCK_USER_MESSAGE =
-    'Another Git operation is currently using this repository, so the submission was stopped. '
-    + 'Wait for it to finish (and close other Git tools such as the Source Control panel or lazygit), then try again. '
-    + 'If this keeps happening, a previous Git process may have left a stale lock file at .git/index.lock that you can delete manually.';
+function gitLockUserMessage(operation: GitOperation): string {
+    return `Another Git operation is currently using this repository, so the ${operation} was stopped. `
+        + 'Wait for it to finish (and close other Git tools such as the Source Control panel or lazygit), then try again. '
+        + 'If this keeps happening, a previous Git process may have left a stale lock file at .git/index.lock that you can delete manually.';
+}
+
+/**
+ * Git's refusals to fast-forward, as printed in the C locale the pull runs in.
+ * Local edits in the way and local commits that are not on the remote need
+ * different advice, so they are told apart.
+ */
+const PULL_WOULD_OVERWRITE_PATTERN = /would be overwritten by merge/i;
+const PULL_DIVERGED_PATTERN = /not possible to fast-forward|diverg/i;
 
 /**
  * Whether a thrown git error is an index-lock contention failure. Scans both the
@@ -82,14 +94,15 @@ export class RepositorySubmitCommands {
     private readonly deps: RepositorySubmitCommandsDeps;
 
     /**
-     * Guards against a re-entrant submit (e.g. a double-click on the Submit
-     * button, which is not disabled while a submission runs). A second submit
-     * while one is in flight would race the first on the same repository's git
-     * index and self-inflict an `.git/index.lock` collision. Scoped to this
-     * handler's git pipeline; it is a double-click mitigation, not a repo-wide
-     * mutex (VS Code's built-in Git and other tools can still touch the repo).
+     * Guards against a re-entrant submit or pull (e.g. a double-click on the
+     * Submit button, which is not disabled while a submission runs, or a pull
+     * started during a submission). A second operation while one is in flight
+     * would race the first on the same repository's git index and self-inflict
+     * an `.git/index.lock` collision. Scoped to this module's git pipelines; it
+     * is a double-click mitigation, not a repo-wide mutex (VS Code's built-in
+     * Git and other tools can still touch the repo).
      */
-    private _submitInFlight = false;
+    private _gitOperationInFlight: GitOperation | undefined;
 
     constructor(
         private readonly context: CommandContext,
@@ -102,6 +115,7 @@ export class RepositorySubmitCommands {
     public getHandlers(): CommandMap {
         return {
             [WebviewCmd.SubmitExercise]: this.handleSubmitExercise,
+            [WebviewCmd.PullChanges]: this.handlePullChanges,
             [WebviewCmd.SaveGitIdentity]: this.handleSaveGitIdentity,
         };
     }
@@ -109,11 +123,11 @@ export class RepositorySubmitCommands {
     private handleSubmitExercise = async (message: WebviewToExtensionMessage): Promise<void> => {
         // Reject re-entrant submits before emitting any telemetry, so a blocked
         // duplicate never produces an orphan `started` without a terminal event.
-        if (this._submitInFlight) {
-            vscode.window.showInformationMessage('A submission is already in progress. Please wait for it to finish.');
+        if (this._gitOperationInFlight) {
+            this.showOperationInFlight(this._gitOperationInFlight);
             return;
         }
-        this._submitInFlight = true;
+        this._gitOperationInFlight = 'submission';
 
         let participationId: number | undefined;
         let failureReason: SubmissionFailureReason = 'other';
@@ -225,7 +239,7 @@ export class RepositorySubmitCommands {
             const websocketService = this.context.getWebsocketService?.();
             if (websocketService && !websocketService.isConnected()) {
                 logger.info('🔌 Submission successful - ensuring WebSocket connection for result updates...', LogCategory.WEBSOCKET);
-                // Fire-and-forget: a hanging connect() must not keep _submitInFlight
+                // Fire-and-forget: a hanging connect() must not keep _gitOperationInFlight
                 // set after the git work is done and `succeeded` was emitted.
                 void websocketService.connect().catch(wsError => {
                     logger.error('Failed to connect WebSocket after submission:', LogCategory.WEBSOCKET, wsError);
@@ -244,14 +258,16 @@ export class RepositorySubmitCommands {
                 // uniform 'other' reason (a lock is an environment failure, not e.g.
                 // a genuine push rejection) regardless of which step the lock hit.
                 failureReason = 'other';
-                vscode.window.showErrorMessage(GIT_LOCK_USER_MESSAGE);
+                vscode.window.showErrorMessage(gitLockUserMessage('submission'));
             } else if (isAuthFailureText(errorMessage)) {
                 // Artemis refused the credential in the remote URL. The raw git
                 // output names that URL, token and all, so it is redacted before
                 // it reaches the student, and the repair lives on one page.
                 // Only a push can reach here with this text: the pull is allowed
                 // to fail quietly, and every earlier step is local.
-                void this.offerSubmissionSetup(extractRedactedErrorMessage(error));
+                void this.offerSubmissionSetup(
+                    `Artemis refused your access, so the submission was not pushed. ${extractRedactedErrorMessage(error)}`,
+                );
             } else {
                 vscode.window.showErrorMessage(extractRedactedErrorMessage(error));
             }
@@ -260,19 +276,85 @@ export class RepositorySubmitCommands {
                 fireSubmission({ status: 'failed', participationId, failureReason });
             }
         } finally {
-            this._submitInFlight = false;
+            this._gitOperationInFlight = undefined;
         }
     };
 
     /**
-     * A push that failed on authentication is not something a student can act on
+     * Brings remote changes (from the Artemis online editor, another machine)
+     * into the open repository without submitting. Fast-forward only, so a
+     * refusal leaves the repository untouched instead of in a half-finished
+     * merge or rebase; the refusals are explained instead.
+     */
+    private handlePullChanges = async (message: WebviewToExtensionMessage): Promise<void> => {
+        if (this._gitOperationInFlight) {
+            this.showOperationInFlight(this._gitOperationInFlight);
+            return;
+        }
+        this._gitOperationInFlight = 'pull';
+        try {
+            const { exerciseTitle } = getPayload<WebCmd<'pullChanges'>>(message);
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                vscode.window.showErrorMessage('Open the exercise repository in VS Code before pulling.');
+                return;
+            }
+            const cwd = workspaceFolder.uri.fsPath;
+            const stdout = await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: `Pulling changes for "${exerciseTitle}"...`,
+                cancellable: false
+            }, () => this.gitService.pullFastForwardOnly({ cwd }));
+
+            if (/already up to date/i.test(stdout)) {
+                vscode.window.showInformationMessage('Already up to date.');
+                return;
+            }
+            vscode.window.showInformationMessage(`Pulled the latest changes for "${exerciseTitle}".`);
+            void this.context.recheckRepoStatus?.();
+        } catch (error: unknown) {
+            const redacted = extractRedactedErrorMessage(error);
+            logger.error('Pull changes error:', LogCategory.SUBMISSION, redacted);
+            const errorMessage = error instanceof Error ? error.message : '';
+            if (isGitLockError(error)) {
+                vscode.window.showErrorMessage(gitLockUserMessage('pull'));
+            } else if (PULL_WOULD_OVERWRITE_PATTERN.test(errorMessage)) {
+                vscode.window.showErrorMessage(
+                    'Could not pull: your unsubmitted changes touch files that also changed on Artemis. '
+                    + 'Stash them in Source Control, pull again, then apply the stash and resolve any conflicts there.',
+                );
+            } else if (PULL_DIVERGED_PATTERN.test(errorMessage)) {
+                vscode.window.showErrorMessage(
+                    'Could not pull: this repository has commits that are not on Artemis yet, so it cannot simply be updated. '
+                    + 'Use Pull in Source Control to combine them.',
+                );
+            } else if (isAuthFailureText(errorMessage)) {
+                void this.offerSubmissionSetup(`Artemis refused your access, so nothing was pulled. ${redacted}`);
+            } else {
+                vscode.window.showErrorMessage(redacted);
+            }
+        } finally {
+            this._gitOperationInFlight = undefined;
+        }
+    };
+
+    private showOperationInFlight(operation: GitOperation): void {
+        vscode.window.showInformationMessage(
+            operation === 'submission'
+                ? 'A submission is already in progress. Please wait for it to finish.'
+                : 'A pull is already in progress. Please wait for it to finish.',
+        );
+    }
+
+    /**
+     * A push or pull that failed on authentication is not something a student can act on
      * from an error toast: the credential lives in the git remote, which the
      * extension put there. Offer the page that can replace it, in the same shape
      * the missing-identity path already uses.
      */
-    private async offerSubmissionSetup(redactedMessage: string): Promise<void> {
+    private async offerSubmissionSetup(message: string): Promise<void> {
         const choice = await vscode.window.showErrorMessage(
-            `Artemis refused your access, so the submission was not pushed. ${redactedMessage}`,
+            message,
             { modal: true },
             'Open Submission Setup',
         );
