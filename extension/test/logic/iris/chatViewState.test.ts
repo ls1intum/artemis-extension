@@ -275,12 +275,22 @@ describe('deriveComposerPlaceholder', () => {
         )).toBe('AI assistance is disabled (.noai detected)');
     });
 
-    it('offers the retry wording for a transient outage', () => {
+    it('repeats the unavailable banner, which carries its own retry wording', () => {
         const text = deriveComposerPlaceholder(
             { ...usable, unavailableMessage: 'Iris is unreachable.' }, noScreen,
         );
 
-        expect(text).toBe('Iris is temporarily unavailable. Retry to reload.');
+        expect(text).toBe('Iris is unreachable.');
+    });
+
+    it('names the banner rather than the course picker when no conversation could open', () => {
+        // A cold start blocked by the account's AI choice: no course in the
+        // picker can work until the student acts in Artemis.
+        const banner = 'Iris needs your AI choice. Make it in your Artemis settings, then select Retry.';
+        expect(deriveComposerPlaceholder(
+            { ...usable, currentSessionId: null, unavailableMessage: banner },
+            { ...noScreen, showCourseChooser: true },
+        )).toBe(banner);
     });
 });
 

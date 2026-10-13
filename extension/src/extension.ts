@@ -412,7 +412,9 @@ export async function activate(context: vscode.ExtensionContext) {
 				courseCatalog,
 				{ type: 'course', id: courseId, title: courseCatalog.courseTitle(courseId) ?? `course ${courseId}` },
 			);
-			return availability.kind;
+			// The account's AI choice blocks proactive help exactly as a course with
+			// Iris off does: terminal until the next engine session re-classifies.
+			return availability.kind === 'ai-not-allowed' ? 'disabled' : availability.kind;
 		},
 		onSessionStart: struggleCoordinator.onDidStartSession,
 		onSessionEnd: struggleCoordinator.onDidEndSession,

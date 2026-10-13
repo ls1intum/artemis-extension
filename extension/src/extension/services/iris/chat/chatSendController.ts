@@ -15,9 +15,11 @@ import type { NoAiDetectionService } from '@extension/services/workspace';
 import type { WorkspaceExerciseTracker } from '@extension/services/workspace/workspaceExerciseTracker';
 import { extractErrorMessage } from '@extension/utils';
 
+import type { AiBlock } from './aiChoice';
+import { aiBlockSendText } from './aiChoice';
 import type { ChatAvailabilityCoordinator } from './chatAvailabilityCoordinator';
 import { historyResolvesRun } from './historyResolution';
-import type { AvailabilityContext } from './irisAvailabilityService';
+import type { AvailabilityContext, IrisAvailability } from './irisAvailabilityService';
 import type { IrisWebSocketMessageHandler } from './irisWebSocketMessageHandler';
 
 /**
@@ -39,12 +41,14 @@ export interface IrisChatSendAttempt {
 }
 
 /** Why a send was refused before it ever reached the coordinator. */
-interface SendRejection {
-    reason: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable';
-    contextLabel?: string;
-    /** The context the classification belongs to; see `ChatAvailabilityCoordinator.isStillLive`. */
-    capturedContext?: AvailabilityContext;
-}
+type SendRejection =
+    | {
+        reason: 'no-ai' | 'no-context' | 'iris-disabled' | 'iris-unavailable';
+        contextLabel?: string;
+        /** The context the classification belongs to; see `ChatAvailabilityCoordinator.isStillLive`. */
+        capturedContext?: AvailabilityContext;
+    }
+    | { reason: 'ai-not-allowed'; block: AiBlock; capturedContext: AvailabilityContext };
 
 interface ChatSendDeps {
     /**
@@ -349,6 +353,9 @@ export class ChatSendController implements vscode.Disposable {
         }
         const availability = await this._deps.availability.check(activeContext);
         if (availability.kind === 'enabled') { return undefined; }
+        if (availability.kind === 'ai-not-allowed') {
+            return { reason: 'ai-not-allowed', block: availability.block, capturedContext: activeContext };
+        }
         // Disabled and unavailable are kept apart so the webview's Retry stays
         // active for the transient case and inert for the intentional one.
         return {
@@ -387,7 +394,8 @@ export class ChatSendController implements vscode.Disposable {
                 // message communicates this fully.
                 break;
             case 'iris-disabled':
-            case 'iris-unavailable': {
+            case 'iris-unavailable':
+            case 'ai-not-allowed': {
                 // A slow settings check returning after the student switched
                 // would mislabel the NEW context's banner with the OLD
                 // context's classification. If they diverge, skip the banner.
@@ -395,12 +403,7 @@ export class ChatSendController implements vscode.Disposable {
                 // the optimistic user message gets marked failed.
                 const captured = result.capturedContext;
                 if (!captured || !this._deps.availability.isStillLive(captured)) { break; }
-                this._deps.availability.post(
-                    result.reason === 'iris-disabled'
-                        ? { kind: 'disabled' }
-                        : { kind: 'unavailable', reason: 'Send rejected: iris-unavailable' },
-                    captured,
-                );
+                this._deps.availability.post(availabilityOf(result), captured);
                 break;
             }
         }
@@ -424,6 +427,14 @@ export class ChatSendController implements vscode.Disposable {
     }
 }
 
+function availabilityOf(result: SendRejection): IrisAvailability {
+    switch (result.reason) {
+        case 'iris-disabled': return { kind: 'disabled' };
+        case 'ai-not-allowed': return { kind: 'ai-not-allowed', block: result.block };
+        default: return { kind: 'unavailable', reason: `Send rejected: ${result.reason}` };
+    }
+}
+
 function friendlyRejectionMessage(result: SendRejection): string {
     switch (result.reason) {
         case 'no-ai':
@@ -434,5 +445,7 @@ function friendlyRejectionMessage(result: SendRejection): string {
             return `Iris chat is disabled for this ${result.contextLabel ?? 'context'}.`;
         case 'iris-unavailable':
             return 'Iris is temporarily unavailable. Try again in a moment.';
+        case 'ai-not-allowed':
+            return aiBlockSendText(result.block);
     }
 }

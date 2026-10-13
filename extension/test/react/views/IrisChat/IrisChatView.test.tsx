@@ -76,6 +76,7 @@ describe('IrisChatView', () => {
 			webSocketStatus: 'connected',
 			disabledMessage: null,
 			unavailableMessage: null,
+			unavailableLink: null,
 			isNoAiDetected: false,
 			referencedFiles: null,
 			showDiagnostics: false,
@@ -509,6 +510,29 @@ describe('IrisChatView', () => {
 
 			await waitFor(() => {
 				expect(screen.queryByText('Iris is temporarily unavailable. Retry to reload.')).not.toBeInTheDocument();
+			});
+		});
+
+		it('renders the banner link, opens its Artemis page, and drops it with the banner', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<IrisChatView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'showUnavailableState',
+				message: 'Iris needs your AI choice. Make it in your Artemis settings, then select Retry.',
+				link: { label: 'Open Artemis settings', path: '/user-settings/llm-usage' },
+			});
+
+			await userEvent.click(await screen.findByRole('button', { name: 'Open Artemis settings' }));
+			expect(mockApi.postMessage).toHaveBeenCalledWith(expect.objectContaining({
+				type: 'command',
+				command: 'openWebsite',
+				payload: { path: '/user-settings/llm-usage' },
+			}));
+
+			dispatchExtensionMessage({ type: 'hideUnavailableState' });
+			await waitFor(() => {
+				expect(screen.queryByRole('button', { name: 'Open Artemis settings' })).not.toBeInTheDocument();
 			});
 		});
 	});

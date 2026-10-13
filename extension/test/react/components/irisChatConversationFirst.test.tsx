@@ -218,6 +218,36 @@ describe('IrisChatView offers exactly one Retry', () => {
         expect(await screen.findByRole('button', { name: 'Retry' })).toBeEnabled();
     });
 
+    it('keeps an AI-choice bubble inert while its banner is up, and frees it once the banner goes', async () => {
+        // The banner's Retry is the way back after the choice is made in
+        // Artemis; resending before that could only be refused again.
+        const api = createMockVsCodeApi();
+        render(<IrisChatView vscodeApi={api} />);
+        dispatchExtensionMessage({ type: 'updateIrisState', state: withConversation });
+        // Hydrated, so taking the banner down shows the transcript, not the loader.
+        dispatchExtensionMessage({ type: 'loadMessages', sessionId: 900, messages: [] });
+        act(() => {
+            useChatStore.getState().addMessage({
+                localId: 'local-1', role: 'user', content: 'hallo123', timestamp: 1, status: 'sending',
+            });
+            useChatStore.getState().markMessageFailed('local-1', 'Not sent. Iris needs your AI choice in Artemis.', 'ai-not-allowed');
+        });
+        dispatchExtensionMessage({
+            type: 'showUnavailableState',
+            message: 'Iris needs your AI choice. Make it in your Artemis settings, then select Retry.',
+            link: { label: 'Open Artemis settings', path: '/user-settings/llm-usage' },
+        });
+
+        expect(await screen.findByRole('button', { name: 'Retry sending this message' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled();
+
+        dispatchExtensionMessage({ type: 'hideUnavailableState' });
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Retry sending this message' })).toBeEnabled();
+        });
+    });
+
     it('keeps the banner Retry when there is no failed message to carry one', async () => {
         // Without it there would be no way back at all: only a reload re-runs
         // the availability check.

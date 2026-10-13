@@ -12,6 +12,7 @@ function harness(over: {
     settings?: unknown;
     profileActive?: boolean;
     noEngine?: boolean;
+    user?: unknown;
 } = {}) {
     const pref = { getLevel: vi.fn(() => over.level ?? 'more'), setLevel: vi.fn() };
     const control = {
@@ -22,6 +23,7 @@ function harness(over: {
         })),
     };
     const artemisApi = {
+        getCurrentUser: vi.fn(async () => over.user ?? { login: 'student', selectedLLMUsage: 'CLOUD_AI' }),
         getProfileInfo: vi.fn(async () => ({})),
         isIrisProfileActive: vi.fn(() => over.profileActive ?? true),
         getIrisCourseChatSettings: vi.fn(async () =>
@@ -119,6 +121,15 @@ describe('ProactiveControlCommandModule', () => {
 
     it('iris disabled (settings.enabled=false) → unavailable/iris-off', async () => {
         const h = harness({ settings: { settings: { enabled: false } } });
+        await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42, courseId: 7 }));
+        expect(h.sent.at(-1)).toMatchObject({ cardState: 'unavailable', cardReason: 'iris-off', level: 'off' });
+    });
+
+    it.each([
+        ['no AI choice', { login: 'student' }],
+        ['NO_AI', { login: 'student', selectedLLMUsage: 'NO_AI' }],
+    ])('account blocks AI (%s) → unavailable/iris-off, like a course with Iris off', async (_label, user) => {
+        const h = harness({ user });
         await h.mod.getHandlers()[WebviewCmd.RequestProactiveControl](cmd('requestProactiveControl', { exerciseId: 42, courseId: 7 }));
         expect(h.sent.at(-1)).toMatchObject({ cardState: 'unavailable', cardReason: 'iris-off', level: 'off' });
     });
