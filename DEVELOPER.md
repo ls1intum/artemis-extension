@@ -11,9 +11,10 @@ This guide covers setting up, understanding, building and releasing the Artemis 
 5. [Conventions](#conventions)
 6. [Scripts](#scripts)
 7. [Running and debugging](#running-and-debugging)
-8. [Build variants](#build-variants)
-9. [Releasing](#releasing)
-10. [Other documentation](#other-documentation)
+8. [Documentation screenshots](#documentation-screenshots)
+9. [Build variants](#build-variants)
+10. [Releasing](#releasing)
+11. [Other documentation](#other-documentation)
 
 ## Setup
 
@@ -206,6 +207,7 @@ Colors come from the VS Code theme variables (`var(--vscode-editor-background)`,
 | `npm run test:all` | `test:vscode`, then `test:react` |
 | `npm run test:e2e` | End-to-end suite in an Extension Development Host |
 | `npm run test:ui` | Selenium UI suite (`test/e2e/ui/run-tests.sh`, reads credentials from `extension/.env`) |
+| `npm run screenshots:docs` | Screenshots for the student guide in the Artemis documentation, see [Documentation screenshots](#documentation-screenshots) |
 | `npm run test:golden-replay` | Replay recorded sessions against the pinned engine output |
 | `npm run coverage:all` | Coverage for the extension host and vitest suites |
 | `npm run analyze` | Bundle treemap of the webview, from `dist/meta-webview.json` (`analyze:ext` for the host bundle) |
@@ -221,6 +223,47 @@ The launch configurations in `.vscode/launch.json`:
 - Extension Tests: compiles the tests and runs the extension host suite.
 
 Breakpoints set in the TypeScript sources work in the host. Logs go to the "Artemis Extension" output channel. `Ctrl+Shift+F5` restarts the host with the new build. For the React side, run "Developer: Open Webview Developer Tools" from the command palette of the Extension Development Host.
+
+## Documentation screenshots
+
+The student guide in the Artemis documentation (`documentation/docs/student/tools-reference/vscode-extension/` in
+ls1intum/Artemis) shows the extension in screenshots. `npm run screenshots:docs` takes all of them in one run: it
+drives the extension through the Selenium UI suite (`test/e2e/ui/docsScreenshots.shots.ts`) and writes one PNG per
+image to `extension/reports/docs-screenshots/`, under the names the guide imports. Each image is a crop of one element
+(the sidebar, the editor, or a single banner), as the Artemis documentation guideline asks.
+
+The run needs a local Artemis with a demo course, because the guideline asks for realistic data and the run changes
+the student's repository. It reads `extension/.env.docs.local` (git-ignored) instead of `.env`:
+
+```bash
+ARTEMIS_URL=http://localhost:8080
+ARTEMIS_USER=lena.fischer
+ARTEMIS_PASSWORD=...
+ARTEMIS_TEST_REPO=/path/to/the/student/checkout/of/the/sorting/exercise
+GIT_CONFIG_GLOBAL=/path/to/a/gitconfig/with/the/student/name/and/email
+```
+
+`GIT_CONFIG_GLOBAL` keeps your own Git identity out of the Submission Setup screenshot.
+
+The demo data the shots expect, on a local Artemis with LocalCI, Docker and Iris (Pyris) running:
+
+- A course "Introduction to Software Engineering" (semester WS26/27, running), with Iris and proactive help enabled
+  in its Iris settings.
+- An archived course "Fundamentals of Programming" (WS25/26, end date passed) with one exercise.
+- An internal student account "Lena Fischer" (`lena.fischer`) enrolled in both, who has made the AI choice (Cloud).
+- In the running course: the Java template exercise "Sorting with the Strategy Pattern", started by the student,
+  with `SortStrategy` and `BubbleSort` implemented and `MergeSort` empty, so the latest result is 5 of 13 tests; a
+  programming exercise "Freelancer Project Scheduling" the student has not started; a text exercise "Design Pattern
+  Reflection".
+- The student's checkout of the sorting exercise at `ARTEMIS_TEST_REPO`, with the participation access token in the
+  remote URL, as the extension's own clone would have it.
+
+The run breaks `BubbleSort.java` for the build-failure shots and submits the repaired file again afterwards, also
+when a capture fails, so the exercise ends with the same result it started with (two submissions later). It refuses
+to run against anything but a local Artemis, since it publishes what it captures. Proactive help is shown through the visual mocks of the developer
+intervention menu, for which the run switches developer mode on and off again. Copy the PNGs into
+`documentation/docs/student/assets/vscode-extension/` in the Artemis repository and check them before committing:
+a screenshot can be wrong in ways no assertion catches.
 
 ## Build variants
 

@@ -1,0 +1,11 @@
+{
+    "workbench.colorTheme": "Default Light Modern",
+    "workbench.activityBar.location": "default",
+    "editor.minimap.enabled": false,
+    "breadcrumbs.enabled": false,
+    "window.commandCenter": false,
+    "artemis.iris.proactiveCodeEgress": "enabled",
+    "artemis.showStartPageSuggestion": false,
+    "artemis.showSetDefaultClonePathPrompt": false,
+    "editor.scrollBeyondLastLine": false
+}
