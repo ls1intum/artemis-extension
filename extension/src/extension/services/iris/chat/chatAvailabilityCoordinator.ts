@@ -23,7 +23,7 @@ import { IrisAvailabilityService } from './irisAvailabilityService';
 export class ChatAvailabilityCoordinator {
     private readonly _service: IrisAvailabilityService;
 
-    /** Bumped by every `clearBanners`, so an answer that outlived it can tell. */
+    /** Bumped by every banner change, so an explanation that outlived one can tell. */
     private _bannerGeneration = 0;
 
     constructor(
@@ -94,6 +94,7 @@ export class ChatAvailabilityCoordinator {
 
     /** Publish a classification and record it as the one now on screen. */
     public post(availability: IrisAvailability, context: AvailabilityContext | null): void {
+        this._bannerGeneration++;
         this._service.postAvailability(availability, context);
     }
 
@@ -143,8 +144,9 @@ export class ChatAvailabilityCoordinator {
     public async explainFailure(): Promise<AiBlock | undefined> {
         const generation = this._bannerGeneration;
         const choice = await checkAiChoice(this._artemisApi);
-        // The banners were cleared while the account was read: a navigation or
-        // a new login moved on, and this answer may describe another account.
+        // The banners changed while the account was read: a navigation, a new
+        // login or a newer classification (a course with Iris off) moved on,
+        // and this answer may describe another account or hide the newer one.
         if (generation !== this._bannerGeneration) { return undefined; }
         if (choice !== 'none' && choice !== 'no-ai') { return undefined; }
         this.post({ kind: 'ai-not-allowed', block: choice }, null);

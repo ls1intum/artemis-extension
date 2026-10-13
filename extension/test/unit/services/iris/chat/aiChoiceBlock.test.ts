@@ -61,6 +61,25 @@ suite('ChatAvailabilityCoordinator.explainFailure', () => {
         assert.deepStrictEqual(posted, []);
     });
 
+    test('a newer banner posted during the read wins over the late explanation', async () => {
+        // Entering a course with Iris off while the account is still read:
+        // the disabled banner is the newer truth and must stay up.
+        let resolveUser!: (user: unknown) => void;
+        const posted: Posted[] = [];
+        const coordinator = new ChatAvailabilityCoordinator(
+            () => undefined, undefined,
+            { getCurrentUser: sinon.stub().returns(new Promise(res => { resolveUser = res; })) } as never,
+            m => posted.push(m as Posted));
+
+        const pending = coordinator.explainFailure();
+        coordinator.announceCourseDisabled(42);
+        resolveUser({ login: 's' });
+
+        assert.strictEqual(await pending, undefined);
+        assert.ok(!posted.some(m => m.type === ExtensionMsg.ShowUnavailableState));
+        assert.ok(posted.some(m => m.type === ExtensionMsg.ShowDisabledState));
+    });
+
     test('explains nothing for an opted-in account or an unreadable one', async () => {
         const posted: Posted[] = [];
         const optedIn = new ChatAvailabilityCoordinator(() => undefined, undefined, apiWithUser({ login: 's', selectedLLMUsage: 'CLOUD_AI' }), m => posted.push(m as Posted));
