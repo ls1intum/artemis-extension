@@ -116,7 +116,7 @@ This extension integrates **Iris**, an AI-powered virtual tutor from the EduTell
 ## Privacy & Data
 
 - Your credentials are stored securely in VS Code's secret storage
-- Communication with Artemis servers uses HTTPS encryption
+- Communication with Artemis is encrypted when the server URL uses HTTPS, as the default server does
 - Iris interactions may be logged for quality improvement (per your institution's policies)
 
 ## Support
