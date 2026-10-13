@@ -14,6 +14,7 @@ interface GitServiceStubs {
     addAll: sinon.SinonStub;
     commit: sinon.SinonStub;
     pullWithRebase: sinon.SinonStub;
+    pullFastForwardOnly: sinon.SinonStub;
     push: sinon.SinonStub;
     getIdentity: sinon.SinonStub;
     setGlobalIdentity: sinon.SinonStub;
@@ -34,6 +35,7 @@ suite('RepositorySubmitCommands', () => {
             addAll: overrides.addAll ?? sandbox.stub().resolves(undefined),
             commit: overrides.commit ?? sandbox.stub().resolves(undefined),
             pullWithRebase: overrides.pullWithRebase ?? sandbox.stub().resolves(undefined),
+            pullFastForwardOnly: overrides.pullFastForwardOnly ?? sandbox.stub().resolves('Updating 1a2b3c4..5d6e7f8\nFast-forward\n'),
             push: overrides.push ?? sandbox.stub().resolves(undefined),
             getIdentity: overrides.getIdentity ?? sandbox.stub().resolves({ name: 'Alice', email: 'alice@example.com' }),
             setGlobalIdentity: overrides.setGlobalIdentity ?? sandbox.stub().resolves(undefined),
@@ -119,7 +121,7 @@ suite('RepositorySubmitCommands', () => {
         sandbox.restore();
     });
 
-    test('getHandlers returns exactly submitExercise and saveGitIdentity', () => {
+    test('getHandlers returns exactly submitExercise, pullChanges and saveGitIdentity', () => {
         const { ctx } = buildContext();
         const { svc } = makeGitService();
         const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
@@ -130,6 +132,7 @@ suite('RepositorySubmitCommands', () => {
             keys,
             [
                 WebviewCmd.SubmitExercise,
+                WebviewCmd.PullChanges,
                 WebviewCmd.SaveGitIdentity,
             ].sort(),
         );
@@ -792,5 +795,184 @@ suite('RepositorySubmitCommands', () => {
         // A lock at push is recorded as the uniform 'other', not 'push-failed'.
         assert.strictEqual(fireSubmission.getCall(1).args[0].status, 'failed');
         assert.strictEqual(fireSubmission.getCall(1).args[0].failureReason, 'other');
+    });
+
+    suite('pullChanges', () => {
+        const pullMsg = {
+            type: 'command', command: WebviewCmd.PullChanges,
+            payload: { exerciseTitle: 'Foo' },
+        } as never;
+        const submitMsg = {
+            type: 'command', command: WebviewCmd.SubmitExercise,
+            payload: { participationId: 42, exerciseTitle: 'Foo', commitMessage: 'x' },
+        } as never;
+
+        function errorTexts(): string {
+            return showErrorMessage.getCalls().map(c => String(c.args[0])).join('\n');
+        }
+
+        test('refuses without a workspace folder and never runs git', async () => {
+            // Same override as the submit variant: the suite's setup already stubbed the folders.
+            sandbox.restore();
+            sandbox = sinon.createSandbox();
+            showErrorMessage = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as never);
+            sandbox.stub(vscode.workspace, 'workspaceFolders').value(undefined);
+            const { ctx } = buildContext();
+            const { svc, stubs } = makeGitService();
+            const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.PullChanges](pullMsg);
+
+            sinon.assert.calledWith(showErrorMessage, 'Open the exercise repository in VS Code before pulling.');
+            sinon.assert.notCalled(stubs.pullFastForwardOnly);
+        });
+
+        test('pulls fast-forward only in the workspace, reports it and rechecks the repository', async () => {
+            const { ctx, recheckRepoStatus } = buildContext();
+            const { svc, stubs } = makeGitService();
+            const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.PullChanges](pullMsg);
+
+            sinon.assert.calledOnceWithExactly(stubs.pullFastForwardOnly, { cwd: vscode.Uri.file('/ws').fsPath });
+            sinon.assert.calledWith(showInformationMessage, 'Pulled the latest changes for "Foo".');
+            sinon.assert.calledOnce(recheckRepoStatus);
+            sinon.assert.notCalled(stubs.pullWithRebase);
+            sinon.assert.notCalled(stubs.commit);
+        });
+
+        test('says so when there was nothing to pull', async () => {
+            const { ctx, recheckRepoStatus } = buildContext();
+            const { svc } = makeGitService({ pullFastForwardOnly: sandbox.stub().resolves('Already up to date.\n') });
+            const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.PullChanges](pullMsg);
+
+            sinon.assert.calledWith(showInformationMessage, 'Already up to date.');
+            sinon.assert.notCalled(recheckRepoStatus);
+        });
+
+        test('explains a lock instead of quoting git', async () => {
+            const { ctx } = buildContext();
+            const { svc } = makeGitService({
+                pullFastForwardOnly: sandbox.stub().rejects(new Error("fatal: Unable to create '/ws/.git/index.lock': File exists.")),
+            });
+            const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.PullChanges](pullMsg);
+
+            assert.ok(errorTexts().includes('Another Git operation is currently using this repository, so the pull was stopped.'), errorTexts());
+            assert.ok(!errorTexts().includes('fatal: Unable to create'), errorTexts());
+        });
+
+        test('offers Submission Setup when Artemis refuses the credential, without leaking the token', async () => {
+            const { ctx, showSubmissionSetup } = buildContext();
+            const { svc } = makeGitService({
+                pullFastForwardOnly: sandbox.stub().rejects(new Error(
+                    "fatal: Authentication failed for 'https://ge38nac:vcs-token-9f3a@artemis.example.com/git/x.git/'",
+                )),
+            });
+            showErrorMessage.resolves('Open Submission Setup' as never);
+            const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.PullChanges](pullMsg);
+
+            assert.ok(errorTexts().includes('Artemis refused your access, so nothing was pulled.'), errorTexts());
+            assert.ok(!errorTexts().includes('vcs-token-9f3a'), errorTexts());
+            sinon.assert.calledOnce(showSubmissionSetup);
+        });
+
+        test('points to stashing when local edits touch files that changed on Artemis', async () => {
+            const { ctx, recheckRepoStatus } = buildContext();
+            const { svc } = makeGitService({
+                pullFastForwardOnly: sandbox.stub().rejects(new Error(
+                    'Command failed: git pull --ff-only\nerror: Your local changes to the following files would be overwritten by merge:\n\tsrc/Sort.java\nPlease commit your changes or stash them before you merge.\nAborting',
+                )),
+            });
+            const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.PullChanges](pullMsg);
+
+            assert.ok(errorTexts().includes('Could not pull: your unsubmitted changes touch files that also changed on Artemis.'), errorTexts());
+            sinon.assert.notCalled(recheckRepoStatus);
+        });
+
+        test('points to Source Control when local commits block a fast-forward', async () => {
+            const { ctx } = buildContext();
+            const { svc } = makeGitService({
+                pullFastForwardOnly: sandbox.stub().rejects(new Error(
+                    "Command failed: git pull --ff-only\nhint: Diverging branches can't be fast-forwarded, you need to either:\nfatal: Not possible to fast-forward, aborting.",
+                )),
+            });
+            const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.PullChanges](pullMsg);
+
+            assert.ok(errorTexts().includes('Could not pull: this repository has commits that are not on Artemis yet'), errorTexts());
+        });
+
+        test('shows any other failure redacted', async () => {
+            const { ctx } = buildContext();
+            const { svc } = makeGitService({
+                pullFastForwardOnly: sandbox.stub().rejects(new Error(
+                    "fatal: unable to access 'https://ge38nac:vcs-token-9f3a@artemis.example.com/git/x.git/': Could not resolve host: artemis.example.com",
+                )),
+            });
+            const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.PullChanges](pullMsg);
+
+            assert.ok(errorTexts().includes('Could not resolve host'), errorTexts());
+            assert.ok(!errorTexts().includes('vcs-token-9f3a'), errorTexts());
+        });
+
+        test('a pull is refused while a submission runs', async () => {
+            let resolveCheck!: (v: { hasChanges: boolean; files: unknown[] }) => void;
+            checkWorkspaceFiles = sandbox.stub().returns(new Promise(res => { resolveCheck = res; }));
+            const { ctx } = buildContext();
+            const { svc, stubs } = makeGitService();
+            const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+            const submitting = mod.getHandlers()[WebviewCmd.SubmitExercise](submitMsg);
+            await mod.getHandlers()[WebviewCmd.PullChanges](pullMsg);
+
+            sinon.assert.calledWith(showInformationMessage, 'A submission is already in progress. Please wait for it to finish.');
+            sinon.assert.notCalled(stubs.pullFastForwardOnly);
+
+            resolveCheck({ hasChanges: true, files: [] });
+            await submitting;
+        });
+
+        test('a submission is refused while a pull runs', async () => {
+            let resolvePull!: (stdout: string) => void;
+            const { ctx } = buildContext();
+            const { svc } = makeGitService({
+                pullFastForwardOnly: sandbox.stub().returns(new Promise<string>(res => { resolvePull = res; })),
+            });
+            const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+            const pulling = mod.getHandlers()[WebviewCmd.PullChanges](pullMsg);
+            await mod.getHandlers()[WebviewCmd.SubmitExercise](submitMsg);
+
+            sinon.assert.calledWith(showInformationMessage, 'A pull is already in progress. Please wait for it to finish.');
+            sinon.assert.notCalled(checkWorkspaceFiles);
+
+            resolvePull('Already up to date.\n');
+            await pulling;
+        });
+
+        test('a failed pull releases the guard so a submission can follow', async () => {
+            const { ctx } = buildContext();
+            const { svc, stubs } = makeGitService({
+                pullFastForwardOnly: sandbox.stub().rejects(new Error('fatal: Not possible to fast-forward, aborting.')),
+            });
+            const mod = new RepositorySubmitCommands(ctx, svc, makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.PullChanges](pullMsg);
+            await mod.getHandlers()[WebviewCmd.SubmitExercise](submitMsg);
+
+            sinon.assert.calledOnce(stubs.addAll);
+            assert.ok(showInformationMessage.getCalls().some(c => String(c.args[0]).includes('Successfully submitted "Foo"')));
+        });
     });
 });

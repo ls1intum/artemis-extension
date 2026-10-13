@@ -283,10 +283,12 @@ export function ParticipationActions({
                       <span>Open Repository</span>
                     </button>
                   )}
-                  <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onPullChanges?.(); }}>
-                    <ArrowDownToLine size={14} aria-hidden="true" />
-                    <span>Pull Changes</span>
-                  </button>
+                  {isWorkspaceConnected && onPullChanges && (
+                    <button className={styles.dropdownItem} onClick={() => { setIsDropdownOpen(false); onPullChanges(); }}>
+                      <ArrowDownToLine size={14} aria-hidden="true" />
+                      <span>Pull Changes</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Split-button when BOTH copy callbacks are provided, one

@@ -351,6 +351,25 @@ describe('ExerciseDetailView', () => {
 		);
 	});
 
+	it('posts pullChanges with the exercise title when Pull Changes is clicked', async () => {
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseDataWithParticipation(),
+			repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+			isLoading: false,
+		});
+		const mockApi = createMockVsCodeApi();
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+		await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+		await userEvent.click(screen.getByRole('button', { name: 'Pull Changes' }));
+
+		expect(mockApi.postMessage).toHaveBeenCalledWith({
+			type: 'command',
+			command: 'pullChanges',
+			payload: { exerciseTitle: 'My Exercise' },
+		});
+	});
+
 	describe('managed environment (EduIDE)', () => {
 		it('shows "Open in Artemis" (not Clone) when managed and the workspace is disconnected', async () => {
 			const mockApi = createMockVsCodeApi();
