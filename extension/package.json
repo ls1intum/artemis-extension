@@ -378,7 +378,7 @@
     "validate-recording": "tsx scripts/validate-recording.ts",
     "roundtrip-recording": "tsx scripts/roundtrip-recording.ts",
     "event-coverage": "tsx scripts/event-coverage.ts",
-    "prepare": "husky",
+    "prepare": "cd .. && husky extension/.husky",
     "vscode:prepublish": "node scripts/sync-marketplace-docs.js && npm run package"
   },
   "lint-staged": {
