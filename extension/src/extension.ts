@@ -276,7 +276,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	const courseCatalog = new CourseCatalog(artemisApiService);
+	const courseCatalog = new CourseCatalog(artemisApiService, sessionIdentity);
 	context.subscriptions.push(courseCatalog);
 
 	// Constructed AFTER the catalog, and reading the catalog's epoch rather

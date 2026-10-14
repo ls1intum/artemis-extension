@@ -628,6 +628,7 @@ describe('Message contracts: runtime shape validation', () => {
         const dashboardInit: ExtensionToWebviewMessage = {
             type: 'dashboardInit',
             courses: [],
+            coursesUnavailable: false,
             hideDeveloperTools: false,
         };
 

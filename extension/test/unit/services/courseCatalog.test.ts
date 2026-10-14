@@ -4,6 +4,8 @@ import * as sinon from 'sinon';
 import type { ArtemisApiService } from '@extension/api';
 import { CourseCatalog, toRegistryEntries } from '@extension/services/courseCatalog';
 import { ExerciseRegistry } from '@extension/services/exerciseRegistry';
+import type { SettledOutcome } from '@extension/services/session/sessionIdentityCoordinator';
+import { SessionIdentityCoordinator } from '@extension/services/session/sessionIdentityCoordinator';
 import { findExerciseByRepositoryUrl } from '@extension/services/workspace/workspaceDetectionService';
 import type { CourseDashboardEntry, CourseDashboardResponse } from '@extension/types';
 
@@ -424,6 +426,112 @@ suite('CourseCatalog', () => {
             catalog.replaceCourseExercises(7, [exercise(11, 'New')], catalog.currentEpoch + 1);
 
             assert.deepStrictEqual(catalog.projection().exercises.map(e => e.id), [10]);
+        });
+    });
+
+    // A request sent while the identity is resolving is discarded by the
+    // transition that answers it (the transition resets the catalog), and
+    // nothing asks again: an enrolled student saw an empty Recent Courses after
+    // every sign-in. The fetch therefore waits for the identity first.
+    suite('identity gate', () => {
+        const flush = () => new Promise<void>(resolve => setImmediate(resolve));
+
+        /** The production wiring: the transition resets the catalog to its epoch. */
+        function wired(api: ArtemisApiService): { coordinator: SessionIdentityCoordinator; catalog: CourseCatalog } {
+            const coordinator = new SessionIdentityCoordinator({
+                serverKey: () => 'https://a.example',
+                hasAuthToken: async () => true,
+                getCurrentUser: async () => ({ id: 1 }),
+            });
+            const catalog = new CourseCatalog(api, coordinator);
+            coordinator.attach({
+                resetConversation: () => undefined,
+                endTelemetrySession: () => undefined,
+                clearWorkspaceTracker: () => undefined,
+                clearCatalog: () => catalog.resetTo(coordinator.epoch),
+                resetRegistry: () => undefined,
+                publishEmptyChatSnapshot: () => undefined,
+                rearmStartup: () => undefined,
+            });
+            return { coordinator, catalog };
+        }
+
+        test('a fetch during sign-in asks only after the identity is known, and its courses stay', async () => {
+            const { api, resolve, callCount } = fakeApi();
+            const { coordinator, catalog } = wired(api);
+            const fetched = catalog.fetch();
+            await flush();
+            assert.strictEqual(callCount(), 0, 'nothing is asked while the identity is resolving');
+
+            coordinator.setAuthenticated('https://a.example', 'id:1');
+            await flush();
+            assert.strictEqual(callCount(), 1);
+            resolve(0, { courses: [entry(1, 'Enrolled')] });
+
+            assert.deepStrictEqual((await fetched)?.courses?.map(c => c.course?.id), [1]);
+            assert.strictEqual(catalog.dashboardLoaded, true);
+            coordinator.dispose();
+        });
+
+        test('two callers waiting across the transition share one request', async () => {
+            const { api, resolve, callCount } = fakeApi();
+            const { coordinator, catalog } = wired(api);
+            const first = catalog.fetch();
+            const second = catalog.fetch();
+            coordinator.setAuthenticated('https://a.example', 'id:1');
+            await flush();
+            assert.strictEqual(callCount(), 1);
+            resolve(0, { courses: [entry(1, 'Enrolled')] });
+            await Promise.all([first, second]);
+            assert.deepStrictEqual(catalog.projection().courses.map(c => c.id), [1]);
+            coordinator.dispose();
+        });
+
+        test('an anonymous session asks nothing', async () => {
+            const { api, callCount } = fakeApi();
+            const { coordinator, catalog } = wired(api);
+            coordinator.setAnonymous('https://a.example');
+            assert.strictEqual(await catalog.fetch(), undefined);
+            assert.strictEqual(callCount(), 0);
+            coordinator.dispose();
+        });
+
+        test('a stalled identity still fetches, as before', async () => {
+            const { api, resolve, callCount } = fakeApi();
+            const catalog = new CourseCatalog(api, { whenSettled: async () => 'stalled' });
+            const fetched = catalog.fetch();
+            await flush();
+            assert.strictEqual(callCount(), 1);
+            resolve(0, { courses: [entry(1, 'Enrolled')] });
+            assert.strictEqual((await fetched)?.courses?.length, 1);
+        });
+
+        test('the cache is not handed out while a new identity question is open', async () => {
+            const { api, resolve } = fakeApi();
+            let settle: (o: SettledOutcome) => void = () => undefined;
+            let pending = false;
+            const catalog = new CourseCatalog(api, {
+                whenSettled: () => pending ? new Promise(r => { settle = r; }) : Promise.resolve('stalled'),
+            });
+            const first = catalog.fetch();
+            await flush();
+            resolve(0, { courses: [entry(1, 'Cached')] });
+            await first;
+
+            pending = true;
+            let answered = false;
+            const second = catalog.fetch().then(r => { answered = true; return r; });
+            await flush();
+            assert.strictEqual(answered, false, 'the cached list waits for the identity');
+            settle('authenticated');
+            assert.strictEqual((await second)?.courses?.length, 1);
+        });
+
+        test('a catalog holding only a partial supplemental record has no dashboard answer', () => {
+            const catalog = new CourseCatalog({} as ArtemisApiService);
+            catalog.upsertSupplemental({ kind: 'partial-course', id: 1, title: 'Opened alone' }, 0);
+            assert.deepStrictEqual(catalog.get()?.courses, []);
+            assert.strictEqual(catalog.dashboardLoaded, false);
         });
     });
 });

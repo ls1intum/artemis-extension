@@ -3,17 +3,20 @@ import * as sinon from 'sinon';
 
 import type { ExtensionToWebviewMessage } from '@shared/messageContracts';
 
+import type { ArtemisApiService } from '@extension/api';
 import { AppStateManager } from '@extension/controller/appStateManager';
+import { CourseCatalog } from '@extension/services/courseCatalog';
 import { ViewInitDataService } from '@extension/services/ui/viewInitDataService';
 import * as workspaceDetection from '@extension/services/workspace/workspaceDetectionService';
 import type { ExerciseDetailsResponse } from '@extension/types';
 
 type Posted = ExtensionToWebviewMessage | undefined;
 
-function buildService(coursesData: { courses: Array<{ course: { id?: number; title?: string; exercises?: unknown[] } }> }, coordinator?: unknown) {
+function buildService(coursesData: { courses: Array<{ course: { id?: number; title?: string; exercises?: unknown[] } }> }, coordinator?: unknown, coursesUnavailable = false) {
     let posted: Posted = undefined;
     const appState = {
         coursesData,
+        coursesUnavailable,
         archiveCheckComplete: true,
         archivedCoursesData: undefined,
         currentCourseData: undefined,
@@ -73,6 +76,44 @@ suite('ViewInitDataService.sendDashboardInit', () => {
         assert.ok(posted);
         assert.strictEqual(posted.type, 'dashboardInit');
         assert.strictEqual((posted as { hideDeveloperTools: boolean }).hideDeveloperTools, true);
+    });
+
+    test('carries whether the course list is a real answer', () => {
+        const { service, getPosted } = buildService({ courses: [] }, undefined, true);
+        service.sendDashboardInit();
+        assert.strictEqual((getPosted() as { coursesUnavailable: boolean }).coursesUnavailable, true);
+    });
+});
+
+// "Not enrolled" may only follow a successful dashboard response with zero
+// courses; every other empty list is "no answer".
+suite('AppStateManager.coursesUnavailable', () => {
+    function managerWith(catalog: CourseCatalog): AppStateManager {
+        const manager = new AppStateManager();
+        manager.setCourseCatalog(catalog);
+        return manager;
+    }
+
+    test('no dashboard answer yet is unavailable', () => {
+        assert.strictEqual(managerWith(new CourseCatalog({} as ArtemisApiService)).coursesUnavailable, true);
+    });
+
+    test('a catalog holding only a partial supplemental record is unavailable', () => {
+        const catalog = new CourseCatalog({} as ArtemisApiService);
+        catalog.upsertSupplemental({ kind: 'partial-course', id: 1, title: 'Opened alone' }, 0);
+        assert.strictEqual(managerWith(catalog).coursesUnavailable, true);
+    });
+
+    test('a loaded empty list is a real answer', async () => {
+        const catalog = new CourseCatalog({ getCoursesForDashboard: async () => ({ courses: [] }) } as unknown as ArtemisApiService);
+        await catalog.fetch();
+        assert.strictEqual(managerWith(catalog).coursesUnavailable, false);
+    });
+
+    test('a failed request is unavailable', async () => {
+        const catalog = new CourseCatalog({ getCoursesForDashboard: async () => { throw new Error('offline'); } } as unknown as ArtemisApiService);
+        await catalog.fetch();
+        assert.strictEqual(managerWith(catalog).coursesUnavailable, true);
     });
 });
 

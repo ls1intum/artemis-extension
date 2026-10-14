@@ -2,6 +2,16 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [1.2.4] - 2026-10-14
+
+### Fixed
+
+- **Recent Courses shows your courses right after you sign in.** The dashboard asked for your courses while the extension was still finding out who had signed in. Once it knew, it threw that answer away, and nothing asked again, so Recent Courses stayed empty until you opened the course list. Course requests now wait until the sign-in is confirmed. This also covers the Iris chat's course list and reopening VS Code with a stored session.
+
+### Changed
+
+- **The dashboard says what to do when something is empty.** With no exercise open, it says "No exercise is open in VS Code yet." and offers **Choose**, which opens the course list. An empty Recent Courses now says either that you are not enrolled in any course or that the courses could not be loaded, instead of showing an empty box.
+
 ## [1.2.3] - 2026-10-14
 
 ### Fixed
