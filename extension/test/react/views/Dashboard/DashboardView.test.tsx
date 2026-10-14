@@ -273,4 +273,53 @@ describe('DashboardView', () => {
 		});
 		expect(screen.queryByText('Struggle Detection')).not.toBeInTheDocument();
 	});
+
+	describe('empty states', () => {
+		it('without an exercise in the workspace it says so and offers Choose, which opens the course list', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<DashboardView vscodeApi={mockApi} />);
+			dispatchExtensionMessage({ type: 'dashboardInit', courses: [], coursesUnavailable: false, workspaceExercise: null, hideDeveloperTools: true });
+
+			await waitFor(() => {
+				expect(screen.getByText('No exercise is open in VS Code yet.')).toBeInTheDocument();
+			});
+			await userEvent.click(screen.getByRole('button', { name: 'Choose' }));
+			expect(mockApi.postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({ type: 'command', command: 'showAllCourses' }),
+			);
+		});
+
+		it('offers no Choose while an exercise is open or detection is still running', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<DashboardView vscodeApi={mockApi} />);
+			expect(screen.queryByRole('button', { name: 'Choose' })).not.toBeInTheDocument();
+
+			dispatchExtensionMessage({ type: 'dashboardInit', courses: [], coursesUnavailable: false, workspaceExercise: { id: 55, title: 'Open one' }, hideDeveloperTools: true });
+			await waitFor(() => {
+				expect(screen.getByText('Open one')).toBeInTheDocument();
+			});
+			expect(screen.queryByRole('button', { name: 'Choose' })).not.toBeInTheDocument();
+		});
+
+		it('an empty list from a real answer says the student is not enrolled', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<DashboardView vscodeApi={mockApi} />);
+			dispatchExtensionMessage({ type: 'dashboardInit', courses: [], coursesUnavailable: false, workspaceExercise: null, hideDeveloperTools: true });
+
+			await waitFor(() => {
+				expect(screen.getByText('You are not enrolled in any course yet.')).toBeInTheDocument();
+			});
+		});
+
+		it('an empty list without an answer says the courses could not be loaded', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<DashboardView vscodeApi={mockApi} />);
+			dispatchExtensionMessage({ type: 'dashboardInit', courses: [], coursesUnavailable: true, workspaceExercise: null, hideDeveloperTools: true });
+
+			await waitFor(() => {
+				expect(screen.getByText('Courses could not be loaded.')).toBeInTheDocument();
+			});
+			expect(screen.queryByText('You are not enrolled in any course yet.')).not.toBeInTheDocument();
+		});
+	});
 });

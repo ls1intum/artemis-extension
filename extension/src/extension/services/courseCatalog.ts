@@ -5,6 +5,7 @@ import type { CourseDashboardEntry, CourseDashboardResponse, ExerciseDetail, Par
 
 import type { ExerciseRegistryEntry } from './exerciseRegistry';
 import { LogCategory, logger } from './loggingService';
+import type { SessionIdentityCoordinator } from './session/sessionIdentityCoordinator';
 import { getEntryExercises } from './workspace';
 
 /** A course the picker may offer. Never assembled out of fragments. */
@@ -157,7 +158,14 @@ export class CourseCatalog implements vscode.Disposable {
     private readonly _onCoursesLoaded = new vscode.EventEmitter<CourseDashboardResponse>();
     public readonly onCoursesLoaded = this._onCoursesLoaded.event;
 
-    constructor(private readonly _api: ArtemisApiService) {}
+    /**
+     * `identity` is optional so a catalog can be built without a session (unit
+     * tests); without it a fetch does not wait, which is the old behaviour.
+     */
+    constructor(
+        private readonly _api: ArtemisApiService,
+        private readonly _identity?: Pick<SessionIdentityCoordinator, 'whenSettled'>,
+    ) {}
 
     public get currentEpoch(): number { return this._epoch; }
 
@@ -181,7 +189,27 @@ export class CourseCatalog implements vscode.Disposable {
         return this._lastFetchFailed;
     }
 
+    /**
+     * Whether a dashboard response is installed. `get()` cannot tell: a
+     * catalog holding only supplemental records answers `{ courses: [] }`,
+     * which reads like an account with no courses.
+     */
+    public get dashboardLoaded(): boolean {
+        return this._dashboard !== undefined;
+    }
+
     public async fetch(options?: { force?: boolean }): Promise<CourseDashboardResponse | undefined> {
+        // A request sent while the identity is still resolving is doomed: the
+        // transition that answers it resets the catalog and discards the
+        // response, and nothing asks again. So wait for the answer first, and
+        // before the shortcuts below, so neither the cache nor an open request
+        // is handed out while the question is open. Everything after the wait
+        // (cache, in-flight handle, request generation, epoch) then belongs to
+        // the settled session.
+        if (this._identity) {
+            const outcome = await this._identity.whenSettled();
+            if (outcome === 'anonymous' || outcome === 'disposed') { return this.get(); }
+        }
         if (this._dashboard && !options?.force) { return this.get(); }
         if (this._inflight && !options?.force) { return this._inflight; }
         const token = ++this._requestSeq;

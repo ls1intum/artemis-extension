@@ -66,4 +66,23 @@ describe('Dashboard View UI Tests', function () {
 
 		await takeScreenshot(driver, 'dashboard-smoke');
 	});
+
+	// The sign-in used to request the courses while the session was still
+	// resolving; the transition to authenticated then discarded the answer and
+	// the dashboard stayed without courses until something asked again.
+	it('has an answer for the courses right after sign-in', async function () {
+		this.timeout(20000);
+
+		await openArtemisView();
+		await switchToWebviewFrame(driver);
+
+		const answered = await driver.wait(async () => {
+			const rows = await driver.findElements(By.xpath("//h2[normalize-space(.)='Recent Courses']/ancestor::*[.//button[@aria-expanded]][1]//button[@aria-expanded]"));
+			const none = await driver.findElements(By.xpath("//*[normalize-space(.)='You are not enrolled in any course yet.']"));
+			return rows.length > 0 || none.length > 0;
+		}, 15000).catch(() => false);
+		const failed = await driver.findElements(By.xpath("//*[normalize-space(.)='Courses could not be loaded.']"));
+
+		assert.ok(answered && failed.length === 0, 'Recent Courses must show the courses (or a real empty answer) after sign-in');
+	});
 });

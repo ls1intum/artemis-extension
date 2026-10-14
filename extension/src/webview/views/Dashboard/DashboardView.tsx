@@ -23,6 +23,7 @@ import type { DashboardViewProps, RecentCourseNode } from './types';
 export function DashboardView({ vscodeApi }: DashboardViewProps) {
     const {
         recentCourses,
+        coursesUnavailable,
         workspaceExercise,
         isLoading,
         loadDashboard,
@@ -36,7 +37,7 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
 
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.DashboardInit) {
-            setDashboardData(msg.courses ?? []);
+            setDashboardData(msg.courses ?? [], msg.coursesUnavailable);
             setHideDeveloperTools(msg.hideDeveloperTools);
             // Only update workspace state when detection has actually run
             // (field present as null or object). Absent = detection not run yet.
@@ -140,7 +141,20 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
             <Container
                 className={styles.workspaceExerciseSection}
                 padding="tight"
-                header={<h2 className={styles.sectionTitle}>Current Workspace Exercise</h2>}
+                header={
+                    <div className={styles.sectionHeader}>
+                        <h2 className={styles.sectionTitle}>Current Workspace Exercise</h2>
+                        {workspaceExercise === null && (
+                            <button
+                                type="button"
+                                className={styles.headerLink}
+                                onClick={handleShowAllCourses}
+                            >
+                                Choose
+                            </button>
+                        )}
+                    </div>
+                }
             >
                 {workspaceExercise === 'loading' ? (
                     <div className={styles.workspaceExerciseItem}>
@@ -159,8 +173,8 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
                         </div>
                     </ListItem>
                 ) : (
-                    <div className={styles.workspaceNotFound}>
-                        No exercise detected for this workspace
+                    <div className={styles.emptyNote}>
+                        No exercise is open in VS Code yet.
                     </div>
                 )}
             </Container>
@@ -168,12 +182,12 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
             <Container
                 className={styles.recentCourses}
                 header={
-                    <div className={styles.recentCoursesHeader}>
+                    <div className={styles.sectionHeader}>
                         <h2 className={styles.sectionTitle}>Recent Courses</h2>
                         <div className={styles.recentCoursesControls}>
                             <button
                                 type="button"
-                                className={styles.showAllLink}
+                                className={styles.headerLink}
                                 onClick={handleShowAllCourses}
                             >
                                 Show All
@@ -188,6 +202,12 @@ export function DashboardView({ vscodeApi }: DashboardViewProps) {
             >
                 {isLoading ? (
                     <SkeletonList count={3} />
+                ) : recentCourses.length === 0 ? (
+                    <div className={styles.emptyNote}>
+                        {coursesUnavailable
+                            ? 'Courses could not be loaded.'
+                            : 'You are not enrolled in any course yet.'}
+                    </div>
                 ) : (
                     <div className={styles.recentCoursesTree}>
                         {recentCourses.map((courseNode, index) => {

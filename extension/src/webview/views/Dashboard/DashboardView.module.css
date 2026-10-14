@@ -95,7 +95,7 @@
     color: var(--vscode-descriptionForeground);
 }
 
-.workspaceNotFound {
+.emptyNote {
     padding: 8px 12px;
     font-size: 13px;
     color: var(--vscode-descriptionForeground);
@@ -115,7 +115,7 @@
     /* Container component handles basic styling */
 }
 
-.recentCoursesHeader {
+.sectionHeader {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -128,7 +128,7 @@
     gap: 8px;
 }
 
-.showAllLink {
+.headerLink {
     background: none;
     border: none;
     color: var(--vscode-textLink-foreground);
@@ -138,7 +138,7 @@
     text-decoration: underline;
 }
 
-.showAllLink:hover {
+.headerLink:hover {
     color: var(--vscode-textLink-activeForeground);
 }
 
