@@ -7,6 +7,8 @@ export type { RecentCourseNode } from '@shared/messageContracts';
 
 interface DashboardState {
     recentCourses: RecentCourseNode[];
+    /** No dashboard answer behind `recentCourses`; an empty list then is not "not enrolled". */
+    coursesUnavailable: boolean;
     workspaceExercise: { id: number; title: string } | 'loading' | null;
     isLoading: boolean;
     /** True when NOT in developer mode. Hides developer-only dashboard entries (the
@@ -15,7 +17,7 @@ interface DashboardState {
     hideDeveloperTools: boolean;
 
     loadDashboard: (vscodeApi: VsCodeApi) => void;
-    setDashboardData: (courses: RecentCourseNode[]) => void;
+    setDashboardData: (courses: RecentCourseNode[], coursesUnavailable: boolean) => void;
     setWorkspaceExercise: (exercise: { id: number; title: string } | 'loading' | null) => void;
     setHideDeveloperTools: (hide: boolean) => void;
     setLoading: (loading: boolean) => void;
@@ -25,8 +27,11 @@ export const useDashboardStore = create<DashboardState>()(
     devtools(
         (set) => ({
             recentCourses: [],
+            coursesUnavailable: false,
             workspaceExercise: 'loading',
-            isLoading: false,
+            // Nothing is known until the first dashboardInit; an empty list would
+            // otherwise read as "not enrolled" for the moment before it arrives.
+            isLoading: true,
             hideDeveloperTools: true,
 
             loadDashboard: (vscodeApi: VsCodeApi) => {
@@ -34,9 +39,9 @@ export const useDashboardStore = create<DashboardState>()(
                 postCommand(vscodeApi, 'reloadDashboard');
             },
 
-            setDashboardData: (courses: RecentCourseNode[]) => {
+            setDashboardData: (courses: RecentCourseNode[], coursesUnavailable: boolean) => {
                 // Ordering owned by extension side; do not re-sort here.
-                set({ recentCourses: courses, isLoading: false }, false, 'setDashboardData');
+                set({ recentCourses: courses, coursesUnavailable, isLoading: false }, false, 'setDashboardData');
             },
 
             setWorkspaceExercise: (exercise: { id: number; title: string } | 'loading' | null) => {

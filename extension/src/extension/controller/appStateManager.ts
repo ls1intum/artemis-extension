@@ -123,6 +123,15 @@ export class AppStateManager {
         return this._courseCatalog?.get();
     }
 
+    /**
+     * No dashboard answer to show: the request failed, was not made (no
+     * signed-in identity), or has not run. "Not enrolled" may only be said
+     * when this is false and the list is empty.
+     */
+    get coursesUnavailable(): boolean {
+        return !this._courseCatalog?.dashboardLoaded || this._courseCatalog.coursesUnavailable;
+    }
+
     get archivedCoursesData(): ArchivedCourse[] | undefined {
         return this._archivedCoursesData;
     }

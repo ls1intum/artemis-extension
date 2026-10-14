@@ -437,4 +437,80 @@ suite('SessionIdentityCoordinator', () => {
             coordinator.dispose();
         });
     });
+
+    // Work that only makes sense for a known identity (the course catalog's
+    // fetch) waits on this instead of racing the transition that resets it.
+    suite('whenSettled', () => {
+        test('answers at once when the identity is already known', async () => {
+            const coordinator = new SessionIdentityCoordinator(deps());
+            coordinator.setAuthenticated('https://a.example', 'id:1');
+            assert.strictEqual(await coordinator.whenSettled(), 'authenticated');
+            coordinator.setAnonymous('https://a.example');
+            assert.strictEqual(await coordinator.whenSettled(), 'anonymous');
+            coordinator.dispose();
+        });
+
+        test('waits while resolving and answers with the transition', async () => {
+            const coordinator = new SessionIdentityCoordinator(deps());
+            let outcome: string | undefined;
+            void coordinator.whenSettled().then(o => { outcome = o; });
+            await Promise.resolve();
+            assert.strictEqual(outcome, undefined, 'still resolving, so still waiting');
+
+            coordinator.setAuthenticated('https://a.example', 'id:1');
+            await Promise.resolve();
+            assert.strictEqual(outcome, 'authenticated');
+            coordinator.dispose();
+        });
+
+        test('a waiter wakes after the reset, so it sees the new epoch', async () => {
+            const log: string[] = [];
+            const coordinator = new SessionIdentityCoordinator(deps());
+            coordinator.attach(recordingTargets(log));
+            const settled = coordinator.whenSettled().then(() => log.push('woken'));
+            coordinator.setAuthenticated('https://a.example', 'id:1');
+            await settled;
+            assert.ok(log.indexOf('catalog') < log.indexOf('woken'));
+            coordinator.dispose();
+        });
+
+        test('a stall releases the waiter instead of leaving it hanging', async () => {
+            const coordinator = new SessionIdentityCoordinator(deps({ getCurrentUser: async () => ({}) }));
+            const settled = coordinator.whenSettled();
+            await coordinator.resolvePrincipal();
+            assert.strictEqual(await settled, 'stalled');
+            assert.strictEqual(coordinator.state.kind, 'resolving');
+            coordinator.dispose();
+        });
+
+        // The stall event has already fired; waiting for it again would hang.
+        test('a waiter that arrives after the stall is answered at once', async () => {
+            const coordinator = new SessionIdentityCoordinator(deps({ getCurrentUser: async () => ({}) }));
+            await coordinator.resolvePrincipal();
+            assert.strictEqual(await coordinator.whenSettled(), 'stalled');
+            coordinator.dispose();
+        });
+
+        test('a new attempt after a stall makes waiters wait again', async () => {
+            const coordinator = new SessionIdentityCoordinator(deps({ getCurrentUser: async () => ({}) }));
+            await coordinator.resolvePrincipal();
+            coordinator.beginResolving('https://a.example');
+            let outcome: string | undefined;
+            void coordinator.whenSettled().then(o => { outcome = o; });
+            await Promise.resolve();
+            assert.strictEqual(outcome, undefined);
+            coordinator.setAnonymous('https://a.example');
+            await Promise.resolve();
+            assert.strictEqual(outcome, 'anonymous');
+            coordinator.dispose();
+        });
+
+        test('disposal releases a pending waiter', async () => {
+            const coordinator = new SessionIdentityCoordinator(deps());
+            const settled = coordinator.whenSettled();
+            coordinator.dispose();
+            assert.strictEqual(await settled, 'disposed');
+            assert.strictEqual(await coordinator.whenSettled(), 'disposed');
+        });
+    });
 });

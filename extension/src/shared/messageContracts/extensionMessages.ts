@@ -163,6 +163,9 @@ interface ExtensionMsgPayloads {
     // View initialization
     dashboardInit: {
         courses: RecentCourseNode[];
+        /** No dashboard answer behind `courses` (failed, skipped or not run), so an
+         *  empty list must not be read as "not enrolled". */
+        coursesUnavailable: boolean;
         workspaceExercise?: {
             id: number;
             title: string;

@@ -81,6 +81,13 @@ function sameSession(a: SessionState, b: SessionState): boolean {
     return a.kind !== 'authenticated' || a.principal === (b as typeof a).principal;
 }
 
+/**
+ * How an open identity question ended, for a caller that has to wait for one.
+ * `stalled` means resolution gave up while still `resolving` (see
+ * `onDidStallResolution`); `disposed` means it never will.
+ */
+export type SettledOutcome = 'authenticated' | 'anonymous' | 'stalled' | 'disposed';
+
 function describe(state: SessionState): string {
     return state.kind === 'authenticated'
         ? `authenticated ${state.principal} on ${state.serverKey}`
@@ -102,6 +109,13 @@ export class SessionIdentityCoordinator implements vscode.Disposable {
     private _retriesUsed = 0;
     private _retryTimer: ReturnType<typeof setTimeout> | undefined;
     private _disposed = false;
+    /**
+     * The current `resolving` episode has stalled and nothing is pending.
+     * Kept as state, not only as the event: a caller that starts waiting
+     * after the stall must not wait for an event that already fired.
+     */
+    private _stalled = false;
+    private _settledWaiters: Array<(outcome: SettledOutcome) => void> = [];
 
     private readonly _onDidChangeSession = new vscode.EventEmitter<SessionState>();
     public readonly onDidChangeSession = this._onDidChangeSession.event;
@@ -205,6 +219,8 @@ export class SessionIdentityCoordinator implements vscode.Disposable {
         if (this._disposed || attempt !== this._attempt) { return; }
         const delay = retryable ? RESOLVE_RETRY_DELAYS_MS[this._retriesUsed] : undefined;
         if (delay === undefined) {
+            this._stalled = true;
+            this._releaseSettledWaiters('stalled');
             this._onDidStallResolution.fire();
             return;
         }
@@ -258,11 +274,33 @@ export class SessionIdentityCoordinator implements vscode.Disposable {
         this._transition({ kind: 'authenticated', serverKey, principal });
     }
 
+    /**
+     * Resolves once the identity question is answered: immediately when the
+     * session is not `resolving`, otherwise on the transition out of it, on a
+     * stall, or on disposal. Work that is only valid for a known identity
+     * waits here instead of racing the transition, which resets it.
+     */
+    public whenSettled(): Promise<SettledOutcome> {
+        if (this._disposed) { return Promise.resolve('disposed'); }
+        if (this._state.kind !== 'resolving') { return Promise.resolve(this._state.kind); }
+        if (this._stalled) { return Promise.resolve('stalled'); }
+        return new Promise(resolve => this._settledWaiters.push(resolve));
+    }
+
+    private _releaseSettledWaiters(outcome: SettledOutcome): void {
+        const waiters = this._settledWaiters;
+        this._settledWaiters = [];
+        for (const resolve of waiters) { resolve(outcome); }
+    }
+
     private _transition(next: SessionState): void {
         // BEFORE the equality check. A repeated `beginResolving` is a no-op
         // for the state but still a newer intent, and an in-flight principal
         // lookup has to lose to it.
         this._attempt++;
+        // Every new intent opens a new chance to resolve, so an earlier stall
+        // no longer describes the session.
+        this._stalled = false;
         if (next.kind !== 'resolving') {
             // The identity question just got an answer, so the NEXT episode of
             // not having one starts patient again. This is the only refill:
@@ -290,12 +328,15 @@ export class SessionIdentityCoordinator implements vscode.Disposable {
             targets.publishEmptyChatSnapshot();
             targets.rearmStartup();
         }
+        // After the reset: a woken waiter must find the new epoch in place.
+        if (next.kind !== 'resolving') { this._releaseSettledWaiters(next.kind); }
         this._onDidChangeSession.fire(next);
     }
 
     public dispose(): void {
         this._disposed = true;
         this._cancelPendingRetry();
+        this._releaseSettledWaiters('disposed');
         this._onDidChangeSession.dispose();
         this._onDidStallResolution.dispose();
     }

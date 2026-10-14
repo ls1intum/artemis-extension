@@ -81,6 +81,7 @@ export class ViewInitDataService {
             return [{ courseData: detail, exercises: recentExercises }];
         });
 
+        const coursesUnavailable = this._appStateManager.coursesUnavailable;
         const allExerciseSources = collectExerciseSources(courses);
 
         // null = "no match" (shown to user), undefined = "still loading" (keeps skeleton).
@@ -92,6 +93,7 @@ export class ViewInitDataService {
             this._postMessage({
                 type: ExtensionMsg.DashboardInit,
                 courses: recentCourseNodes,
+                coursesUnavailable,
                 workspaceExercise: noMatch,
                 hideDeveloperTools: !this._isDeveloperMode(),
             });
@@ -104,6 +106,7 @@ export class ViewInitDataService {
             this._postMessage({
                 type: ExtensionMsg.DashboardInit,
                 courses: recentCourseNodes,
+                coursesUnavailable,
                 workspaceExercise: detectedExercise
                     ? { id: detectedExercise.id, title: detectedExercise.title }
                     : noMatch,
@@ -115,6 +118,7 @@ export class ViewInitDataService {
             this._postMessage({
                 type: ExtensionMsg.DashboardInit,
                 courses: recentCourseNodes,
+                coursesUnavailable,
                 workspaceExercise: noMatch,
                 hideDeveloperTools: !this._isDeveloperMode(),
             });

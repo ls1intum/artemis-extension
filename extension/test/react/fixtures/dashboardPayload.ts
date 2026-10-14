@@ -6,6 +6,7 @@ export function createDashboardPayload(
     return {
         type: 'dashboardInit',
         courses: [],
+        coursesUnavailable: false,
         workspaceExercise: undefined,
         hideDeveloperTools: false,
         ...overrides,

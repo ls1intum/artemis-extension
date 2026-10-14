@@ -5,11 +5,11 @@ import { createMockVsCodeApi } from '@test/react/__helpers__/vscodeApi';
 import { RecentCourseNode, useDashboardStore } from '@webview/stores/useDashboardStore';
 
 describe('useDashboardStore', () => {
-	it('initializes with empty state', () => {
+	it('initializes empty and loading, until the first dashboardInit answers', () => {
 		const { result } = renderHook(() => useDashboardStore());
 
 		expect(result.current.recentCourses).toEqual([]);
-		expect(result.current.isLoading).toBe(false);
+		expect(result.current.isLoading).toBe(true);
 		expect(result.current.workspaceExercise).toBe('loading');
 	});
 
@@ -55,7 +55,7 @@ describe('useDashboardStore', () => {
 		];
 
 		act(() => {
-			result.current.setDashboardData(courses);
+			result.current.setDashboardData(courses, false);
 		});
 
 		expect(result.current.recentCourses).toHaveLength(3);
@@ -78,7 +78,7 @@ describe('useDashboardStore', () => {
 		];
 
 		act(() => {
-			result.current.setDashboardData(courses);
+			result.current.setDashboardData(courses, false);
 		});
 
 		expect(result.current.isLoading).toBe(false);
@@ -126,7 +126,7 @@ describe('useDashboardStore', () => {
 		];
 
 		act(() => {
-			result.current.setDashboardData(courses);
+			result.current.setDashboardData(courses, false);
 		});
 
 		expect(result.current.recentCourses).toHaveLength(2);
@@ -162,7 +162,7 @@ describe('useDashboardStore', () => {
 			result.current.setDashboardData([
 				makeCourse('Course A', '2023-01-01'),
 				makeCourse('Course B', '2023-06-01'),
-			]);
+			], false);
 		});
 
 		expect(result.current.recentCourses).toHaveLength(2);
@@ -172,7 +172,7 @@ describe('useDashboardStore', () => {
 		const { result } = renderHook(() => useDashboardStore());
 
 		act(() => {
-			result.current.setDashboardData([]);
+			result.current.setDashboardData([], false);
 		});
 
 		expect(result.current.recentCourses).toEqual([]);
@@ -188,7 +188,7 @@ describe('useDashboardStore', () => {
 		});
 
 		act(() => {
-			result.current.setDashboardData([makeCourse('Course A', '2023-01-01')]);
+			result.current.setDashboardData([makeCourse('Course A', '2023-01-01')], false);
 		});
 
 		act(() => {
