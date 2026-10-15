@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice-over Recorder</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --text: #1d2330; --muted: #677085; --line: #e2e5eb;
+    --accent: #2563eb; --ok: #15803d; --warn: #b45309; --bad: #b91c1c; --rec: #dc2626; --current: #eef3ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --card: #1a1e26; --text: #e6e9ef; --muted: #98a1b3; --line: #2a303c;
+      --accent: #6b9bff; --ok: #4ade80; --warn: #fbbf24; --bad: #f87171; --rec: #ef4444; --current: #1f2a40;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 1; background: var(--card); border-bottom: 1px solid var(--line); padding: 12px 24px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; }
+  header .progress { color: var(--muted); }
+  header .keys { color: var(--muted); font-size: 13px; margin-left: auto; }
+  kbd { border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-size: 12px; }
+  main { max-width: 860px; margin: 0 auto; padding: 16px 24px 80px; }
+  .scene { background: var(--card); border: 1px solid var(--line); border-radius: 10px; margin: 16px 0; overflow: hidden; }
+  .scene h2 { font-size: 14px; margin: 0; padding: 10px 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; color: var(--muted); font-weight: 600; }
+  .sentence { padding: 12px 16px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .sentence:last-child { border-bottom: 0; }
+  .sentence.current { background: var(--current); box-shadow: inset 3px 0 0 var(--accent); }
+  .sentence .text { font-size: 17px; }
+  .row { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+  .budget { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 92px; }
+  .result { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .result.ok { color: var(--ok); } .result.warn { color: var(--warn); } .result.bad { color: var(--bad); }
+  .bar { flex: 1; min-width: 120px; height: 8px; border-radius: 4px; background: var(--line); position: relative; overflow: hidden; }
+  .bar span { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--accent); }
+  .bar span.over { background: var(--bad); }
+  button { font: inherit; font-size: 14px; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+  button.record { border-color: var(--rec); color: var(--rec); }
+  button.record.active { background: var(--rec); color: #fff; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  #status { color: var(--muted); font-size: 13px; }
+  #status.error { color: var(--bad); font-weight: 600; }
+  .mic { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; width: 100%; }
+  .mic .meter { width: 160px; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+  .mic .meter span { display: block; height: 100%; width: 0; background: var(--ok); transition: width 80ms linear; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Voice-over Recorder</h1>
+  <span class="progress" id="progress"></span>
+  <button class="primary" id="build">Build video</button>
+  <span id="status"></span>
+  <span class="keys"><kbd>Space</kbd> record / stop and next · <kbd>↑</kbd><kbd>↓</kbd> sentence · <kbd>P</kbd> play</span>
+  <div class="mic"><button id="micButton">Test microphone</button><span id="micName">Microphone not opened yet</span><div class="meter"><span id="level"></span></div></div>
+</header>
+<main id="scenes"></main>
+<script>
+const scenesEl = document.getElementById('scenes');
+const statusEl = document.getElementById('status');
+let scenes = [];
+let flat = [];            // every sentence in order: { scene, index, data, el }
+let current = 0;
+let recorder = null;      // { item, mediaRecorder, chunks, started, timer }
+let stream = null;
+const player = new Audio();
+
+const fmt = s => `${s.toFixed(1)} s`;
+
+function setStatus(text, error = false) {
+  statusEl.textContent = text;
+  statusEl.className = error ? 'error' : '';
+}
+
+// Opens the microphone once and drives the level meter, so a silent or wrong input shows before a take.
+async function openMic() {
+  if (stream) return stream;
+  stream = await navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: true, channelCount: 1 },
+  });
+  document.getElementById('micName').textContent = `Microphone: ${stream.getAudioTracks()[0].label || 'default'}`;
+  const context = new AudioContext();
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 1024;
+  context.createMediaStreamSource(stream).connect(analyser);
+  const samples = new Float32Array(analyser.fftSize);
+  const level = document.getElementById('level');
+  (function tick() {
+    analyser.getFloatTimeDomainData(samples);
+    const peak = samples.reduce((max, v) => Math.max(max, Math.abs(v)), 0);
+    const db = 20 * Math.log10(peak || 1e-6);
+    level.style.width = `${Math.max(0, Math.min(100, (db + 60) / 60 * 100))}%`;
+    requestAnimationFrame(tick);
+  })();
+  return stream;
+}
+
+function verdict(recorded, budget) {
+  if (recorded <= budget) return 'ok';
+  return recorded <= budget * 1.15 ? 'warn' : 'bad';
+}
+
+async function load() {
+  try {
+    const response = await fetch('/api/script');
+    if (!response.ok) throw new Error(`server answered ${response.status}`);
+    scenes = await response.json();
+    render();
+  } catch (error) {
+    setStatus(`Could not load the script: ${error.message}. Is server.py running?`, true);
+  }
+}
+
+function render() {
+  scenesEl.textContent = '';
+  flat = [];
+  for (const scene of scenes) {
+    const card = document.createElement('section');
+    card.className = 'scene';
+    const title = document.createElement('h2');
+    const spoken = scene.sentences.reduce((sum, s) => sum + (s.recorded ?? 0), 0);
+    title.innerHTML = `<span>Scene ${scene.id}</span><span>${fmt(spoken)} of ${fmt(scene.room)}</span>`;
+    card.appendChild(title);
+    scene.sentences.forEach((data, index) => {
+      const el = document.createElement('div');
+      el.className = 'sentence';
+      el.innerHTML = `
+        <div class="text"></div>
+        <div class="row">
+          <button class="record">Record</button>
+          <button class="play" ${data.recorded == null ? 'disabled' : ''}>Play</button>
+          <span class="budget">Time: ${fmt(data.budget)}</span>
+          <div class="bar"><span></span></div>
+          <span class="result"></span>
+        </div>`;
+      el.querySelector('.text').textContent = data.text;
+      const item = { scene, index, data, el };
+      el.addEventListener('click', () => select(flat.indexOf(item)));
+      el.querySelector('.record').addEventListener('click', e => { e.stopPropagation(); select(flat.indexOf(item)); toggleRecording(); });
+      el.querySelector('.play').addEventListener('click', e => { e.stopPropagation(); play(item); });
+      flat.push(item);
+      showResult(item);
+      card.appendChild(el);
+    });
+    scenesEl.appendChild(card);
+  }
+  const done = flat.filter(i => i.data.recorded != null).length;
+  document.getElementById('progress').textContent = `${done} of ${flat.length} sentences recorded`;
+  select(Math.min(current, flat.length - 1), false);
+}
+
+function showResult(item) {
+  const result = item.el.querySelector('.result');
+  const bar = item.el.querySelector('.bar span');
+  const { recorded, budget } = item.data;
+  if (recorded == null) { result.textContent = ''; bar.style.width = '0'; return; }
+  const v = verdict(recorded, budget);
+  result.className = `result ${v}`;
+  result.textContent = v === 'ok' ? `${fmt(recorded)} ✓` : `${fmt(recorded)} (+${fmt(recorded - budget)})`;
+  bar.style.width = `${Math.min(100, recorded / budget * 100)}%`;
+  bar.classList.toggle('over', recorded > budget);
+}
+
+function select(i, scroll = true) {
+  if (recorder || i < 0 || i >= flat.length) return;
+  flat[current]?.el.classList.remove('current');
+  current = i;
+  flat[current].el.classList.add('current');
+  if (scroll) flat[current].el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+async function toggleRecording() {
+  if (recorder) return stopRecording();
+  player.pause();
+  try {
+    await openMic();
+  } catch (error) {
+    return setStatus(`No microphone: ${error.message}`, true);
+  }
+  const item = flat[current];
+  const mediaRecorder = new MediaRecorder(stream);
+  const chunks = [];
+  mediaRecorder.ondataavailable = e => chunks.push(e.data);
+  const started = performance.now();
+  const bar = item.el.querySelector('.bar span');
+  const result = item.el.querySelector('.result');
+  const timer = setInterval(() => {
+    const elapsed = (performance.now() - started) / 1000;
+    bar.style.width = `${Math.min(100, elapsed / item.data.budget * 100)}%`;
+    bar.classList.toggle('over', elapsed > item.data.budget);
+    result.className = `result ${verdict(elapsed, item.data.budget)}`;
+    result.textContent = `${fmt(elapsed)} / ${fmt(item.data.budget)}`;
+  }, 100);
+  recorder = { item, mediaRecorder, chunks, timer };
+  item.el.querySelector('.record').classList.add('active');
+  item.el.querySelector('.record').textContent = 'Stop';
+  mediaRecorder.start();
+}
+
+async function stopRecording() {
+  const { item, mediaRecorder, chunks, timer } = recorder;
+  clearInterval(timer);
+  const stopped = new Promise(resolve => { mediaRecorder.onstop = resolve; });
+  mediaRecorder.stop();
+  await stopped;
+  recorder = null;
+  const button = item.el.querySelector('.record');
+  button.classList.remove('active');
+  button.textContent = 'Record';
+  setStatus('Saving…');
+  const blob = new Blob(chunks, { type: mediaRecorder.mimeType });
+  let answer;
+  try {
+    const response = await fetch(`/api/record?scene=${item.scene.id}&sentence=${item.index}`, {
+      method: 'POST', headers: { 'Content-Type': mediaRecorder.mimeType }, body: blob,
+    });
+    answer = await response.json();
+  } catch (error) {
+    answer = { error: `Saving failed: ${error.message}` };
+  }
+  if (answer.error) {
+    setStatus(answer.error, true);
+    render();
+    return;
+  }
+  item.data.recorded = answer.recorded;
+  setStatus(`Saved scene ${item.scene.id}, sentence ${item.index + 1} (peak ${answer.peak} dB, silence at both ends trimmed).`);
+  render();
+  select(current + 1);
+}
+
+function play(item) {
+  player.src = `/api/audio?scene=${item.scene.id}&sentence=${item.index}&t=${Date.now()}`;
+  player.play();
+}
+
+// A focused button would also react to Space, so a clicked button gives its focus back.
+document.addEventListener('click', e => e.target.closest('button')?.blur());
+
+document.addEventListener('keydown', e => {
+  if (e.target instanceof HTMLInputElement) return;
+  if (e.code === 'Space') { e.preventDefault(); toggleRecording(); }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); select(current + 1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); select(current - 1); }
+  else if (e.key.toLowerCase() === 'p' && flat[current].data.recorded != null) play(flat[current]);
+});
+
+document.getElementById('build').addEventListener('click', async e => {
+  e.currentTarget.disabled = true;
+  const button = e.currentTarget;
+  button.disabled = true;
+  setStatus('Building the video, about a minute…');
+  const result = await (await fetch('/api/build', { method: 'POST' })).json();
+  button.disabled = false;
+  if (result.ok) {
+    setStatus(`Done: ${result.path} (${result.length} s). Opened in QuickTime.`);
+    if (result.overlaps.length) setStatus(`Built, but these takes run into the next sentence: ${result.overlaps.join(', ')}. Re-record them shorter, or record the screen again so it waits for them.`, true);
+  } else {
+    setStatus(result.error, true);
+  }
+});
+
+document.getElementById('micButton').addEventListener('click', () => openMic().catch(error => setStatus(`No microphone: ${error.message}`, true)));
+
+load();
+</script>
+</body>
+</html>

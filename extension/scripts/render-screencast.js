@@ -1,7 +1,8 @@
 // Turns the raw recording of `npm run screencast:docs` into the finished video. Reads
 // reports/screencast/raw.mp4 and the timeline the spec wrote next to it, keeps the scenes,
-// drops the waits the spec marked as cuts, and writes screencast.mp4 plus voice-over.vtt:
-// each scene's voice-over at its time in the finished video, to read from while speaking.
+// drops the waits the spec marked as cuts, and writes screencast.mp4 plus the voice-over at its
+// times in the finished video: voice-over.vtt per scene, voice-over.json per sentence (where
+// scripts/screencast-recorder places each take).
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -69,8 +70,16 @@ function main() {
     const cues = scenes.map(scene => `${scene.id}\n${vttTime(finalTime(scene.start, segments))} --> ${vttTime(finalTime(scene.end, segments))}\n${scene.voiceOver}\n`);
     fs.writeFileSync(path.join(OUT_DIR, 'voice-over.vtt'), `WEBVTT\n\n${cues.join('\n')}`);
 
+    const sentences = scenes.map(scene => ({
+        id: scene.id,
+        start: finalTime(scene.start, segments) / 1000,
+        end: finalTime(scene.end, segments) / 1000,
+        sentences: scene.sentences.map(sentence => ({ text: sentence.text, start: finalTime(sentence.at, segments) / 1000 })),
+    }));
+    fs.writeFileSync(path.join(OUT_DIR, 'voice-over.json'), `${JSON.stringify(sentences, null, 2)}\n`);
+
     const length = segments.reduce((sum, s) => sum + s.end - s.start, 0);
-    console.log(`Wrote ${output} (${vttTime(length)}) and voice-over.vtt`);
+    console.log(`Wrote ${output} (${vttTime(length)}), voice-over.vtt and voice-over.json`);
 }
 
 main();

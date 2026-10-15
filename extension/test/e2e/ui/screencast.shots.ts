@@ -86,11 +86,16 @@ const OUT_DIR = path.join(PACKAGE_ROOT, 'reports', 'screencast');
 const RECORD = process.env.SCREENCAST_RECORD !== '0';
 const UNTIL = Number(process.env.SCREENCAST_UNTIL ?? Infinity);
 
-// A calm voice-over pace, in words per second, plus a breath at the end of each scene.
+// The recorded voice-over, one file per sentence (scene01-00.wav, ...), as
+// scripts/screencast-recorder writes it. Without a take, a sentence is timed at a calm pace.
+const VOICE_DIR = path.join(OUT_DIR, 'voice');
 const WORDS_PER_SECOND = 2.3;
-const SCENE_TAIL_MS = 2000;
+// Silence between two sentences of a scene, and after a scene's last sentence.
+const SENTENCE_GAP_MS = 250;
+const SCENE_TAIL_MS = 800;
 
-interface SceneRecord { id: number; title: string; voiceOver: string; start: number; end: number }
+interface SentenceRecord { index: number; text: string; at: number }
+interface SceneRecord { id: number; title: string; voiceOver: string; start: number; end: number; sentences: SentenceRecord[] }
 interface Cut { start: number; end: number }
 
 /** Minimal Artemis REST client for the preflight. Bearer auth only: Artemis rejects a request carrying a JWT cookie and a bearer token. */
@@ -209,6 +214,61 @@ describe('Screencast', function () {
 
 	const now = () => Date.now() - recordingStart;
 	const cutTotal = () => cuts.reduce((sum, cut) => sum + cut.end - cut.start, 0);
+	// Time as the finished video counts it: footage cut out does not advance it.
+	const keptNow = () => now() - cutTotal();
+
+	// The scene being recorded: its sentences, the ones already marked, and when the voice of the
+	// last marked one ends, in kept time.
+	let sceneId = 0;
+	let sentences: string[] = [];
+	let spoken: SentenceRecord[] = [];
+	let voiceEndsAt = 0;
+
+	/** Splits a voice-over into sentences the way the recorder does, so take N is sentence N. */
+	function splitSentences(voiceOver: string): string[] {
+		return voiceOver.split(/(?<=[.!?])\s+/).filter(Boolean);
+	}
+
+	function sentenceMs(index: number): number {
+		const take = path.join(VOICE_DIR, `scene${String(sceneId).padStart(2, '0')}-${String(index).padStart(2, '0')}.wav`);
+		if (fs.existsSync(take)) {
+			const seconds = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', take]).toString());
+			if (seconds > 0) {
+				return seconds * 1000;
+			}
+		}
+		return sentences[index].split(/\s+/).length / WORDS_PER_SECOND * 1000;
+	}
+
+	/** Waits until the voice of the sentences marked so far has ended. */
+	async function settle(): Promise<void> {
+		const wait = voiceEndsAt - keptNow();
+		if (wait > 0) {
+			await driver.sleep(wait);
+		}
+	}
+
+	/**
+	 * Marks where sentence `index` of the scene's voice-over starts: call it right before the
+	 * action the sentence describes. It first waits until the previous sentence has been spoken,
+	 * so the footage paces itself to the voice. Skipped sentences are marked here first.
+	 */
+	async function say(index: number): Promise<void> {
+		if (index < spoken.length || index >= sentences.length) {
+			throw new Error(`Scene ${sceneId}: sentence ${index + 1} is marked twice or does not exist`);
+		}
+		while (spoken.length <= index) {
+			if (spoken.length < index) {
+				console.log(`Scene ${sceneId}: sentence ${spoken.length + 1} has no marker of its own`);
+			}
+			if (spoken.length > 0) {
+				voiceEndsAt += SENTENCE_GAP_MS;
+				await settle();
+			}
+			spoken.push({ index: spoken.length, text: sentences[spoken.length], at: now() });
+			voiceEndsAt = keptNow() + sentenceMs(spoken.length - 1);
+		}
+	}
 
 	/** Run `body` as footage nobody should watch; the render step cuts it out. */
 	async function offCamera(body: () => Promise<void>): Promise<void> {
@@ -221,8 +281,8 @@ describe('Screencast', function () {
 	}
 
 	/**
-	 * One scene of the video. It lasts at least as long as its voice-over needs, so the
-	 * voice fits whatever the actions took; footage cut out inside it does not count.
+	 * One scene of the video. The body marks each sentence of the voice-over with `say` at the
+	 * action it describes; the scene ends once the last sentence has been spoken.
 	 */
 	function scene(id: number, title: string, voiceOver: string, timeout: number, body: () => Promise<void>): void {
 		it(`${id}. ${title}`, async function () {
@@ -230,16 +290,19 @@ describe('Screencast', function () {
 				this.skip();
 			}
 			this.timeout(timeout);
+			sceneId = id;
+			sentences = splitSentences(voiceOver);
+			spoken = [];
+			voiceEndsAt = keptNow();
 			const start = now();
-			const cutsBefore = cutTotal();
 			await body();
 			await switchBackFromWebview(driver).catch(() => undefined);
-			const needed = voiceOver.split(/\s+/).length / WORDS_PER_SECOND * 1000 + SCENE_TAIL_MS;
-			const kept = now() - start - (cutTotal() - cutsBefore);
-			if (kept < needed) {
-				await driver.sleep(needed - kept);
+			if (spoken.length < sentences.length) {
+				await say(sentences.length - 1);
 			}
-			scenes.push({ id, title, voiceOver, start, end: now() });
+			voiceEndsAt += SCENE_TAIL_MS;
+			await settle();
+			scenes.push({ id, title, voiceOver, start, end: now(), sentences: spoken });
 		});
 	}
 
@@ -683,12 +746,15 @@ describe('Screencast', function () {
 	scene(1, 'Intro',
 		'This video shows the Artemis extension for VS Code. With it, you work on your programming exercises and ask Iris without leaving the editor.',
 		60000, async () => {
+			await say(0);
 			await driver.sleep(1000);
+			await say(1);
 		});
 
 	scene(2, 'Install',
 		'Open the Extensions view, search for Artemis - TUM and install it. VS Code asks once whether you trust the publisher; confirm it. A new Artemis icon appears on the left. VS Code also opens a short walkthrough. It covers the same steps as this video, so we close it.',
 		240000, async () => {
+			await say(0);
 			await openFromActivityBar('Extensions');
 			// The search field's input element is hidden behind the editor widget, so the widget is
 			// what gets clicked and the keys go to whatever holds the focus then.
@@ -718,9 +784,11 @@ describe('Screencast', function () {
 			await pointWorkbench(install);
 			// A fresh profile asks whether to trust the publisher (custom dialog style, so it is DOM).
 			const trust = await driver.wait(async () => (await driver.findElements(By.xpath("//div[contains(@class, 'monaco-dialog-box')]//a[contains(@class, 'monaco-button')][contains(normalize-space(.), 'Trust')]")))[0] ?? null, 30000, 'No publisher trust dialog') as WebElement;
+			await say(1);
 			await driver.sleep(1200);
 			await pointWorkbench(trust);
 			await driver.wait(async () => (await new ActivityBar().getViewControl('Artemis')) !== undefined, 120000, 'The Artemis view never appeared');
+			await say(2);
 			// The video has to show the release this checkout describes, not an older Marketplace build.
 			const extensionsDir = path.resolve(PACKAGE_ROOT, process.env.UI_EXTENSIONS_DIR ?? '');
 			const expected = JSON.parse(fs.readFileSync(path.join(PACKAGE_ROOT, 'package.json'), 'utf8')).version as string;
@@ -730,12 +798,15 @@ describe('Screencast', function () {
 			}
 			// The walkthrough opens on install; it is shown briefly, then closed.
 			await driver.wait(async () => (await driver.findElements(By.css('.gettingStartedContainer'))).length > 0, 30000, 'The walkthrough did not open').catch(() => undefined);
+			await say(3);
 			await driver.sleep(2500);
+			await say(4);
 			const close = await driver.findElements(By.css('.tabs-container .tab.active .codicon-close'));
 			if (close.length > 0) {
 				await pointWorkbench(close[0]);
 			}
 			await new EditorView().closeAllEditors().catch(() => undefined);
+			await settle();
 			// Off camera: the login page names the local demo server until the blur is in place.
 			// The stylesheet blurs that line through the re-renders of the two login steps.
 			await offCamera(async () => {
@@ -757,11 +828,13 @@ describe('Screencast', function () {
 		'Enter your username and select Continue. Depending on your account, you then enter your password, or you sign in through your university\'s login page in the browser. After that, you see the dashboard.',
 		120000, async () => {
 			await artemisFrame();
+			await say(0);
 			const usernameInput = await waitForElement(driver, '#username', 30000);
 			await pointWebview(usernameInput);
 			await typeSlowly(usernameInput, username, 70);
 			await pointWebview(await waitForElement(driver, '[data-testid="login-next"]'));
 			const passwordInput = await waitForElement(driver, '#password', 15000);
+			await say(1);
 			await pointWebview(passwordInput);
 			await typeSlowly(passwordInput, password.slice(0, 12), 60);
 			await passwordInput.sendKeys(password.slice(12));
@@ -770,17 +843,22 @@ describe('Screencast', function () {
 			await driver.sleep(3000);
 			await reattachWebviewFrame(driver);
 			await waitForPage('Browse Courses', 30000);
+			await say(2);
 		});
 
 	scene(4, 'Dashboard and courses',
 		'The dashboard shows the exercise open in your workspace. No exercise is open yet, so Choose takes you to your courses. Below are your recent courses, and tools and settings. Browse Courses lists every course you are enrolled in, and you can search and filter it. Select a course to see its exercises with their due dates and points.',
 		120000, async () => {
 			await artemisFrame();
+			await say(0);
 			await hoverText('Current Workspace Exercise');
+			await say(1);
 			await hoverText('Choose', 1500);
+			await say(2);
 			await hoverText('Recent Courses');
 			await hoverText(COURSE_TITLE);
 			await hoverText('Tools & Settings');
+			await say(3);
 			await clickText('Browse Courses', true);
 			const search = await waitForElement(driver, 'input[placeholder^="Search courses"]', 15000);
 			await pointWebview(search);
@@ -788,6 +866,7 @@ describe('Screencast', function () {
 			await driver.sleep(1200);
 			await search.sendKeys(Key.chord(Key.META, 'a'), Key.BACK_SPACE);
 			await driver.sleep(600);
+			await say(4);
 			const row = await driver.findElement(By.xpath(`//*[starts-with(@data-testid, 'course-entry-')][contains(., ${xpathLiteral(COURSE_TITLE)})]`));
 			await pointWebview(row);
 			await reattachWebviewFrame(driver);
@@ -801,13 +880,17 @@ describe('Screencast', function () {
 			await artemisFrame();
 			await clickText(EXERCISE_TITLE, true);
 			await waitForPage('Not Participating Yet', 15000);
+			await say(0);
+			await say(1);
 			await clickText('Start Exercise');
 			await waitForPage('Repository Ready', 60000);
 			await driver.sleep(800);
+			await say(2);
 			const clone = await driver.findElement(By.xpath("//button[normalize-space(.)='Clone Repository']"));
 			await pointWebview(clone);
 			await switchBackFromWebview(driver);
 			const setDefault = await driver.wait(async () => (await driver.findElements(By.xpath("//div[contains(@class, 'monaco-dialog-box')]//a[contains(@class, 'monaco-button')][normalize-space(.)='Set Default Folder']")))[0] ?? null, 20000, 'No clone folder dialog') as WebElement;
+			await say(3);
 			await driver.sleep(2500);
 			await pointWorkbench(setDefault);
 			// The simple file dialog opens on files.dialog.defaultPath, the demo clone folder.
@@ -816,6 +899,7 @@ describe('Screencast', function () {
 			await pointWorkbench(accept);
 			const handlesBefore = await driver.getAllWindowHandles();
 			const openFolder = await driver.wait(async () => (await driver.findElements(By.xpath("//div[contains(@class, 'notification-toast')]//a[contains(@class, 'monaco-button')][normalize-space(.)='Open Folder']")))[0] ?? null, 120000, 'The clone never offered Open Folder') as WebElement;
+			await say(4);
 			await driver.sleep(1200);
 			await pointWorkbench(openFolder, false);
 			// VS Code opens a new window on the display under the system pointer, so for this one click
@@ -843,6 +927,7 @@ describe('Screencast', function () {
 				await driver.sleep(1000);
 			});
 			repo = findRepo();
+			await say(5);
 			await artemisFrame();
 			await hoverText('Current Workspace Exercise');
 			await clickText(EXERCISE_TITLE, true);
@@ -857,6 +942,7 @@ describe('Screencast', function () {
 				editor = await openFile(BUBBLE_SORT);
 				await driver.sleep(800);
 			});
+			await say(0);
 			await caretToLineEnd('TODO:');
 			// Home stops at the indentation first, so twice selects the whole line.
 			await editor.typeText(Key.chord(Key.SHIFT, Key.HOME));
@@ -872,9 +958,13 @@ describe('Screencast', function () {
 			await editor.save();
 			await artemisFrame();
 			await waitForPage('Uncommitted changes ready to submit', 30000);
+			await say(1);
 			await hoverText('Uncommitted changes ready to submit');
+			await say(2);
 			await submitAndWait('See test results');
+			await say(3);
 			await hoverText('tests', 1500);
+			await say(4);
 			await clickText('See test results');
 			await driver.sleep(1500);
 			await driver.executeScript(`
@@ -884,6 +974,7 @@ describe('Screencast', function () {
 			await driver.sleep(2000);
 			await driver.actions().sendKeys(Key.ESCAPE).perform();
 			await driver.sleep(800);
+			await say(5);
 			// The problem statement makes a task clickable only once it has tests (ProblemStatement.tsx).
 			const task = await waitForElement(driver, '.artemis-task[data-test-ids]', 15000);
 			await pointWebview(task);
@@ -895,6 +986,7 @@ describe('Screencast', function () {
 		'If your code does not compile, there are no test results, only Build failed. Go to source opens the file at the first error, and the error is marked right above its line. Open log shows the full build log.',
 		600000, async () => {
 			const editor = await openFile(BUBBLE_SORT);
+			await say(0);
 			await caretToLineEnd('temp)');
 			await driver.sleep(400);
 			await editor.typeText(Key.BACK_SPACE);
@@ -903,15 +995,18 @@ describe('Screencast', function () {
 			await artemisFrame();
 			await submitAndWait('Go to source');
 			await hoverText('Build failed', 1200);
+			await say(1);
 			await clickText('Go to source');
 			await switchBackFromWebview(driver);
 			await driver.wait(async () => (await driver.findElements(By.css('.codelens-decoration'))).length > 0, 30000, 'No CodeLens on the failing line');
 			await pointWorkbench(await driver.findElement(By.css('.codelens-decoration')), false);
 			await driver.sleep(2500);
 			await artemisFrame();
+			await say(2);
 			await clickText('Open log');
 			await switchBackFromWebview(driver);
 			await driver.sleep(3500);
+			await settle();
 			// The log is an untitled document, so a plain close would ask whether to save it.
 			await offCamera(() => new Workbench().executeCommand('View: Revert and Close Editor'));
 			// Back to compiling code; not submitted again, the next scenes do not need it.
@@ -949,10 +1044,12 @@ describe('Screencast', function () {
 			});
 			await driver.sleep(1200);
 			await artemisFrame();
+			await say(0);
 			await clickText('More ▾');
 			await driver.sleep(500);
 			await hoverText('Check workspace status', 600);
 			await hoverText('Copy Clone URL', 600);
+			await say(1);
 			await clickText('Pull Changes');
 			await switchBackFromWebview(driver);
 			// The DOM, not TextEditor.getText(): that one selects all through the command palette.
@@ -968,8 +1065,10 @@ describe('Screencast', function () {
 		120000, async () => {
 			await artemisFrame();
 			await backToDashboard();
+			await say(0);
 			await clickText('Submission Setup', true);
 			await waitForPage('Git installed', 30000);
+			await say(1);
 			await driver.sleep(2000);
 			for (const row of await driver.findElements(By.css('[data-testid^="setup-row-"]'))) {
 				await pointWebview(row, false);
@@ -980,15 +1079,19 @@ describe('Screencast', function () {
 	scene(10, 'Iris needs your AI choice',
 		'Iris only answers once you have chosen in Artemis to use AI. If you have not, or chose not to, the chat says so. Open Artemis settings takes you to the page where you choose. Once you have chosen to use AI there, select Retry.',
 		180000, async () => {
+			await say(0);
 			await openFromActivityBar('Iris Chat');
 			await irisFrame();
 			await waitForPage('Open Artemis settings', 60000);
+			await say(1);
 			await driver.sleep(1500);
+			await say(2);
 			await hoverText('Open Artemis settings', 2500);
 			await offCamera(async () => {
 				await student.request('PUT', '/api/account/users/select-llm-usage', { selection: 'CLOUD_AI' });
 				await driver.sleep(500);
 			});
+			await say(3);
 			await clickText('Retry');
 			await waitForElement(driver, '[aria-label="Chat input"]', 60000);
 			await driver.sleep(1500);
@@ -1002,16 +1105,19 @@ describe('Screencast', function () {
 			await backToDashboard();
 			await clickText(EXERCISE_TITLE, true);
 			await waitForPage('Ask Iris', 30000);
+			await say(0);
 			const ask = await driver.findElement(By.xpath("//button[normalize-space(.)='Ask']"));
 			await pointWebview(ask);
 			await switchBackFromWebview(driver);
 			await irisFrame();
 			const input = await waitForElement(driver, '[aria-label="Chat input"]', 30000);
 			await waitUntilIrisIdle(driver, 60000);
+			await say(1);
 			await pointWebview(input);
 			await typeSlowly(input, IRIS_QUESTION);
 			await pointWebview(await waitForElement(driver, '[aria-label="Send message"]'));
 			await driver.wait(async () => (await driver.findElements(By.css('[data-testid="message-row"]'))).length >= 2, 60000, 'Iris never started answering');
+			await say(2);
 			await driver.sleep(4000);
 			await offCamera(() => waitUntilIrisIdle(driver, 300000));
 			const rows = await driver.findElements(By.css('[data-testid="message-row"]'));
@@ -1032,6 +1138,7 @@ describe('Screencast', function () {
 				await pointWebview(helpful[helpful.length - 1]);
 				await driver.sleep(800);
 			}
+			await say(3);
 			const referenced = await driver.findElements(By.xpath("//*[self::button or @role='button'][contains(normalize-space(.), 'referenced')]"));
 			if (referenced.length > 0) {
 				await pointWebview(referenced[referenced.length - 1]);
@@ -1040,6 +1147,8 @@ describe('Screencast', function () {
 			} else {
 				console.log('No "referenced" line above the message box');
 			}
+			await say(4);
+			await say(5);
 			await pointWebview(await waitForElement(driver, '[title="Change topic"]'));
 			await waitForElement(driver, '[data-testid^="picker-entry-"]');
 			await driver.sleep(1200);
@@ -1047,6 +1156,7 @@ describe('Screencast', function () {
 			await hoverText('Workspace', 1200);
 			await driver.actions().sendKeys(Key.ESCAPE).perform();
 			await driver.sleep(600);
+			await say(6);
 			await pointWebview(await waitForElement(driver, '[aria-label="View past conversations"]'));
 			await driver.sleep(2500);
 			await driver.actions().sendKeys(Key.ESCAPE).perform();
@@ -1057,6 +1167,8 @@ describe('Screencast', function () {
 		'Iris can also offer help on its own when you seem stuck. This needs your consent first: select Enable in Settings and set it to enabled. The extension then observes on your computer how you work, for example how fast you type and how long you pause, and sends your code to Iris only when you might be stuck. On the Ask Iris card you choose how much Iris steps in. Off means Iris only helps when you ask. With More, a banner offers a hint, and Show me opens it in the chat. A hint about a line also appears right next to it. With Less there is no banner, only a quiet mark in the status bar and the margin.',
 		900000, async () => {
 			await returnToExercisePage();
+			await say(0);
+			await say(1);
 			await clickText('Enable in Settings');
 			await switchBackFromWebview(driver);
 			const settings = new SettingsEditor();
@@ -1064,11 +1176,14 @@ describe('Screencast', function () {
 			const select = await consent!.findElement(By.css('select'));
 			await pointWorkbench(select, false);
 			await consent!.setValue('enabled');
+			await say(2);
 			await driver.sleep(1500);
 			await new EditorView().closeAllEditors();
 			await artemisFrame();
+			await say(3);
 			const card = await findByText('Proactive help');
 			await pointWebview(card, false);
+			await say(4);
 			await hoverText('Off', 800);
 			await hoverText('Less', 800);
 			await clickText('More');
@@ -1103,6 +1218,7 @@ describe('Screencast', function () {
 				await assertDeveloperToolsOutOfFrame();
 			});
 			await driver.sleep(800);
+			await say(5);
 			await hoverText('Show me', 1200);
 			if (!mocked) {
 				await clickText('Show me');
@@ -1114,6 +1230,7 @@ describe('Screencast', function () {
 			}
 			await switchBackFromWebview(driver);
 			await driver.wait(async () => (await driver.findElements(By.css('#workbench\\.parts\\.editor .cgmr'))).length > 0, 30000, 'No Iris hint in the editor').catch(() => console.log('No inline hint in the editor'));
+			await say(6);
 			const hint = await driver.findElements(By.css('#workbench\\.parts\\.editor .cgmr'));
 			if (hint.length > 0) {
 				await pointWorkbench(hint[0], false);
@@ -1125,6 +1242,7 @@ describe('Screencast', function () {
 				await driver.sleep(1000);
 			});
 			await artemisFrame();
+			await say(7);
 			await clickText('Less');
 			await driver.sleep(800);
 			await offCamera(async () => {
@@ -1157,6 +1275,7 @@ describe('Screencast', function () {
 			});
 			await artemisFrame();
 			await backToDashboard();
+			await say(0);
 			await clickText('Open Settings');
 			await switchBackFromWebview(driver);
 			await driver.sleep(2500);
@@ -1167,6 +1286,9 @@ describe('Screencast', function () {
 			await driver.sleep(2000);
 			await new EditorView().closeAllEditors();
 			await artemisFrame();
+			await say(1);
 			await hoverText('Bug Report', 2500);
+			await say(2);
+			await say(3);
 		});
 });
