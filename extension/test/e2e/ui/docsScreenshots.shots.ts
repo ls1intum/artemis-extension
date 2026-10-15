@@ -9,19 +9,27 @@
 // The tests run in order and each continues from the screen the previous one left.
 import { execFileSync } from 'child_process';
 import * as path from 'path';
-import { ActivityBar, By, EditorView, InputBox, Key, TextEditor, VSBrowser, WebDriver, WebElement, Workbench } from 'vscode-extension-tester';
+import { By, EditorView, Key, TextEditor, VSBrowser, WebDriver, WebElement } from 'vscode-extension-tester';
 
 import {
 	attachToLoginForm,
 	captureElement,
 	getCredentials,
+	inArtemisView,
+	interventionMenu,
 	openArtemisView,
+	openIrisView,
 	reattachWebviewFrame,
+	setDeveloperMode,
+	setProactiveLevel,
 	setSidebarWidth,
 	submitUsername,
 	switchBackFromWebview,
 	switchToWebviewFrame,
 	waitForElement,
+	waitForText,
+	waitUntilIrisIdle,
+	xpathLiteral,
 } from './helpers';
 
 const SIDEBAR_WIDTH = 460;
@@ -80,18 +88,11 @@ describe('Docs screenshots', function () {
 		await driver.actions().move({ origin: await driver.findElement(By.id('workbench.parts.activitybar')), x: 0, y: 200 }).perform();
 	}
 
-	async function waitForText(text: string, timeout = 15000): Promise<void> {
-		await driver.wait(
-			async () => (await driver.findElements(By.xpath(`//*[contains(normalize-space(.), ${xpathLiteral(text)})]`))).length > 0,
-			timeout,
-			`"${text}" never appeared`,
-		);
-	}
 
 	/** Capture `target` once `text` is visible in the current sidebar webview. */
 	async function captureShowing(name: string, text: string, target: () => Promise<WebElement> = sidebar, timeout = 15000): Promise<void> {
 		await switchToWebviewFrame(driver);
-		await waitForText(text, timeout);
+		await waitForText(driver, text, timeout);
 		await switchBackFromWebview(driver);
 		await parkPointer();
 		await driver.sleep(500);
@@ -110,59 +111,6 @@ describe('Docs screenshots', function () {
 		);
 		await (el as WebElement).click();
 		await reattachWebviewFrame(driver);
-	}
-
-	async function inArtemisView(action: () => Promise<void>): Promise<void> {
-		await openArtemisView();
-		await switchToWebviewFrame(driver);
-		try {
-			await action();
-		} finally {
-			await switchBackFromWebview(driver).catch(() => undefined);
-		}
-	}
-
-	/** Developer mode unlocks the intervention menu, but also adds a Developer Tools panel to the pages, so it is only on for the proactive shots. */
-	async function setDeveloperMode(on: boolean): Promise<void> {
-		const settings = await new Workbench().openSettings();
-		const setting = await settings.findSettingByID('artemis.developerMode');
-		await setting.setValue(on);
-		await new EditorView().closeAllEditors();
-	}
-
-	/** Run one entry of the developer intervention menu. */
-	async function interventionMenu(entry: string): Promise<void> {
-		await new Workbench().executeCommand('Artemis: Struggle Intervention Menu (Developer)');
-		const input = await InputBox.create();
-		await input.selectQuickPick(entry);
-	}
-
-	async function openIrisView(): Promise<void> {
-		const control = await new ActivityBar().getViewControl('Iris Chat');
-		if (!control) {
-			throw new Error('Iris Chat view control not found in the activity bar');
-		}
-		await control.openView();
-	}
-
-	/** Pick a proactive help level on the exercise page. The level is per account, not per exercise. */
-	async function setProactiveLevel(level: 'Off' | 'Less' | 'More'): Promise<void> {
-		const radio = await driver.wait(
-			async () => (await driver.findElements(By.xpath(`//*[@role='radio'][normalize-space(.)='${level}']`)))[0] ?? null,
-			15000,
-			`No proactive level "${level}" on this page`,
-		);
-		await (radio as WebElement).click();
-		await driver.wait(async () => (await (radio as WebElement).getAttribute('aria-checked')) === 'true', 5000, `Level "${level}" was not selected`);
-	}
-
-	/** Iris locks the conversation controls while it answers; they unlock when the answer is complete. */
-	async function waitUntilIrisIdle(timeout: number): Promise<void> {
-		await driver.wait(async () => {
-			const history = await driver.findElements(By.css('[aria-label="View past conversations"]'));
-			const thinking = await driver.findElements(By.css('[data-testid="thinking-indicator"]'));
-			return history.length > 0 && await history[0].isEnabled() && thinking.length === 0;
-		}, timeout, 'Iris never finished answering');
 	}
 
 	async function submitWhenEnabled(): Promise<void> {
@@ -203,7 +151,7 @@ describe('Docs screenshots', function () {
 	describe('courses-and-exercises', function () {
 		it('course-list', async function () {
 			this.timeout(60000);
-			await inArtemisView(async () => {
+			await inArtemisView(driver, async () => {
 				await clickText('Browse Courses');
 				await clickText('Load Archived Courses');
 			});
@@ -212,7 +160,7 @@ describe('Docs screenshots', function () {
 
 		it('course-detail', async function () {
 			this.timeout(60000);
-			await inArtemisView(async () => {
+			await inArtemisView(driver, async () => {
 				const row = await driver.findElement(By.xpath(`//*[starts-with(@data-testid, 'course-entry-')][contains(., ${xpathLiteral(COURSE_TITLE)})]`));
 				await row.click();
 				await reattachWebviewFrame(driver);
@@ -222,30 +170,30 @@ describe('Docs screenshots', function () {
 
 		it('exercise-not-started', async function () {
 			this.timeout(60000);
-			await inArtemisView(() => clickText(NOT_STARTED_EXERCISE));
+			await inArtemisView(driver, () => clickText(NOT_STARTED_EXERCISE));
 			await captureShowing('exercise-not-started', 'Start Exercise');
-			await inArtemisView(() => clickText('Back to Course'));
+			await inArtemisView(driver, () => clickText('Back to Course'));
 		});
 
 		it('exercise-detail', async function () {
 			this.timeout(60000);
-			await inArtemisView(async () => {
+			await inArtemisView(driver, async () => {
 				await clickText(STARTED_EXERCISE);
 				// The page shows the default level. Captured first, then switched off, so the broken
 				// build below does not set off a real proactive hint that would end up in the chat shots.
-				await setProactiveLevel('More');
+				await setProactiveLevel(driver, 'More');
 			});
 			await captureShowing('exercise-detail', PARTIAL_RESULT);
-			await inArtemisView(() => setProactiveLevel('Off'));
+			await inArtemisView(driver, () => setProactiveLevel(driver, 'Off'));
 		});
 	});
 
 	describe('work-on-an-exercise', function () {
 		it('test-results', async function () {
 			this.timeout(60000);
-			await inArtemisView(() => clickText('See test results'));
+			await inArtemisView(driver, () => clickText('See test results'));
 			await captureShowing('test-results', 'Passed');
-			await inArtemisView(async () => {
+			await inArtemisView(driver, async () => {
 				await driver.actions().sendKeys(Key.ESCAPE).perform(); // closes the overlay
 			});
 		});
@@ -278,16 +226,16 @@ describe('Docs screenshots', function () {
 
 			try {
 				await setSemicolon(false);
-				await inArtemisView(submitWhenEnabled);
+				await inArtemisView(driver, submitWhenEnabled);
 				await captureShowing('build-failed', 'Go to source', sidebar, 180000);
 
-				await inArtemisView(() => clickText('Open log'));
+				await inArtemisView(driver, () => clickText('Open log'));
 				await driver.sleep(2000);
 				await parkPointer();
 				await captureElement(await editorArea(), 'build-log');
 				await new EditorView().closeAllEditors();
 
-				await inArtemisView(() => clickText('Go to source'));
+				await inArtemisView(driver, () => clickText('Go to source'));
 				await driver.wait(async () => (await driver.findElements(By.css('.codelens-decoration'))).length > 0, 20000, 'No CodeLens on the failing file');
 				await parkPointer();
 				await captureElement(await editorArea(), 'codelens-error');
@@ -301,9 +249,9 @@ describe('Docs screenshots', function () {
 				// working tree differs from the last commit exactly when the broken file was committed.
 				const repairPending = execFileSync('git', ['-C', process.env.ARTEMIS_TEST_REPO!, 'status', '--porcelain'], { encoding: 'utf8' }).trim() !== '';
 				if (repairPending) {
-					await inArtemisView(async () => {
+					await inArtemisView(driver, async () => {
 						await submitWhenEnabled();
-						await waitForText(PARTIAL_RESULT, 180000);
+						await waitForText(driver, PARTIAL_RESULT, 180000);
 					});
 				}
 			}
@@ -311,13 +259,13 @@ describe('Docs screenshots', function () {
 
 		it('submission-setup', async function () {
 			this.timeout(60000);
-			await inArtemisView(async () => {
+			await inArtemisView(driver, async () => {
 				await clickText('Back to Course');
 				await clickText('Back to Dashboard');
 				await clickText('Submission Setup');
 			});
 			await captureShowing('submission-setup', 'Submission Setup');
-			await inArtemisView(() => clickText('Back'));
+			await inArtemisView(driver, () => clickText('Back'));
 		});
 
 		it('dashboard', async function () {
@@ -329,20 +277,20 @@ describe('Docs screenshots', function () {
 	describe('iris', function () {
 		it('iris-chat', async function () {
 			this.timeout(360000);
-			await inArtemisView(async () => {
+			await inArtemisView(driver, async () => {
 				await clickText(STARTED_EXERCISE);
 				await clickText('Ask');
 			});
 			await openIrisView();
 			await switchToWebviewFrame(driver);
-			await waitUntilIrisIdle(30000);
+			await waitUntilIrisIdle(driver, 30000);
 			// A fresh conversation, so the shot holds only this question and its answer.
 			await (await waitForElement(driver, '[aria-label="New conversation"]')).click();
 			const input = await waitForElement(driver, '[aria-label="Chat input"]', 20000);
 			await input.sendKeys(IRIS_QUESTION);
 			await (await waitForElement(driver, '[aria-label="Send message"]')).click();
 			await driver.wait(async () => (await driver.findElements(By.css('[data-testid="message-row"]'))).length >= 2, 60000, 'Iris never started answering');
-			await waitUntilIrisIdle(240000);
+			await waitUntilIrisIdle(driver, 240000);
 			// The chat sticks to the bottom while an answer streams in, and its scroll animation can
 			// still be running when the answer is complete, pulling a single jump to the top back
 			// down. The shot starts at the question, so the jump repeats until the position holds.
@@ -426,7 +374,7 @@ describe('Docs screenshots', function () {
 		async function setLevelInVisibleView(level: 'Off' | 'Less' | 'More'): Promise<void> {
 			await switchToWebviewFrame(driver);
 			try {
-				await setProactiveLevel(level);
+				await setProactiveLevel(driver, level);
 			} finally {
 				await switchBackFromWebview(driver);
 			}
@@ -475,7 +423,3 @@ describe('Docs screenshots', function () {
 		});
 	});
 });
-
-function xpathLiteral(text: string): string {
-	return text.includes("'") ? `"${text}"` : `'${text}'`;
-}

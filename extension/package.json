@@ -379,7 +379,8 @@
     "roundtrip-recording": "tsx scripts/roundtrip-recording.ts",
     "event-coverage": "tsx scripts/event-coverage.ts",
     "prepare": "cd .. && husky extension/.husky",
-    "screenshots:docs": "UI_ENV_FILE=.env.docs.local UI_TEST_GLOB='*.shots.js' UI_CODE_SETTINGS=test/e2e/ui/docs-settings.json bash test/e2e/ui/run-tests.sh",
+    "screenshots:docs": "UI_ENV_FILE=.env.docs.local UI_TEST_GLOB='docsScreenshots.shots.js' UI_CODE_SETTINGS=test/e2e/ui/docs-settings.json bash test/e2e/ui/run-tests.sh",
+    "screencast:docs": "rm -rf \"${TMPDIR:-/tmp}/artemis-screencast-extensions\" && UI_ENV_FILE=.env.screencast.local UI_TEST_GLOB='screencast.shots.js' UI_CODE_SETTINGS=test/e2e/ui/screencast-settings.json UI_INSTALL_VSIX=0 UI_EXTENSIONS_DIR=\"${TMPDIR:-/tmp}/artemis-screencast-extensions\" bash test/e2e/ui/run-tests.sh && node scripts/render-screencast.js",
     "vscode:prepublish": "node scripts/sync-marketplace-docs.js && npm run package"
   },
   "lint-staged": {

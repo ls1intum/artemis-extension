@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { PNG } from 'pngjs';
-import { ActivityBar, By, EditorView, Origin, SideBarView, until, WebDriver, WebElement, WebviewView, Workbench } from 'vscode-extension-tester';
+import { ActivityBar, By, EditorView, InputBox, Origin, SideBarView, until, WebDriver, WebElement, WebviewView, Workbench } from 'vscode-extension-tester';
 
 // Resolve to the source tree screenshots dir (not the out/ compiled dir)
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
@@ -357,6 +357,79 @@ export async function setSidebarWidth(driver: WebDriver, width: number): Promise
 	if (Math.abs(actual - width) > 2) {
 		throw new Error(`Sidebar is ${actual}px wide after resizing, expected ${width}px`);
 	}
+}
+
+export function xpathLiteral(text: string): string {
+	return text.includes("'") ? `"${text}"` : `'${text}'`;
+}
+
+/** Wait until `text` is visible somewhere in the current frame. */
+export async function waitForText(driver: WebDriver, text: string, timeout = 15000): Promise<void> {
+	await driver.wait(
+		async () => (await driver.findElements(By.xpath(`//*[contains(normalize-space(.), ${xpathLiteral(text)})]`))).length > 0,
+		timeout,
+		`"${text}" never appeared`,
+	);
+}
+
+/** Open the Artemis view, run `action` inside its webview, and always leave the frame again. */
+export async function inArtemisView(driver: WebDriver, action: () => Promise<void>): Promise<void> {
+	await openArtemisView();
+	await switchToWebviewFrame(driver);
+	try {
+		await action();
+	} finally {
+		await switchBackFromWebview(driver).catch(() => undefined);
+	}
+}
+
+/** Developer mode unlocks the intervention menu, but also adds a Developer Tools panel to the exercise page. */
+export async function setDeveloperMode(on: boolean): Promise<void> {
+	const settings = await new Workbench().openSettings();
+	const setting = await settings.findSettingByID('artemis.developerMode');
+	await setting.setValue(on);
+	await new EditorView().closeAllEditors();
+}
+
+/** Run one entry of the developer intervention menu. */
+export async function interventionMenu(entry: string): Promise<void> {
+	await new Workbench().executeCommand('Artemis: Struggle Intervention Menu (Developer)');
+	const input = await InputBox.create();
+	await input.selectQuickPick(entry);
+}
+
+export async function openIrisView(): Promise<void> {
+	const control = await new ActivityBar().getViewControl('Iris Chat');
+	if (!control) {
+		throw new Error('Iris Chat view control not found in the activity bar');
+	}
+	await control.openView();
+}
+
+/**
+ * Pick a proactive help level on the exercise page. The level is per account, not per exercise.
+ * Must be called AFTER `switchToWebviewFrame`.
+ */
+export async function setProactiveLevel(driver: WebDriver, level: 'Off' | 'Less' | 'More'): Promise<void> {
+	const radio = await driver.wait(
+		async () => (await driver.findElements(By.xpath(`//*[@role='radio'][normalize-space(.)='${level}']`)))[0] ?? null,
+		15000,
+		`No proactive level "${level}" on this page`,
+	);
+	await (radio as WebElement).click();
+	await driver.wait(async () => (await (radio as WebElement).getAttribute('aria-checked')) === 'true', 5000, `Level "${level}" was not selected`);
+}
+
+/**
+ * Iris locks the conversation controls while it answers; they unlock when the answer is complete.
+ * Must be called inside the Iris Chat webview.
+ */
+export async function waitUntilIrisIdle(driver: WebDriver, timeout: number): Promise<void> {
+	await driver.wait(async () => {
+		const history = await driver.findElements(By.css('[aria-label="View past conversations"]'));
+		const thinking = await driver.findElements(By.css('[data-testid="thinking-indicator"]'));
+		return history.length > 0 && await history[0].isEnabled() && thinking.length === 0;
+	}, timeout, 'Iris never finished answering');
 }
 
 /**

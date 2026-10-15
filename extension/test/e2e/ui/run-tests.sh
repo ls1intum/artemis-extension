@@ -25,14 +25,17 @@ echo "=== Phase 1: Compiling tests ==="
 # Pre-existing type errors in streamdown/CodeBlock are unrelated to UI tests.
 tsc -p . --outDir out || true
 
-echo "=== Phase 2: Building extension ==="
-node esbuild.js --production
+# UI_INSTALL_VSIX=0 skips building and installing the local VSIX, for a run that installs
+# the published extension itself (the screencast installs it from the Marketplace on camera).
+# UI_EXTENSIONS_DIR gives VS Code an extensions folder of its own, so that run does not
+# find the VSIX a previous suite installed.
+UI_INSTALL_VSIX="${UI_INSTALL_VSIX:-1}"
+EXTENSIONS_DIR_ARGS=()
+if [ -n "${UI_EXTENSIONS_DIR:-}" ]; then
+  EXTENSIONS_DIR_ARGS=(-e "$UI_EXTENSIONS_DIR")
+fi
 
-echo "=== Phase 3: Packaging VSIX ==="
-# Temporarily remove vscode:prepublish to avoid failing type checks during vsce package.
-# Save and restore just the prepublish script (not the entire package.json).
-PREPUBLISH_SCRIPT=$(node -e "console.log(require('./package.json').scripts['vscode:prepublish'] || '')")
-npm pkg delete scripts.vscode:prepublish
+PREPUBLISH_SCRIPT=""
 TMP_SETTINGS=""
 cleanup() {
   if [ -n "$PREPUBLISH_SCRIPT" ]; then
@@ -43,7 +46,18 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
-npx @vscode/vsce package --no-dependencies --skip-license -o test-extension.vsix
+
+if [ "$UI_INSTALL_VSIX" = "1" ]; then
+  echo "=== Phase 2: Building extension ==="
+  node esbuild.js --production
+
+  echo "=== Phase 3: Packaging VSIX ==="
+  # Temporarily remove vscode:prepublish to avoid failing type checks during vsce package.
+  # Save and restore just the prepublish script (not the entire package.json).
+  PREPUBLISH_SCRIPT=$(node -e "console.log(require('./package.json').scripts['vscode:prepublish'] || '')")
+  npm pkg delete scripts.vscode:prepublish
+  npx @vscode/vsce package --no-dependencies --skip-license -o test-extension.vsix
+fi
 
 echo "=== Phase 4: Setting up test environment ==="
 # Pinned, and not by preference: vscode-extension-tester hardcodes the macOS
@@ -57,7 +71,9 @@ UI_CODE_VERSION="${UI_CODE_VERSION:-1.109.1}"
 
 extest get-vscode --code_version "$UI_CODE_VERSION"
 extest get-chromedriver --code_version "$UI_CODE_VERSION"
-extest install-vsix --vsix_file test-extension.vsix
+if [ "$UI_INSTALL_VSIX" = "1" ]; then
+  extest install-vsix --vsix_file test-extension.vsix "${EXTENSIONS_DIR_ARGS[@]}"
+fi
 
 # Compose the final settings.json passed to each `extest run-tests`. By
 # default we use the committed `code-settings.json` unchanged. If
@@ -118,7 +134,7 @@ for test_file in out/test/e2e/ui/$UI_TEST_GLOB; do
     OPEN_RESOURCE=(-r "$ARTEMIS_TEST_REPO")
   fi
 
-  extest run-tests "$test_file" --code_version "$UI_CODE_VERSION" --mocha_config .mocharc.ui.yml --code_settings "$SETTINGS_FILE" "${OPEN_RESOURCE[@]}" 2>&1 | tee "$log_file"
+  extest run-tests "$test_file" --code_version "$UI_CODE_VERSION" --mocha_config .mocharc.ui.yml --code_settings "$SETTINGS_FILE" "${EXTENSIONS_DIR_ARGS[@]}" "${OPEN_RESOURCE[@]}" 2>&1 | tee "$log_file"
   rc=${PIPESTATUS[0]}
 
   # Distinguish "actually ran" from "skipped because .env was missing".
