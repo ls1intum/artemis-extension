@@ -132,7 +132,7 @@ suite('RepositoryCloneCommands', () => {
 
     test('copyAuthenticatedCloneUrl surfaces an error message when getOrCreateVcsAccessToken throws', async () => {
         const { ctx } = buildContext({
-            getOrCreateVcsAccessToken: sandbox.stub().rejects(new Error('forbidden')),
+            getOrCreateVcsAccessToken: sandbox.stub().rejects(new Error('API request failed: 400: Bad Request')),
         });
         const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
 
@@ -143,7 +143,62 @@ suite('RepositoryCloneCommands', () => {
         } as never);
 
         sinon.assert.notCalled(clipboardWrite);
-        sinon.assert.calledOnceWithExactly(showErrorMessage, 'Failed to obtain VCS access token.');
+        sinon.assert.calledOnceWithExactly(
+            showErrorMessage,
+            'Failed to obtain VCS access token: API request failed: 400: Bad Request',
+        );
+    });
+
+    test('copyAuthenticatedCloneUrl keeps URL credentials out of the token error', async () => {
+        const { ctx } = buildContext({
+            getOrCreateVcsAccessToken: sandbox.stub().rejects(
+                new Error('fetch failed for https://alice:secret-token@artemis.example.com/git/repo.git'),
+            ),
+        });
+        const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.CopyAuthenticatedCloneUrl]({
+            type: 'command',
+            command: WebviewCmd.CopyAuthenticatedCloneUrl,
+            payload: { participationId: 7, repositoryUri: 'https://artemis.example.com/git/repo.git' },
+        } as never);
+
+        sinon.assert.calledOnce(showErrorMessage);
+        const msg = showErrorMessage.firstCall.args[0] as string;
+        assert.ok(!msg.includes('secret-token'), `Expected the token to be redacted; got: ${msg}`);
+    });
+
+    test('copyAuthenticatedCloneUrl stops with the reason when the account lookup throws', async () => {
+        const { ctx } = buildContext({
+            getCurrentUser: sandbox.stub().rejects(new Error('API request failed: 500')),
+        });
+        const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.CopyAuthenticatedCloneUrl]({
+            type: 'command',
+            command: WebviewCmd.CopyAuthenticatedCloneUrl,
+            payload: { participationId: 7, repositoryUri: 'https://artemis.example.com/git/repo.git' },
+        } as never);
+
+        sinon.assert.notCalled(clipboardWrite);
+        sinon.assert.calledOnceWithExactly(showErrorMessage, 'Could not read your Artemis account: API request failed: 500');
+    });
+
+    test('cloneRepository does not clone with a guessed username when the account has no login', async () => {
+        configValues.set('defaultClonePath', '/tmp/clones');
+        configValues.set('showSetDefaultClonePathPrompt', false);
+        statAsync.resolves({ isDirectory: () => true } as fs.Stats);
+        const { ctx } = buildContext({ getCurrentUser: sandbox.stub().resolves({ login: '' }) });
+        const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.CloneRepository]({
+            type: 'command',
+            command: WebviewCmd.CloneRepository,
+            payload: { participationId: 1, repositoryUri: 'https://artemis.example.com/git/repo.git', exerciseTitle: 'T' },
+        } as never);
+
+        sinon.assert.notCalled(cloneRepositoryProgrammatic);
+        sinon.assert.calledOnceWithExactly(showErrorMessage, 'Could not read your Artemis account. Sign in again, then retry.');
     });
 
     test('cloneRepository aborts (no clone) when gitService.isGitAvailable is false', async () => {

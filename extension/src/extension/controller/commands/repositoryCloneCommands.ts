@@ -79,29 +79,36 @@ export class RepositoryCloneCommands {
 
     /**
      * Build an authenticated clone URL by fetching a VCS token and the current user's login.
-     * Returns the URL string on success, or null if token retrieval or URL construction fails.
+     * Returns the URL string on success, or null after reporting why the token, the login
+     * or the URL could not be obtained.
      */
     private async buildAuthenticatedUrl(participationId: number, repositoryUri: string): Promise<string | null> {
         let vcsToken: string;
         try {
             vcsToken = await this.context.artemisApi.getOrCreateVcsAccessToken(participationId);
         } catch (tokenErr) {
-            logger.error('Failed to get participation token:', LogCategory.SUBMISSION, tokenErr);
-            vscode.window.showErrorMessage('Failed to obtain VCS access token.');
+            logger.error('Failed to get participation token:', LogCategory.SUBMISSION, extractRedactedErrorMessage(tokenErr));
+            vscode.window.showErrorMessage(`Failed to obtain VCS access token: ${extractRedactedErrorMessage(tokenErr)}`);
             return null;
         }
 
-        let username = 'user';
+        // The token only authenticates together with its owner's login, so a
+        // guessed username would yield a URL that git rejects later with a
+        // less helpful error.
+        let login: string | undefined;
         try {
-            const currentUser = await this.context.artemisApi.getCurrentUser();
-            if (currentUser?.login) {
-                username = currentUser.login;
-            }
+            login = (await this.context.artemisApi.getCurrentUser())?.login?.trim();
         } catch (userErr) {
-            logger.warn('Could not fetch current user, defaulting username:', LogCategory.SUBMISSION, userErr);
+            logger.error('Failed to get current user:', LogCategory.SUBMISSION, extractRedactedErrorMessage(userErr));
+            vscode.window.showErrorMessage(`Could not read your Artemis account: ${extractRedactedErrorMessage(userErr)}`);
+            return null;
+        }
+        if (!login) {
+            vscode.window.showErrorMessage('Could not read your Artemis account. Sign in again, then retry.');
+            return null;
         }
 
-        const authenticatedUrl = buildAuthenticatedRepositoryUrl(repositoryUri, username, vcsToken);
+        const authenticatedUrl = buildAuthenticatedRepositoryUrl(repositoryUri, login, vcsToken);
         if (!authenticatedUrl) {
             vscode.window.showErrorMessage('Invalid repository URL received from server.');
             return null;
