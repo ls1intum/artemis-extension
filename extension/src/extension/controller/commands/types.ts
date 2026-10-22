@@ -12,7 +12,7 @@ import type { CourseCatalog } from '@extension/services/courseCatalog';
 import type { ProactivePreferenceService } from '@extension/services/proactivePreferenceService';
 import type { IProviderRegistry } from '@extension/services/ui';
 import type { ArtemisWebsocketService } from '@extension/services/websocket';
-import type { SubmissionSetupService } from '@extension/services/workspace';
+import type { LocalCloneStore, SubmissionSetupService } from '@extension/services/workspace';
 
 export type CommandHandler = (message: WebviewToExtensionMessage) => Promise<void>;
 export type CommandMap = Record<string, CommandHandler>;
@@ -37,6 +37,8 @@ export interface CommandContext {
      * most tests construct a context without a workspace-facing service.
      */
     submissionSetup?: SubmissionSetupService;
+    /** Where exercise repositories were cloned on this machine. Optional for the same reason. */
+    localClones?: LocalCloneStore;
     courseAccessStorage?: CourseAccessStorageService;
     /**
      * Live engine-decision feed for the developer-mode struggle view. Each

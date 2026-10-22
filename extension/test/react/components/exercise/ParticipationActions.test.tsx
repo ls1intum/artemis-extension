@@ -257,6 +257,27 @@ describe('ParticipationActions', () => {
 			expect(screen.getByRole('button', { name: 'Clone Repository' })).toBeInTheDocument();
 		});
 
+		it('shows Open Folder and no Clone anywhere when the repository is cloned elsewhere', async () => {
+			const onOpenClonedRepository = vi.fn();
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="cloned"
+					canSubmit
+					onOpenClonedRepository={onOpenClonedRepository}
+				/>
+			);
+			expect(screen.getByText('Cloned, but not open in this window')).toBeInTheDocument();
+			expect(screen.queryByRole('button', { name: /Submit/i })).not.toBeInTheDocument();
+
+			await userEvent.click(screen.getByRole('button', { name: 'Open Folder' }));
+			expect(onOpenClonedRepository).toHaveBeenCalledOnce();
+
+			await userEvent.click(screen.getByRole('button', { name: 'More ▾' }));
+			expect(screen.queryByRole('button', { name: 'Clone Repository' })).not.toBeInTheDocument();
+		});
+
 		it('shows "Check workspace status" in dropdown', async () => {
 			render(
 				<ParticipationActions

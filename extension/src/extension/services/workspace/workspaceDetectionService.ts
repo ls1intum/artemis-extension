@@ -118,13 +118,14 @@ export async function getWorkspaceRepositoryUrl(
 ): Promise<string | null> {
     const folder = workspaceFolder || vscode.workspace.workspaceFolders?.[0];
 
-    if (!folder) {
-        return null;
-    }
+    return folder ? getRepositoryOriginUrl(folder.uri.fsPath) : null;
+}
 
+/** The git remote origin URL of the folder at `fsPath`. Null when it is not a git repository. */
+export async function getRepositoryOriginUrl(fsPath: string): Promise<string | null> {
     try {
         const { stdout } = await execFileAsync('git', ['remote', 'get-url', 'origin'], {
-            cwd: folder.uri.fsPath
+            cwd: fsPath
         });
 
         const url = stdout.trim();

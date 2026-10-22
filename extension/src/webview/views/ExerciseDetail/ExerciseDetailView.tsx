@@ -78,14 +78,12 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
         error,
         repoStatus,
         dirtyPagesStatus,
-        clonedNotice,
         pendingSubmissionsByParticipationId,
         proactiveControl,
         setExerciseData,
         setError,
         setProactiveControl,
         loadExerciseDetail,
-        clearClonedNotice,
     } = useExerciseDetailStore();
 
     const [showCommitMessage, setShowCommitMessage] = useState(false);
@@ -462,22 +460,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
     const isPracticeAvailable = isProgramming && isOverdue && !hasParticipation;
 
     const workspaceStatus = !repoStatus ? 'checking'
-        : !repoStatus.isConnected ? 'disconnected'
+        : !repoStatus.isConnected ? (repoStatus.hasLocalClone ? 'cloned' : 'disconnected')
         : repoStatus.hasChanges ? 'dirty' : 'clean';
-
-    // In EduIDE the repo is already the workspace, so the "recently cloned"
-    // notice (banner + ParticipationActions entry) is suppressed.
-    const showClonedNotice = !!clonedNotice && !isManagedEnvironment;
 
     return (
         <div className={styles.exerciseDetailView}>
-            {showClonedNotice && clonedNotice && (
-                <div className={styles.banner} data-variant="info">
-                    <span>Repository cloned for "{clonedNotice.exerciseTitle}"</span>
-                    <button className={styles.bannerDismiss} onClick={clearClonedNotice}>×</button>
-                </div>
-            )}
-
             <BackLink onClick={handleBackToCourse} actions={
                 <>
                     <IconButton.Reload onClick={handleReload} title="Reload Exercise" />
@@ -537,7 +524,6 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                     isPracticeMode={repoStatus?.isPracticeRepo ?? false}
                     isPracticeAvailable={isPracticeAvailable}
                     hasUnsavedChanges={dirtyPagesStatus?.hasDirtyPages === true && !dirtyPagesStatus?.autoSaveEnabled}
-                    showClonedNotice={showClonedNotice}
                     isManagedEnvironment={isManagedEnvironment}
                     onConfigureAutoSave={() => postCommand(vscodeApi, 'openSettings', { setting: 'files.autoSave' })}
                     onStart={() => {
@@ -571,9 +557,8 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                         ? () => postCommand(vscodeApi, 'openRepository', { repositoryUri })
                         : undefined}
                     onOpenClonedRepository={() => {
-                        if (clonedNotice) {
-                            postCommand(vscodeApi, 'openClonedRepository', { participationId: clonedNotice.participationId });
-                            clearClonedNotice();
+                        if (repositoryUri) {
+                            postCommand(vscodeApi, 'openClonedRepository', { repositoryUri });
                         }
                     }}
                     onCheckWorkspace={() => {

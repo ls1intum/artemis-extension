@@ -12,7 +12,7 @@ import { LogCategory, logger } from '@extension/services/loggingService';
 import type { ProactivePreferenceService } from '@extension/services/proactivePreferenceService';
 import type { IProviderRegistry } from '@extension/services/ui';
 import { ArtemisWebsocketService } from '@extension/services/websocket';
-import { GitService, SubmissionSetupService } from '@extension/services/workspace';
+import { GitService, LocalCloneStore, SubmissionSetupService } from '@extension/services/workspace';
 
 import { AppStateManager } from './appStateManager';
 import { AuthCommandModule } from './commands/authCommands';
@@ -47,6 +47,8 @@ export class WebViewMessageHandler {
      * modules and the init service must answer with the same one.
      */
     public readonly submissionSetup: SubmissionSetupService;
+    /** Shared with the init service, which reports a local clone in the exercise detail payload. */
+    public readonly localClones: LocalCloneStore;
     private readonly submissionSetupModule: SubmissionSetupCommands;
     private _websocketService?: ArtemisWebsocketService;
     private _senderQueue: Promise<void> = Promise.resolve();
@@ -91,6 +93,9 @@ export class WebViewMessageHandler {
             proactiveControl,
             sessionEpoch: () => courseCatalog?.currentEpoch ?? 0,
         };
+
+        this.localClones = new LocalCloneStore(extensionContext.globalState);
+        context.localClones = this.localClones;
 
         this.repositoryStatusModule = new RepositoryStatusCommands(context);
         context.recheckRepoStatus = () => this.repositoryStatusModule.recheckCurrentRepoStatus();

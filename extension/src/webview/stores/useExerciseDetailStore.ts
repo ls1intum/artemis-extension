@@ -14,6 +14,7 @@ interface RepoStatus {
     isConnected: boolean;
     hasChanges: boolean;
     isPracticeRepo: boolean;
+    hasLocalClone: boolean;
 }
 
 /** AskIris proactive control + its availability card, tagged with the exercise it belongs to. */
@@ -49,7 +50,6 @@ interface ExerciseDetailState {
     pendingSubmissionsByParticipationId: Record<number, PendingSubmissionStatus>;
 
     repoStatus: RepoStatus | null;
-    clonedNotice: { exerciseTitle: string; participationId: number } | null;
     dirtyPagesStatus: DirtyPagesStatus | null;
     /** AskIris proactive Off/Less/More control + availability card, tagged with its exercise so a late update can't paint the wrong card. */
     proactiveControl: ProactiveControlState | null;
@@ -62,10 +62,8 @@ interface ExerciseDetailState {
     updateSubmission: (payload: SubmissionSummary) => void;
     updateSubmissionProcessing: (payload: PendingSubmissionStatus) => void;
     setRepoStatus: (status: RepoStatus) => void;
-    setClonedNotice: (exerciseTitle: string, participationId: number) => void;
     setDirtyPagesStatus: (status: DirtyPagesStatus) => void;
     setProactiveControl: (control: ProactiveControlState | null) => void;
-    clearClonedNotice: () => void;
     /** Clear all pending entries (e.g. on result arrival without per-participation context). */
     clearPendingSubmission: () => void;
 }
@@ -99,7 +97,6 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
             error: null,
             pendingSubmissionsByParticipationId: {},
             repoStatus: null,
-            clonedNotice: null,
             dirtyPagesStatus: null,
             proactiveControl: null,
 
@@ -129,7 +126,6 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                     pendingSubmissionsByParticipationId:
                         data.pendingSubmissionsByParticipationId ?? {},
                     repoStatus: repoStatus ?? (sameExercise ? previous.repoStatus : null),
-                    clonedNotice: null,
                     dirtyPagesStatus: null,
                 }, false, 'setExerciseData');
             },
@@ -266,20 +262,12 @@ export const useExerciseDetailStore = create<ExerciseDetailState>()(
                 set({ repoStatus: status }, false, 'setRepoStatus');
             },
 
-            setClonedNotice: (exerciseTitle, participationId) => {
-                set({ clonedNotice: { exerciseTitle, participationId } }, false, 'setClonedNotice');
-            },
-
             setDirtyPagesStatus: (status) => {
                 set({ dirtyPagesStatus: status }, false, 'setDirtyPagesStatus');
             },
 
             setProactiveControl: (control) => {
                 set({ proactiveControl: control }, false, 'setProactiveControl');
-            },
-
-            clearClonedNotice: () => {
-                set({ clonedNotice: null }, false, 'clearClonedNotice');
             },
 
             clearPendingSubmission: () => {

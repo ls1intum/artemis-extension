@@ -25,7 +25,8 @@ export function isExerciseType(value: string | undefined): value is ExerciseType
 }
 
 export type ParticipationStatusType = 'not-started' | 'in-progress' | 'submitted' | 'graded';
-type WorkspaceStatus = 'clean' | 'dirty' | 'checking' | 'disconnected' | 'wrong-repo';
+/** `cloned`: not the workspace, but the displayed participation has a clone on disk. */
+type WorkspaceStatus = 'clean' | 'dirty' | 'checking' | 'disconnected' | 'wrong-repo' | 'cloned';
 
 interface ParticipationActionsProps {
   exerciseType: ExerciseType;
@@ -51,7 +52,6 @@ interface ParticipationActionsProps {
   className?: string;
   isPracticeMode?: boolean;
   isPracticeAvailable?: boolean;
-  showClonedNotice?: boolean;
   onOpenClonedRepository?: () => void;
   /**
    * EduIDE (managed Theia) mode. The exercise repo is already the workspace,
@@ -85,7 +85,6 @@ export function ParticipationActions({
   className,
   isPracticeMode = false,
   isPracticeAvailable = false,
-  showClonedNotice = false,
   onOpenClonedRepository,
   isManagedEnvironment = false,
 }: ParticipationActionsProps) {
@@ -137,6 +136,7 @@ export function ParticipationActions({
     dirty: 'Uncommitted changes ready to submit',
     disconnected: 'Repository not in your workspace',
     'wrong-repo': 'Repository not in your workspace',
+    cloned: 'Cloned, but not open in this window',
     checking: 'Checking workspace…',
   };
 
@@ -163,19 +163,6 @@ export function ParticipationActions({
     return (
       <div className={styles.practiceModeIndicator}>
         <FlaskConical size={14} /> Practice Mode
-      </div>
-    );
-  };
-
-  // Cloned repository notice
-  const renderClonedNotice = () => {
-    if (!showClonedNotice) {return null;}
-    return (
-      <div className={styles.clonedRepoNotice}>
-        <span>Repository recently cloned.</span>{' '}
-        <Button variant="link" onClick={onOpenClonedRepository}>
-          Open now
-        </Button>
       </div>
     );
   };
@@ -250,8 +237,9 @@ export function ParticipationActions({
 
     // Participated - the redesigned card.
     const isWorkspaceConnected = workspaceStatus === 'clean' || workspaceStatus === 'dirty';
-    const showClone = workspaceStatus === 'disconnected' || workspaceStatus === 'wrong-repo';
-    const showSubmit = !showClone && canSubmit;
+    const isCloned = workspaceStatus === 'cloned';
+    const isOutsideWorkspace = workspaceStatus === 'disconnected' || workspaceStatus === 'wrong-repo' || isCloned;
+    const showSubmit = !isOutsideWorkspace && canSubmit;
     const showAutoSaveWarning = hasUnsavedChanges && isWorkspaceConnected;
 
     return (
@@ -351,12 +339,15 @@ export function ParticipationActions({
         </div>
 
         {showAutoSaveWarning ? renderAutoSaveWarning() : renderWorkspaceHint()}
-        {renderClonedNotice()}
-
-        {showClone && (
+        {isOutsideWorkspace && (
           isManagedEnvironment ? (
             <Button variant="primary" onClick={onOpenInBrowser} fullWidth>
               Open in Artemis
+            </Button>
+          ) : isCloned ? (
+            // No Clone here or in the menu: cloning again would hit the existing folder.
+            <Button variant="primary" onClick={onOpenClonedRepository} fullWidth>
+              Open Folder
             </Button>
           ) : (
             <Button variant="primary" onClick={onClone} fullWidth>

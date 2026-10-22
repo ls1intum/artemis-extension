@@ -64,18 +64,6 @@
   }
 }
 
-/* Cloned repository notice */
-.clonedRepoNotice {
-  font-size: 13px;
-  color: var(--vscode-foreground);
-  opacity: 0.85;
-  margin-bottom: 4px;
-  padding: 8px 12px;
-  background: var(--vscode-inputValidation-infoBackground, rgba(0, 0, 0, 0.03));
-  border-radius: 4px;
-  text-align: center;
-}
-
 /* Submit button group */
 .submitButtonGroup {
   display: flex;
@@ -281,6 +269,8 @@
 .workspaceHint[data-state='wrong-repo'] { color: var(--vscode-errorForeground, #f48771); }
 .workspaceHint[data-state='disconnected'] .workspaceHintDot,
 .workspaceHint[data-state='wrong-repo'] .workspaceHintDot { background: var(--vscode-errorForeground, #f48771); }
+.workspaceHint[data-state='cloned'] { color: var(--vscode-foreground); opacity: 0.85; }
+.workspaceHint[data-state='cloned'] .workspaceHintDot { background: var(--vscode-editorInfo-foreground, #3794ff); }
 .workspaceHint[data-state='checking'] { color: var(--vscode-foreground); opacity: 0.7; }
 .workspaceHint[data-state='checking'] .workspaceHintDot { background: var(--vscode-panel-border, #e0e0e0); animation: changesPulse 1.2s ease-in-out infinite; }
 

@@ -41,6 +41,7 @@ suite('RepositoryStatusCommands', () => {
     function buildContext(overrides: {
         sendMessage?: sinon.SinonStub;
         currentExerciseData?: unknown;
+        hasCloneOfDisplayedParticipation?: sinon.SinonStub;
     } = {}): { ctx: CommandContext; sendMessage: sinon.SinonStub; appStateManager: AppStateManager } {
         const sendMessage = overrides.sendMessage ?? sandbox.stub();
         // A real arbitrator rather than a pair of stubs: every conclusion this module draws is gated
@@ -50,7 +51,10 @@ suite('RepositoryStatusCommands', () => {
             appStateManager.showCourseDetail({ course: { id: 1, title: 'Course' } });
             appStateManager.showExerciseDetail(overrides.currentExerciseData as ExerciseDetailsResponse);
         }
-        const ctx = { appStateManager, sendMessage } as unknown as CommandContext;
+        const localClones = overrides.hasCloneOfDisplayedParticipation
+            ? { hasCloneOfDisplayedParticipation: overrides.hasCloneOfDisplayedParticipation }
+            : undefined;
+        const ctx = { appStateManager, sendMessage, localClones } as unknown as CommandContext;
         return { ctx, sendMessage, appStateManager };
     }
 
@@ -225,7 +229,46 @@ suite('RepositoryStatusCommands', () => {
             isConnected: false,
             hasChanges: false,
             isPracticeRepo: false,
+            hasLocalClone: false,
         });
+    });
+
+    test('checkRepositoryStatus reports a local clone of the displayed participation when disconnected', async () => {
+        getWorkspaceStatus.resolves({ isConnected: false, hasChanges: false, isPracticeRepo: false });
+        const participations = [{ repositoryUri: 'https://a/repo1.git' }];
+        const hasCloneOfDisplayedParticipation = sandbox.stub().resolves(true);
+        const { ctx, sendMessage } = buildContext({
+            currentExerciseData: { exercise: { id: 13, studentParticipations: participations } },
+            hasCloneOfDisplayedParticipation,
+        });
+        const mod = new RepositoryStatusCommands(ctx, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.CheckRepositoryStatus]({
+            type: 'command', command: WebviewCmd.CheckRepositoryStatus,
+        } as never);
+
+        sinon.assert.calledOnce(hasCloneOfDisplayedParticipation);
+        assert.deepStrictEqual(hasCloneOfDisplayedParticipation.firstCall.args[0], participations);
+        const update = sendMessage.getCalls().find(c => (c.args[0] as { type: string }).type === ExtensionMsg.UpdateRepoStatus);
+        assert.strictEqual((update?.args[0] as { hasLocalClone: boolean }).hasLocalClone, true);
+    });
+
+    test('checkRepositoryStatus does not look for a clone when the workspace is connected', async () => {
+        getWorkspaceStatus.resolves({ isConnected: true, hasChanges: false, isPracticeRepo: false });
+        const hasCloneOfDisplayedParticipation = sandbox.stub().resolves(true);
+        const { ctx, sendMessage } = buildContext({
+            currentExerciseData: { exercise: { id: 14, studentParticipations: [{ repositoryUri: 'https://a/repo1.git' }] } },
+            hasCloneOfDisplayedParticipation,
+        });
+        const mod = new RepositoryStatusCommands(ctx, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.CheckRepositoryStatus]({
+            type: 'command', command: WebviewCmd.CheckRepositoryStatus,
+        } as never);
+
+        sinon.assert.notCalled(hasCloneOfDisplayedParticipation);
+        const update = sendMessage.getCalls().find(c => (c.args[0] as { type: string }).type === ExtensionMsg.UpdateRepoStatus);
+        assert.strictEqual((update?.args[0] as { hasLocalClone: boolean }).hasLocalClone, false);
     });
 
     test('checkRepositoryStatus sends UpdateRepoStatus { isConnected:true,... } when a URI matches', async () => {
@@ -256,6 +299,7 @@ suite('RepositoryStatusCommands', () => {
             isConnected: true,
             hasChanges: true,
             isPracticeRepo: false,
+            hasLocalClone: false,
         });
         sinon.assert.notCalled(showErrorMessage);
     });
@@ -319,6 +363,35 @@ suite('RepositoryStatusCommands', () => {
 
     test('recheckCurrentRepoStatus is a no-op when no context is set', async () => {
         const { ctx } = buildContext();
+        const mod = new RepositoryStatusCommands(ctx, makeDeps());
+
+        await mod.recheckCurrentRepoStatus();
+
+        sinon.assert.notCalled(getWorkspaceStatus);
+    });
+
+    test('recheckCurrentRepoStatus checks the exercise on screen when a disconnected init stored no context', async () => {
+        getWorkspaceStatus.resolves({ isConnected: false, hasChanges: false, isPracticeRepo: false });
+        const { ctx, sendMessage } = buildContext({
+            currentExerciseData: { exercise: { id: 15, studentParticipations: [{ repositoryUri: 'https://a/repo1.git' }] } },
+            hasCloneOfDisplayedParticipation: sandbox.stub().resolves(true),
+        });
+        const mod = new RepositoryStatusCommands(ctx, makeDeps());
+
+        await mod.recheckCurrentRepoStatus();
+
+        sinon.assert.calledOnceWithExactly(getWorkspaceStatus, 'https://a/repo1.git', sinon.match.any);
+        const update = sendMessage.getCalls().find(c => (c.args[0] as { type: string }).type === ExtensionMsg.UpdateRepoStatus);
+        assert.strictEqual((update?.args[0] as { hasLocalClone: boolean }).hasLocalClone, true);
+    });
+
+    test('recheckCurrentRepoStatus ignores a leftover exercise once the exercise detail is left', async () => {
+        const { ctx, appStateManager } = buildContext({
+            currentExerciseData: { exercise: { id: 16, studentParticipations: [{ repositoryUri: 'https://a/repo1.git' }] } },
+        });
+        // The course list keeps the exercise payload, so only the state says it was left.
+        appStateManager.showCourseList();
+        assert.ok(appStateManager.currentExerciseData);
         const mod = new RepositoryStatusCommands(ctx, makeDeps());
 
         await mod.recheckCurrentRepoStatus();
