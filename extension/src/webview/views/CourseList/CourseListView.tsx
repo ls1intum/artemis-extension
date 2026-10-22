@@ -26,6 +26,7 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
         courses,
         archivedCourses,
         archivedLoaded,
+        coursesUnavailable,
         isLoading,
         searchTerm,
         typeFilter,
@@ -55,7 +56,7 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
 
     useExtensionMessage((msg) => {
         if (msg.type === ExtensionMsg.CourseListInit) {
-            setCourses(msg.courses ?? [], msg.archivedCourses);
+            setCourses(msg.courses ?? [], msg.archivedCourses, msg.coursesUnavailable);
         } else if (msg.type === ExtensionMsg.ArchivedCoursesLoaded) {
             setArchivedCourses(msg.archivedCourses ?? []);
         }
@@ -99,11 +100,17 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
             return b.localeCompare(a);
         });
 
-        return [
+        const options = [
             { value: 'all', label: 'All Semesters' },
             ...sortedSemesters.map((semester) => ({ value: semester.toLowerCase(), label: semester })),
         ];
-    }, [courses, archivedCourses]);
+        // A restored filter that no loaded course has still filters the list. Without its own
+        // option the dropdown would show "All Semesters" over an empty list.
+        if (semesterFilter !== 'all' && !options.some(option => option.value === semesterFilter)) {
+            options.push({ value: semesterFilter, label: semesterFilter.toUpperCase() });
+        }
+        return options;
+    }, [courses, archivedCourses, semesterFilter]);
 
     const hasActiveFilters = searchTerm !== '' || typeFilter !== 'all' || semesterFilter !== 'all' || sortBy !== 'semester-desc';
 
@@ -283,7 +290,9 @@ export function CourseListView({ vscodeApi }: CourseListViewProps) {
                         })
                     ) : (
                         <div className={styles.noCourses}>
-                            {hasActiveFilters ? 'No active courses match your criteria.' : 'No courses available'}
+                            {courses.length === 0 && coursesUnavailable
+                                ? 'Courses could not be loaded.'
+                                : hasActiveFilters ? 'No active courses match your criteria.' : 'No courses available'}
                         </div>
                     )}
                 </Container>

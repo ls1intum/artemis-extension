@@ -143,6 +143,7 @@ export class ViewInitDataService {
         this._postMessage({
             type: ExtensionMsg.CourseListInit,
             courses: mappedCourses, archivedCourses,
+            coursesUnavailable: appState.coursesUnavailable,
         });
     }
 

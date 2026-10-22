@@ -7,6 +7,7 @@ export function createCourseListPayload(
         type: 'courseListInit',
         courses: [] as CourseDetailData[],
         archivedCourses: [] as ArchivedCourse[],
+        coursesUnavailable: false,
         ...overrides,
     };
 }

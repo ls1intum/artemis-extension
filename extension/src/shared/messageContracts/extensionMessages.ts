@@ -178,6 +178,8 @@ interface ExtensionMsgPayloads {
     courseListInit: {
         courses: CourseDetailData[];
         archivedCourses?: ArchivedCourse[];
+        /** Same meaning as on `dashboardInit`. */
+        coursesUnavailable: boolean;
     };
     courseDetailInit: {
         courseData: CourseDetailData;

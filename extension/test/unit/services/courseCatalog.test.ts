@@ -433,6 +433,119 @@ suite('CourseCatalog', () => {
     // transition that answers it (the transition resets the catalog), and
     // nothing asks again: an enrolled student saw an empty Recent Courses after
     // every sign-in. The fetch therefore waits for the identity first.
+    suite('revalidate', () => {
+        const flush = () => new Promise<void>(resolve => setImmediate(resolve));
+        const MINUTE = 60_000;
+        let clock: sinon.SinonFakeTimers;
+        setup(() => { clock = sandbox.useFakeTimers({ now: 1_000_000, toFake: ['Date'] }); });
+
+        async function loaded(courses: CourseDashboardEntry[]) {
+            const fake = fakeApi();
+            const catalog = new CourseCatalog(fake.api);
+            const first = catalog.fetch();
+            fake.resolve(0, { courses });
+            await first;
+            return { ...fake, catalog };
+        }
+
+        test('asks nothing before a list is installed', async () => {
+            const { api, callCount } = fakeApi();
+            const catalog = new CourseCatalog(api);
+            assert.strictEqual(await catalog.fetch({ revalidate: true }), undefined);
+            assert.strictEqual(callCount(), 0);
+        });
+
+        test('asks nothing within a minute of the last request', async () => {
+            const { catalog, callCount } = await loaded([entry(1, 'Cached')]);
+            clock.tick(MINUTE - 1);
+            await catalog.fetch({ revalidate: true });
+            assert.strictEqual(callCount(), 1);
+        });
+
+        test('after a minute, a course enrolled since the first request appears', async () => {
+            const { catalog, callCount, resolve } = await loaded([entry(1, 'Cached')]);
+            clock.tick(MINUTE);
+            const refreshed = catalog.fetch({ revalidate: true });
+            await flush();
+            assert.strictEqual(callCount(), 2);
+            resolve(1, { courses: [entry(1, 'Cached'), entry(2, 'Enrolled later')] });
+            await refreshed;
+            assert.deepStrictEqual(catalog.projection().courses.map(c => c.id), [1, 2]);
+        });
+
+        test('joins an initial load that is still open', async () => {
+            const { api, resolve, callCount } = fakeApi();
+            const catalog = new CourseCatalog(api);
+            const initial = catalog.fetch();
+            const revalidated = catalog.fetch({ revalidate: true });
+            await flush();
+            resolve(0, { courses: [entry(1, 'Enrolled')] });
+            assert.strictEqual(callCount(), 1);
+            assert.deepStrictEqual((await revalidated)?.courses?.map(c => c.course?.id), [1]);
+            await initial;
+        });
+
+        test('joins a refresh that is still open', async () => {
+            const { catalog, callCount, resolve } = await loaded([entry(1, 'Cached')]);
+            const forced = catalog.fetch({ force: true });
+            await flush();
+            clock.tick(MINUTE);
+            const revalidated = catalog.fetch({ revalidate: true });
+            await flush();
+            resolve(1, { courses: [entry(2, 'Fresh')] });
+            assert.strictEqual(callCount(), 2);
+            assert.deepStrictEqual((await revalidated)?.courses?.map(c => c.course?.id), [2]);
+            await forced;
+        });
+
+        test('a failed refresh keeps the shown list, reports it, and is not retried within a minute', async () => {
+            const { catalog, callCount, reject } = await loaded([entry(1, 'Cached')]);
+            clock.tick(MINUTE);
+            const failed = catalog.fetch({ revalidate: true });
+            await flush();
+            reject(1, new Error('boom'));
+            await failed;
+            assert.deepStrictEqual(catalog.projection().courses.map(c => c.id), [1]);
+            assert.strictEqual(catalog.coursesUnavailable, true);
+
+            await catalog.fetch({ revalidate: true });
+            assert.strictEqual(callCount(), 2);
+        });
+
+        test('a reset during the refresh installs nothing', async () => {
+            const { catalog, resolve } = await loaded([entry(1, 'Cached')]);
+            clock.tick(MINUTE);
+            const refreshed = catalog.fetch({ revalidate: true });
+            await flush();
+            catalog.resetTo(catalog.currentEpoch + 1);
+            resolve(1, { courses: [entry(2, 'Previous session')] });
+            await refreshed;
+            assert.strictEqual(catalog.dashboardLoaded, false);
+        });
+
+        test('asks nothing when the identity turns anonymous while it waits', async () => {
+            const { api, resolve, callCount } = fakeApi();
+            let settle: (o: SettledOutcome) => void = () => undefined;
+            let pending = false;
+            const catalog = new CourseCatalog(api, {
+                whenSettled: () => pending ? new Promise(r => { settle = r; }) : Promise.resolve('stalled'),
+            });
+            const first = catalog.fetch();
+            await flush();
+            resolve(0, { courses: [entry(1, 'Cached')] });
+            await first;
+            clock.tick(MINUTE);
+
+            pending = true;
+            const revalidated = catalog.fetch({ revalidate: true });
+            await flush();
+            assert.strictEqual(callCount(), 1, 'nothing is asked while the identity is resolving');
+            settle('anonymous');
+            await revalidated;
+            assert.strictEqual(callCount(), 1);
+        });
+    });
+
     suite('identity gate', () => {
         const flush = () => new Promise<void>(resolve => setImmediate(resolve));
 
