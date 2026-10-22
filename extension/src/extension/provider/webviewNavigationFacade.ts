@@ -107,9 +107,28 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
             }
             this.deps.appStateManager.showCourseList();
             this.deps.render();
+            void this.revalidateCourses();
         } catch (error) {
             logger.error('Error loading courses', LogCategory.VIEW, error);
             vscode.window.showErrorMessage('Failed to load courses');
+        }
+    }
+
+    /**
+     * Asks the server for the course list again while the dashboard or the course list shows the
+     * cached one, and re-sends that view when the answer is in. Re-sending after a failure too is
+     * what lets the view say the courses could not be loaded.
+     */
+    public async revalidateCourses(): Promise<void> {
+        if (!this.deps.courseCatalog) { return; }
+        try {
+            await this.deps.courseCatalog.fetch({ revalidate: true });
+            const state = this.deps.appStateManager.currentState;
+            if (state === 'dashboard' || state === 'course-list') {
+                this.deps.sendInitData();
+            }
+        } catch (error) {
+            logger.error('Error revalidating courses', LogCategory.VIEW, error);
         }
     }
 
@@ -131,6 +150,9 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         }
 
         this.deps.render();
+        if (!options?.force) {
+            void this.revalidateCourses();
+        }
 
         // Check archived courses in the background.
         // Flag prevents sendDashboardInit from publishing workspace result too early.
@@ -169,6 +191,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
                 this.deps.appStateManager.seedAuthenticatedSession(userInfo);
                 this.deps.appStateManager.showCourseList();
                 this.deps.render();
+                void this.revalidateCourses();
                 return;
 
             case 'workspace-exercise': {
@@ -291,7 +314,9 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
             return [detail];
         });
 
-        this.deps.fullscreenPanelManager.openCourseListFullscreen(mappedCourses, archivedCourses);
+        this.deps.fullscreenPanelManager.openCourseListFullscreen(
+            mappedCourses, archivedCourses, this.deps.appStateManager.coursesUnavailable,
+        );
     }
 
     public async openJsonInEditor(data: Record<string, unknown>): Promise<void> {

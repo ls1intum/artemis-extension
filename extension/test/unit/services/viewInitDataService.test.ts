@@ -163,6 +163,14 @@ suite('ViewInitDataService.sendCourseListInit', () => {
             .courses.map(c => c.course.id);
         assert.deepStrictEqual(ids, [1], 'invalid courses must be dropped');
     });
+
+    for (const coursesUnavailable of [true, false]) {
+        test(`carries coursesUnavailable=${coursesUnavailable}, so an empty list can say why`, () => {
+            const { service, getPosted } = buildService({ courses: [] }, undefined, coursesUnavailable);
+            service.sendCourseListInit();
+            assert.strictEqual((getPosted() as { coursesUnavailable: boolean }).coursesUnavailable, coursesUnavailable);
+        });
+    }
 });
 
 

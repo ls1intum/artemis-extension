@@ -7,13 +7,15 @@ interface CourseListState {
     courses: CourseDetailData[];
     archivedCourses: ArchivedCourse[];
     archivedLoaded: boolean;
+    /** No dashboard answer behind `courses`; an empty list then is not "no courses". */
+    coursesUnavailable: boolean;
     isLoading: boolean;
     searchTerm: string;
     typeFilter: 'all' | 'active' | 'archived';
     semesterFilter: string;
     sortBy: string;
 
-    setCourses: (courses: CourseDetailData[], archived?: ArchivedCourse[]) => void;
+    setCourses: (courses: CourseDetailData[], archived: ArchivedCourse[] | undefined, coursesUnavailable: boolean) => void;
     setArchivedCourses: (archived: ArchivedCourse[]) => void;
     setLoading: (loading: boolean) => void;
     setSearchTerm: (term: string) => void;
@@ -69,17 +71,19 @@ export const useCourseListStore = create<CourseListState>()(
             courses: [],
             archivedCourses: [],
             archivedLoaded: false,
+            coursesUnavailable: false,
             isLoading: false,
             searchTerm: '',
             typeFilter: 'all',
             semesterFilter: 'all',
             sortBy: 'semester-desc',
 
-            setCourses: (courses, archived) => {
+            setCourses: (courses, archived, coursesUnavailable) => {
                 set({
                     courses,
                     archivedCourses: archived || [],
                     archivedLoaded: archived !== undefined,
+                    coursesUnavailable,
                     isLoading: false,
                 }, false, 'setCourses');
             },

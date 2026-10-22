@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { CourseDetailData } from '@shared/messageContracts';
 
@@ -94,6 +94,56 @@ describe('CourseListView', () => {
 		await waitFor(() => {
 			expect(screen.getByText('No courses available')).toBeInTheDocument();
 		});
+	});
+
+	it('says the courses could not be loaded instead of claiming there are none', async () => {
+		const mockApi = createMockVsCodeApi();
+		render(<CourseListView vscodeApi={mockApi} />);
+
+		dispatchExtensionMessage({
+			type: 'courseListInit',
+			courses: [],
+			coursesUnavailable: true,
+		});
+
+		await waitFor(() => {
+			expect(screen.getByText('Courses could not be loaded.')).toBeInTheDocument();
+		});
+		expect(screen.queryByText('No courses available')).not.toBeInTheDocument();
+	});
+
+	it('keeps showing an older list when only the refresh failed', async () => {
+		const mockApi = createMockVsCodeApi();
+		render(<CourseListView vscodeApi={mockApi} />);
+
+		dispatchExtensionMessage({
+			type: 'courseListInit',
+			courses: [makeCourseDetailData({ title: 'Still Here', id: 3 })],
+			coursesUnavailable: true,
+		});
+
+		await waitFor(() => {
+			expect(screen.getByText('Still Here')).toBeInTheDocument();
+		});
+		expect(screen.queryByText('Courses could not be loaded.')).not.toBeInTheDocument();
+	});
+
+	it('shows a restored semester filter that no course has, instead of "All Semesters"', async () => {
+		const mockApi = createMockVsCodeApi({
+			getState: vi.fn(() => ({ semesterFilter: 'ss24' })) as never,
+		});
+		render(<CourseListView vscodeApi={mockApi} />);
+
+		dispatchExtensionMessage({
+			type: 'courseListInit',
+			courses: [makeCourseDetailData({ title: 'Winter Course', semester: 'WS25/26', id: 4 })],
+			coursesUnavailable: false,
+		});
+
+		await waitFor(() => {
+			expect(screen.getByText('No active courses match your criteria.')).toBeInTheDocument();
+		});
+		expect(screen.getByRole('option', { name: 'SS24', selected: true })).toBeInTheDocument();
 	});
 
 	it('shows exercise count for a course', async () => {
