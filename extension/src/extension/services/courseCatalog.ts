@@ -193,6 +193,17 @@ export class CourseCatalog implements vscode.Disposable {
         return { ...this._dashboardExtras, courses: [...dashboard, ...extras] };
     }
 
+    /**
+     * The exercises the newest dashboard response lists for a course, or `undefined` when that
+     * response does not contain it. Deliberately blind to the supplemental layer: an archived or
+     * individually opened course is recorded there with whatever exercises it was opened with,
+     * which is no fresher than what the caller already shows.
+     */
+    public dashboardExercises(courseId: number): ExerciseDetail[] | undefined {
+        const entry = this._dashboard?.find(e => courseIdOf(e) === courseId);
+        return entry ? getEntryExercises(entry) : undefined;
+    }
+
     /** Whether the newest dashboard request failed to reach the server. */
     public get coursesUnavailable(): boolean {
         return this._lastFetchFailed;

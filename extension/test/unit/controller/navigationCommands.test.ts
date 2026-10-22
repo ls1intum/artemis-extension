@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 
-import type { WebCmd } from '@shared/messageContracts';
+import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
 
 import type { ArtemisApiService } from '@extension/api';
 import { NavigationCommandModule } from '@extension/controller/commands/navigationCommands';
@@ -30,6 +30,7 @@ suite('handleViewCourseDetails resolver', () => {
         upsertSupplemental?: sinon.SinonStub;
         courseAccessStorage?: { onCourseAccessed: sinon.SinonStub };
         sessionEpoch?: () => number;
+        revalidateCourseDetail?: sinon.SinonStub;
     }): CommandContext {
         return {
             appStateManager: {
@@ -40,7 +41,11 @@ suite('handleViewCourseDetails resolver', () => {
             // through the catalog's list fetch now, so this handler talks to no
             // API method of its own.
             artemisApi: {},
-            actionHandler: { render: sandbox.stub(), sendInitData: sandbox.stub() },
+            actionHandler: {
+                render: sandbox.stub(),
+                sendInitData: sandbox.stub(),
+                revalidateCourseDetail: overrides.revalidateCourseDetail ?? sandbox.stub().resolves(),
+            },
             courseAccessStorage: overrides.courseAccessStorage ?? { onCourseAccessed: sandbox.stub() },
             providerRegistry: { getChatWebviewProvider: () => undefined },
             courseCatalog: {
@@ -73,6 +78,38 @@ suite('handleViewCourseDetails resolver', () => {
         assert.strictEqual(catalogFetch.callCount, 0, 'network must not be touched on cache hit');
         assert.strictEqual(showCourseDetail.callCount, 1, 'showCourseDetail must be called on cache hit');
         assert.strictEqual(showCourseDetail.firstCall.args[0].course.title, 'cached');
+    });
+
+    test('refreshes the opened course after rendering the cached one', async () => {
+        const showCourseDetail = sandbox.stub();
+        const revalidateCourseDetail = sandbox.stub().resolves();
+        const ctx = buildContext({
+            coursesData: { courses: [{ course: { id: 7, title: 'cached' } }] },
+            showCourseDetail,
+            revalidateCourseDetail,
+        });
+
+        await viewCourse(new NavigationCommandModule(ctx), 7);
+
+        sinon.assert.calledOnce(revalidateCourseDetail);
+        sinon.assert.callOrder(showCourseDetail, ctx.actionHandler.render as sinon.SinonStub, revalidateCourseDetail);
+    });
+
+    test('back to the course refreshes it after rendering', async () => {
+        const render = sandbox.stub();
+        const revalidateCourseDetail = sandbox.stub().resolves();
+        const backToCourseDetails = sandbox.stub();
+        const ctx = {
+            appStateManager: { backToCourseDetails },
+            actionHandler: { render, revalidateCourseDetail },
+        } as unknown as CommandContext;
+
+        await new NavigationCommandModule(ctx).getHandlers().backToCourseDetails({
+            type: 'command',
+            command: 'backToCourseDetails',
+        } as WebviewToExtensionMessage);
+
+        sinon.assert.callOrder(backToCourseDetails, render, revalidateCourseDetail);
     });
 
     test('records the viewed course in the catalog, stamped with the session epoch', async () => {

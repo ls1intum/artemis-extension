@@ -132,6 +132,36 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         }
     }
 
+    /**
+     * The course detail's counterpart of {@link revalidateCourses}: opening a course shows the
+     * exercises of the cached course list, so an exercise released since that list was fetched is
+     * missing until the list is asked for again.
+     *
+     * Only the exercises are taken over, like the Reload button does, so the open course keeps the
+     * fields it was opened with. Nothing is written once the student has moved on or the session
+     * changed while the request was open.
+     */
+    public async revalidateCourseDetail(): Promise<void> {
+        const catalog = this.deps.courseCatalog;
+        const appState = this.deps.appStateManager;
+        const courseId = appState.currentCourseData?.course.id;
+        if (!catalog || appState.currentState !== 'course-detail' || courseId === undefined) { return; }
+        const epoch = catalog.currentEpoch;
+        try {
+            await catalog.fetch({ revalidate: true });
+            const open = appState.currentCourseData;
+            if (catalog.currentEpoch !== epoch || appState.currentState !== 'course-detail' || open?.course.id !== courseId) {
+                return;
+            }
+            const exercises = catalog.dashboardExercises(courseId);
+            if (!exercises) { return; }
+            appState.showCourseDetail({ ...open, course: { ...open.course, exercises } });
+            this.deps.sendInitData();
+        } catch (error) {
+            logger.error('Error revalidating course detail', LogCategory.VIEW, error);
+        }
+    }
+
     public async showDashboard(userInfo: UserInfo, options?: { force?: boolean }): Promise<void> {
         // Captured before anything is awaited, because the archive search below
         // is the longest-running producer in the extension: it issues one
@@ -272,6 +302,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         this.deps.courseCatalog?.upsertSupplemental({ kind: 'course', entry: { course: courseData.course } }, epoch);
 
         this.deps.render();
+        void this.revalidateCourseDetail();
     }
 
     public async openExerciseFullscreen(exerciseData: ExerciseDetailsResponse): Promise<void> {

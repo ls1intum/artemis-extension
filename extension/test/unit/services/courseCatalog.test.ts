@@ -433,6 +433,27 @@ suite('CourseCatalog', () => {
     // transition that answers it (the transition resets the catalog), and
     // nothing asks again: an enrolled student saw an empty Recent Courses after
     // every sign-in. The fetch therefore waits for the identity first.
+    suite('dashboardExercises', () => {
+        test('reads the nested list, and the flat list when the nested one is empty', async () => {
+            const api = { getCoursesForDashboard: sandbox.stub().resolves({ courses: [
+                entry(1, 'Nested', [exercise(10, 'A')]),
+                { course: { id: 2, title: 'Flat', exercises: [] }, exercises: [exercise(20, 'B')] },
+            ] }) } as unknown as ArtemisApiService;
+            const catalog = new CourseCatalog(api);
+            await catalog.fetch();
+            assert.deepStrictEqual(catalog.dashboardExercises(1)?.map(e => e.id), [10]);
+            assert.deepStrictEqual(catalog.dashboardExercises(2)?.map(e => e.id), [20]);
+        });
+
+        test('ignores a course the newest response does not contain, even when it is recorded supplementally', async () => {
+            const api = { getCoursesForDashboard: sandbox.stub().resolves({ courses: [entry(1, 'Active')] }) } as unknown as ArtemisApiService;
+            const catalog = new CourseCatalog(api);
+            await catalog.fetch();
+            catalog.injectEntry(entry(5, 'Archived', [exercise(50, 'Old')]), catalog.currentEpoch);
+            assert.strictEqual(catalog.dashboardExercises(5), undefined);
+        });
+    });
+
     suite('revalidate', () => {
         const flush = () => new Promise<void>(resolve => setImmediate(resolve));
         const MINUTE = 60_000;
