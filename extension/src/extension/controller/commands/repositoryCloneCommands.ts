@@ -46,6 +46,15 @@ const defaultDeps: RepositoryCloneCommandsDeps = {
     statAsync: fs.promises.stat,
 };
 
+/**
+ * Like File > Open Folder: the student wants to work in the clone. Reuse is forced because
+ * `window.openFoldersInNewWindow` would otherwise decide, and a second window beside an
+ * empty one is what this replaces.
+ */
+async function openInThisWindow(repoPath: string): Promise<void> {
+    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(repoPath), { forceReuseWindow: true });
+}
+
 export class RepositoryCloneCommands {
     private readonly deps: RepositoryCloneCommandsDeps;
 
@@ -238,20 +247,22 @@ export class RepositoryCloneCommands {
             await this.deps.cloneRepositoryProgrammatic(cloneUrl, repoPath, exerciseTitle);
 
             await this.context.localClones?.remember(repositoryUri, repoPath);
-            // The clone happened outside the workspace, so no file event reports it.
-            void this.context.recheckRepoStatus?.();
+            // The clone happened outside the workspace, so no file event reports it. Awaited so the
+            // status reaches the view that cloned: the sender is swapped back once this returns.
+            await this.context.recheckRepoStatus?.();
 
             // Not awaited: a toast can stay open indefinitely, and every later webview command,
             // the card's Open Folder included, queues behind this handler until it returns.
-            void vscode.window.showInformationMessage(
+            vscode.window.showInformationMessage(
                 `Open cloned repository "${exerciseTitle}"?`,
                 'Open Folder',
                 'Skip',
-            ).then((openAction) => {
+            ).then(async (openAction) => {
                 if (openAction === 'Open Folder') {
-                    // Same window, like File > Open Folder: the student wants to work in the clone.
-                    void vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(repoPath));
+                    await openInThisWindow(repoPath);
                 }
+            }).then(undefined, (error: unknown) => {
+                logger.error('Open cloned repository error:', LogCategory.SUBMISSION, error);
             });
         } catch (error: unknown) {
             // A clone runs against the tokenised URL, and git quotes it back in
@@ -293,7 +304,7 @@ export class RepositoryCloneCommands {
 
             if (!repoPath) {
                 vscode.window.showWarningMessage('Cloned repository not found. It may have been moved or deleted.');
-                void this.context.recheckRepoStatus?.();
+                await this.context.recheckRepoStatus?.();
                 return;
             }
 
@@ -304,7 +315,7 @@ export class RepositoryCloneCommands {
                 return;
             }
 
-            await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(repoPath));
+            await openInThisWindow(repoPath);
         } catch (error: unknown) {
             logger.error('Open cloned repository error:', LogCategory.SUBMISSION, error);
             vscode.window.showErrorMessage('Failed to open cloned repository.');

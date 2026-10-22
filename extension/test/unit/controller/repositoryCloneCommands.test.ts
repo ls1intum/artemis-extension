@@ -296,7 +296,7 @@ suite('RepositoryCloneCommands', () => {
         sinon.assert.calledOnce(executeCommand);
         assert.strictEqual(executeCommand.firstCall.args[0], 'vscode.openFolder');
         assert.strictEqual((executeCommand.firstCall.args[1] as vscode.Uri).fsPath, vscode.Uri.file('/tmp/clones/foo').fsPath);
-        assert.strictEqual(executeCommand.firstCall.args.length, 2, 'no forceNewWindow: the clone replaces this window');
+        assert.deepStrictEqual(executeCommand.firstCall.args[2], { forceReuseWindow: true }, 'the clone replaces this window');
     });
 
     test('choosing Open Folder after a clone opens it in the same window', async () => {
@@ -319,7 +319,59 @@ suite('RepositoryCloneCommands', () => {
         sinon.assert.calledOnce(executeCommand);
         assert.strictEqual(executeCommand.firstCall.args[0], 'vscode.openFolder');
         assert.strictEqual((executeCommand.firstCall.args[1] as vscode.Uri).fsPath, vscode.Uri.file(path.join('/tmp/clones', 'foo')).fsPath);
-        assert.strictEqual(executeCommand.firstCall.args.length, 2);
+        assert.deepStrictEqual(executeCommand.firstCall.args[2], { forceReuseWindow: true });
+    });
+
+    test('cloneRepository finishes the status recheck before it returns', async () => {
+        configValues.set('defaultClonePath', '/tmp/clones');
+        configValues.set('showSetDefaultClonePathPrompt', false);
+        statAsync.resolves({ isDirectory: () => true } as fs.Stats);
+        showInformationMessage.resolves('Skip' as never);
+        const { ctx, recheckRepoStatus } = buildContext();
+        let finishRecheck!: () => void;
+        recheckRepoStatus.returns(new Promise<void>(resolve => { finishRecheck = resolve; }));
+        const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+        let returned = false;
+        const handled = mod.getHandlers()[WebviewCmd.CloneRepository]({
+            type: 'command',
+            command: WebviewCmd.CloneRepository,
+            payload: { participationId: 42, repositoryUri: 'https://artemis.example.com/git/foo.git', exerciseTitle: 'Foo' },
+        } as never).then(() => { returned = true; });
+        await new Promise(resolve => setImmediate(resolve));
+
+        // The webview's sender is swapped back once the handler returns, so a later status would
+        // reach whichever view is current instead of the one that cloned.
+        assert.strictEqual(returned, false);
+        finishRecheck();
+        await handled;
+        assert.strictEqual(returned, true);
+    });
+
+    test('a failing open from the clone notice is logged, not left unhandled', async () => {
+        configValues.set('defaultClonePath', '/tmp/clones');
+        configValues.set('showSetDefaultClonePathPrompt', false);
+        statAsync.resolves({ isDirectory: () => true } as fs.Stats);
+        showInformationMessage.resolves('Open Folder' as never);
+        executeCommand.rejects(new Error('window refused'));
+        const unhandled = sandbox.stub();
+        process.on('unhandledRejection', unhandled);
+        try {
+            const { ctx } = buildContext();
+            const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.CloneRepository]({
+                type: 'command',
+                command: WebviewCmd.CloneRepository,
+                payload: { participationId: 42, repositoryUri: 'https://artemis.example.com/git/foo.git', exerciseTitle: 'Foo' },
+            } as never);
+            await new Promise(resolve => setTimeout(resolve, 20));
+
+            sinon.assert.calledOnce(executeCommand);
+            sinon.assert.notCalled(unhandled);
+        } finally {
+            process.off('unhandledRejection', unhandled);
+        }
     });
 
     test('cloneRepository returns while the "Open cloned repository?" toast is still open', async () => {
