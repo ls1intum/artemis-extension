@@ -281,7 +281,7 @@ suite('RepositoryCloneCommands', () => {
         sinon.assert.calledOnce(showErrorMessage);
     });
 
-    test('openClonedRepository opens the local clone of the given repository in a new window', async () => {
+    test('openClonedRepository opens the local clone of the given repository in the same window', async () => {
         const findLocalClone = sandbox.stub().resolves('/tmp/clones/foo');
         const { ctx } = buildContext({ findLocalClone });
         const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
@@ -296,7 +296,28 @@ suite('RepositoryCloneCommands', () => {
         sinon.assert.calledOnce(executeCommand);
         assert.strictEqual(executeCommand.firstCall.args[0], 'vscode.openFolder');
         assert.strictEqual((executeCommand.firstCall.args[1] as vscode.Uri).fsPath, vscode.Uri.file('/tmp/clones/foo').fsPath);
-        assert.strictEqual(executeCommand.firstCall.args[2], true);
+        assert.strictEqual(executeCommand.firstCall.args.length, 2, 'no forceNewWindow: the clone replaces this window');
+    });
+
+    test('choosing Open Folder after a clone opens it in the same window', async () => {
+        configValues.set('defaultClonePath', '/tmp/clones');
+        configValues.set('showSetDefaultClonePathPrompt', false);
+        statAsync.resolves({ isDirectory: () => true } as fs.Stats);
+        showInformationMessage.resolves('Open Folder' as never);
+
+        const { ctx } = buildContext();
+        const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.CloneRepository]({
+            type: 'command',
+            command: WebviewCmd.CloneRepository,
+            payload: { participationId: 42, repositoryUri: 'https://artemis.example.com/git/foo.git', exerciseTitle: 'Foo' },
+        } as never);
+
+        sinon.assert.calledOnce(executeCommand);
+        assert.strictEqual(executeCommand.firstCall.args[0], 'vscode.openFolder');
+        assert.strictEqual((executeCommand.firstCall.args[1] as vscode.Uri).fsPath, vscode.Uri.file(path.join('/tmp/clones', 'foo')).fsPath);
+        assert.strictEqual(executeCommand.firstCall.args.length, 2);
     });
 
     test('openClonedRepository reveals the explorer when the clone is already the workspace', async () => {

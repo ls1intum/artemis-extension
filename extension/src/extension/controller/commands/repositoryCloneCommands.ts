@@ -247,7 +247,8 @@ export class RepositoryCloneCommands {
                 'Skip',
             );
             if (openAction === 'Open Folder') {
-                void vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(repoPath), true);
+                // Same window, like File > Open Folder: the student wants to work in the clone.
+                void vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(repoPath));
             }
         } catch (error: unknown) {
             // A clone runs against the tokenised URL, and git quotes it back in
@@ -300,7 +301,7 @@ export class RepositoryCloneCommands {
                 return;
             }
 
-            await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(repoPath), true);
+            await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(repoPath));
         } catch (error: unknown) {
             logger.error('Open cloned repository error:', LogCategory.SUBMISSION, error);
             vscode.window.showErrorMessage('Failed to open cloned repository.');
