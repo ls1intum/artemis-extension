@@ -58,6 +58,7 @@ suite('WebviewNavigationFacade', () => {
             injectCourseEntry: sinon.SinonStub;
             currentState: string;
             currentExerciseData: ExerciseDetailsResponse | undefined;
+            currentCourseData?: { course: { id: number; title?: string; description?: string; exercises?: unknown[] } };
             coursesData: { courses: unknown[] } | undefined;
             archivedCoursesData: unknown[] | undefined;
             userInfo: unknown;
@@ -86,6 +87,7 @@ suite('WebviewNavigationFacade', () => {
             fetch: sinon.SinonStub;
             upsertSupplemental: sinon.SinonStub;
             currentEpoch: number;
+            dashboardExercises?: sinon.SinonStub;
         };
         postMessage: sinon.SinonStub;
         render: sinon.SinonStub;
@@ -823,6 +825,97 @@ suite('WebviewNavigationFacade', () => {
             5,
         );
         sinon.assert.called(stubs.render);
+    });
+
+    test('showCourseDetail: refreshes the course after rendering it (workspace start page)', () => {
+        const { deps, stubs } = buildDeps();
+        const facade = new WebviewNavigationFacade(deps);
+        const revalidate = sandbox.stub(facade, 'revalidateCourseDetail').resolves();
+
+        facade.showCourseDetail({ course: { id: 9, title: 'Algorithms' } } as Parameters<WebviewNavigationFacade['showCourseDetail']>[0], 5);
+
+        sinon.assert.calledOnce(revalidate);
+        sinon.assert.callOrder(stubs.render, revalidate);
+    });
+
+    suite('revalidateCourseDetail', () => {
+        const open = { course: { id: 7, title: 'ITP', description: 'kept', exercises: [{ id: 1, title: 'W01' }] } };
+        const freshExercises = [{ id: 1, title: 'W01' }, { id: 2, title: 'W02' }];
+        const fresh = { courses: [{ course: { id: 7, title: 'ITP', exercises: freshExercises } }] };
+
+        function onCourse(fetch: sinon.SinonStub, dashboardExercises = sandbox.stub().withArgs(7).returns(freshExercises)) {
+            const built = buildDeps({
+                courseCatalog: { fetch, upsertSupplemental: sandbox.stub(), currentEpoch: 3, dashboardExercises },
+            });
+            built.stubs.appStateManager.currentState = 'course-detail';
+            built.stubs.appStateManager.currentCourseData = open;
+            return { ...built, facade: new WebviewNavigationFacade(built.deps) };
+        }
+
+        test('an exercise released since the cached list appears, the course keeps its other fields', async () => {
+            const fetch = sandbox.stub().resolves(fresh);
+            const { facade, stubs } = onCourse(fetch);
+
+            await facade.revalidateCourseDetail();
+
+            sinon.assert.calledOnceWithExactly(fetch, { revalidate: true });
+            const shown = stubs.appStateManager.showCourseDetail.firstCall.args[0];
+            assert.deepStrictEqual(shown.course.exercises.map((e: { id: number }) => e.id), [1, 2]);
+            assert.strictEqual(shown.course.description, 'kept');
+            sinon.assert.callOrder(stubs.appStateManager.showCourseDetail, stubs.sendInitData);
+        });
+
+        test('asks nothing when no course detail is open', async () => {
+            const fetch = sandbox.stub().resolves(fresh);
+            const { facade, stubs } = onCourse(fetch);
+            stubs.appStateManager.currentState = 'dashboard';
+
+            await facade.revalidateCourseDetail();
+
+            sinon.assert.notCalled(fetch);
+        });
+
+        const movedOn: Array<[string, (stubs: ReturnType<typeof buildDeps>['stubs']) => void]> = [
+            ['opened an exercise', stubs => { stubs.appStateManager.currentState = 'exercise-detail'; }],
+            ['opened another course', stubs => { stubs.appStateManager.currentCourseData = { course: { id: 8, title: 'Other' } }; }],
+            ['changed session', stubs => { stubs.courseCatalog.currentEpoch = 4; }],
+        ];
+        for (const [what, move] of movedOn) {
+            test(`writes nothing when the student ${what} during the request`, async () => {
+                const fetch = sandbox.stub();
+                const { facade, stubs } = onCourse(fetch);
+                fetch.callsFake(async () => { move(stubs); return fresh; });
+
+                await facade.revalidateCourseDetail();
+
+                sinon.assert.notCalled(stubs.appStateManager.showCourseDetail);
+                sinon.assert.notCalled(stubs.sendInitData);
+            });
+        }
+
+        test('leaves the view alone when the newest list has no entry for the course (archived course)', async () => {
+            const { facade, stubs } = onCourse(sandbox.stub().resolves({ courses: [] }), sandbox.stub().returns(undefined));
+
+            await facade.revalidateCourseDetail();
+
+            sinon.assert.notCalled(stubs.appStateManager.showCourseDetail);
+        });
+
+        test('a failed request without an installed list keeps the shown list', async () => {
+            const { facade, stubs } = onCourse(sandbox.stub().resolves(undefined), sandbox.stub().returns(undefined));
+
+            await facade.revalidateCourseDetail();
+
+            sinon.assert.notCalled(stubs.appStateManager.showCourseDetail);
+        });
+
+        test('a throwing catalog is logged, not propagated', async () => {
+            const { facade, stubs } = onCourse(sandbox.stub().rejects(new Error('boom')));
+
+            await facade.revalidateCourseDetail();
+
+            sinon.assert.notCalled(stubs.appStateManager.showCourseDetail);
+        });
     });
 
     test('showCourseDetail: tolerates a missing courseCatalog', () => {

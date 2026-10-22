@@ -15,6 +15,8 @@ export interface WebViewActionHandler {
      */
     showDashboard(userInfo: UserInfo, options?: { force?: boolean }): Promise<void>;
     navigateToStartPage(userInfo: UserInfo): Promise<void>;
+    /** Refreshes the open course detail's exercises from the course list. Never throws. */
+    revalidateCourseDetail(): Promise<void>;
     showStruggleDetection(): void;
     showSubmissionSetup(): void;
     openJsonInEditor(data: unknown): Promise<void>;

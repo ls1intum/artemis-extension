@@ -7,6 +7,7 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 ### Fixed
 
 - **A course you were enrolled in later shows up without a reload.** The extension asked for your courses once and kept that answer for the whole session, so a course added afterwards stayed hidden until you pressed Reload or restarted VS Code. The dashboard and the course list now ask again each time you open them or return to the Artemis sidebar, at most once a minute.
+- **A course shows exercises released since you last loaded it.** Opening a course showed the exercises from the course list loaded earlier, so a newly released exercise was missing until you pressed Reload in the course. Opening a current course, coming back to it from an exercise or returning to the Artemis sidebar on it now asks again, within the same once-a-minute limit. Archived courses already loaded their exercises fresh.
 - **The course list says when it could not load your courses.** It showed "No courses available", which reads like you are not enrolled. It now says "Courses could not be loaded.", like the dashboard does.
 - **A remembered semester filter is visible.** A semester filter saved from an earlier session kept filtering while the dropdown showed "All Semesters". The dropdown now shows the filter, so **Clear Filters** explains the empty list.
 

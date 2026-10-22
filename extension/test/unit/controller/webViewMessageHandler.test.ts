@@ -51,6 +51,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
         backgroundRenderProblemStatement: sinon.SinonStub;
         navigateBack: sinon.SinonStub;
         navigateToStartPage: sinon.SinonStub;
+        revalidateCourseDetail: sinon.SinonStub;
     };
 
     setup(() => {
@@ -86,6 +87,7 @@ suite('WebViewMessageHandler - handleMessageWithSender', () => {
             backgroundRenderProblemStatement: sandbox.stub(),
             navigateBack: sandbox.stub().resolves(),
             navigateToStartPage: sandbox.stub().resolves(),
+            revalidateCourseDetail: sandbox.stub().resolves(),
         };
 
         const oidcLoginService = new OidcLoginService(mockContext, mockAuthManager, mockApiService);

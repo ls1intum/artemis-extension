@@ -273,6 +273,19 @@ suite('Panel hide/show state persistence', () => {
         assert.ok(resendSpy.calledOnce, 'sendInitData should be called exactly once on show');
     });
 
+    test('showing the panel on course-detail refreshes the open course', async () => {
+        sandbox.stub((provider as any)._appStateManager, 'currentState').get(() => 'course-detail');
+        const revalidateDetail = sandbox.stub((provider as any)._navigationFacade, 'revalidateCourseDetail').resolves();
+
+        controllableView.simulateHide();
+        await Promise.resolve();
+        controllableView.simulateShow();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        assert.strictEqual(revalidateDetail.calledOnce, true);
+    });
+
     for (const [state, revalidates] of [['dashboard', true], ['course-list', true], ['course-detail', false]] as const) {
         test(`showing the panel on ${state} ${revalidates ? 'revalidates' : 'does not revalidate'} the course list`, async () => {
             sandbox.stub((provider as any)._appStateManager, 'currentState').get(() => state);

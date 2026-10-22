@@ -494,6 +494,8 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                     this.sendInitData();
                     if (currentState === 'dashboard' || currentState === 'course-list') {
                         void this._navigationFacade.revalidateCourses();
+                    } else if (currentState === 'course-detail') {
+                        void this._navigationFacade.revalidateCourseDetail();
                     }
                 })().catch(err => {
                     logger.error('Error in visibility change handler', LogCategory.VIEW, err);
