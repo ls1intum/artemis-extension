@@ -172,7 +172,7 @@ interface WebviewCmdPayloads {
     cloneRepository: { participationId: number; repositoryUri: string; exerciseTitle: string };
     copyAuthenticatedCloneUrl: { participationId: number; repositoryUri: string };
     openRepository: { repositoryUri?: string };
-    openClonedRepository: { participationId: number };
+    openClonedRepository: { repositoryUri: string };
     submitExercise: { participationId: number; exerciseId?: number; exerciseTitle?: string; commitMessage?: string };
     pullChanges: { exerciseTitle: string };
     startExercise: { exerciseId: number };

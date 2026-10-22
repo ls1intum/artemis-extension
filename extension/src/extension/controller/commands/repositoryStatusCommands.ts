@@ -72,6 +72,11 @@ export class RepositoryStatusCommands {
      * No-op if no context has been set.
      */
     public async recheckCurrentRepoStatus(): Promise<void> {
+        // A disconnected init stores no context, so a clone made from that view is only
+        // noticed through the exercise on screen. Off the exercise detail it may be a leftover.
+        if (this.context.appStateManager.currentState === 'exercise-detail' && await this.checkCurrentExercise()) {
+            return;
+        }
         if (!this.currentRepoContext) {
             return;
         }
@@ -98,20 +103,25 @@ export class RepositoryStatusCommands {
     }
 
     private handleCheckRepositoryStatus = async (_message: WebviewToExtensionMessage): Promise<void> => {
-        const exerciseData = this.context.appStateManager.currentExerciseData;
-        const exercise = exerciseData?.exercise;
-        const participations = exercise?.studentParticipations ?? [];
-        const repoUris = participations
+        if (await this.checkCurrentExercise()) {
+            return;
+        }
+        if (this.currentRepoContext) {
+            await this._checkRepositoryStatusWithContext([this.currentRepoContext.expectedRepoUrl], this.currentRepoContext.exerciseId);
+        } else {
+            logger.warn('No repository context available', LogCategory.SUBMISSION);
+        }
+    };
+
+    /** Checks the current exercise's repositories. False when it has none to check. */
+    private async checkCurrentExercise(): Promise<boolean> {
+        const exercise = this.context.appStateManager.currentExerciseData?.exercise;
+        const repoUris = (exercise?.studentParticipations ?? [])
             .map(p => p.repositoryUri)
             .filter((uri): uri is string => !!uri);
 
         if (exercise?.id === undefined || repoUris.length === 0) {
-            if (this.currentRepoContext) {
-                await this._checkRepositoryStatusWithContext([this.currentRepoContext.expectedRepoUrl], this.currentRepoContext.exerciseId);
-            } else {
-                logger.warn('No repository context available', LogCategory.SUBMISSION);
-            }
-            return;
+            return false;
         }
 
         // Before the check, not after: the save and rename listeners re-check against this, so an
@@ -119,7 +129,8 @@ export class RepositoryStatusCommands {
         // by construction; only the async conclusions below can outlive their exercise.
         this.currentRepoContext = { expectedRepoUrl: repoUris[0], exerciseId: exercise.id };
         await this._checkRepositoryStatusWithContext(repoUris, exercise.id);
-    };
+        return true;
+    }
 
     private async _checkRepositoryStatusWithContext(repoUris: string[], exerciseId: number): Promise<void> {
         // Claimed before the first await; every conclusion below is gated on it. `UpdateRepoStatus`
@@ -141,11 +152,14 @@ export class RepositoryStatusCommands {
                         isConnected: status.isConnected,
                         hasChanges: status.hasChanges,
                         isPracticeRepo: status.isPracticeRepo,
+                        hasLocalClone: false,
                     });
                     return;
                 }
             }
 
+            // Looked up before the record, so the ticket still guards the send after this await.
+            const hasLocalClone = await this.hasLocalCloneFor(exerciseId);
             // No repository connected is an answer, not a failure, so it records like one.
             if (!this.context.appStateManager.recordWorkspaceMode(ticket, exerciseId, false).accepted) {
                 return;
@@ -157,6 +171,7 @@ export class RepositoryStatusCommands {
                 isConnected: false,
                 hasChanges: false,
                 isPracticeRepo: false,
+                hasLocalClone,
             });
         } catch (error: unknown) {
             // Nothing recorded: a probe that threw must not silence one that learned something.
@@ -166,6 +181,15 @@ export class RepositoryStatusCommands {
                 vscode.window.showErrorMessage('Error checking repository status');
             }
         }
+    }
+
+    /** Only for the exercise on screen: its participations decide which clone the view would open. */
+    private async hasLocalCloneFor(exerciseId: number): Promise<boolean> {
+        const exercise = this.context.appStateManager.currentExerciseData?.exercise;
+        if (exercise?.id !== exerciseId || !this.context.localClones) {
+            return false;
+        }
+        return this.context.localClones.hasCloneOfDisplayedParticipation(exercise.studentParticipations);
     }
 
     private registerWorkspaceListeners(): void {

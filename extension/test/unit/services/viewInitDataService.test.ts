@@ -181,7 +181,7 @@ suite('ViewInitDataService.sendExerciseDetailInit', () => {
     teardown(() => sandbox.restore());
 
     /** A service whose app state really holds the exercise, because the arbitration compares it. */
-    function buildExerciseService() {
+    function buildExerciseService(localClones?: { hasCloneOfDisplayedParticipation: sinon.SinonStub }) {
         const posted: ExtensionToWebviewMessage[] = [];
         const appState = new AppStateManager();
         appState.showCourseDetail({ course: { id: 1, title: 'Course' } });
@@ -198,7 +198,7 @@ suite('ViewInitDataService.sendExerciseDetailInit', () => {
         const service = new ViewInitDataService(
             appState as never,
             undefined,
-            { setRepositoryContext, clearRepositoryContext } as never,
+            { setRepositoryContext, clearRepositoryContext, localClones } as never,
             (msg: ExtensionToWebviewMessage) => { posted.push(msg); },
             { getLastAccessedCourses: () => [] } as never,
         );
@@ -253,6 +253,34 @@ suite('ViewInitDataService.sendExerciseDetailInit', () => {
             'saying nothing is not the same as saying graded; the webview keeps what it has');
         sinon.assert.notCalled(setRepositoryContext);
         assert.strictEqual(appState.workspaceIsPractice, false);
+    });
+
+    test('a disconnected init says whether the displayed participation has a local clone', async () => {
+        const hasCloneOfDisplayedParticipation = sandbox.stub().resolves(true);
+        const { service, posted } = buildExerciseService({ hasCloneOfDisplayedParticipation });
+        sandbox.stub(workspaceDetection, 'detectWorkspaceForRepoUris')
+            .resolves({ isConnected: false, hasChanges: false, isPracticeRepo: false });
+
+        service.sendExerciseDetailInit();
+        await new Promise(r => setImmediate(r));
+
+        assert.deepStrictEqual(hasCloneOfDisplayedParticipation.firstCall.args[0], [{ id: 7, repositoryUri: 'https://a/repo.git' }]);
+        assert.deepStrictEqual(exerciseInits(posted)[0].repoStatus,
+            { isConnected: false, hasChanges: false, isPracticeRepo: false, hasLocalClone: true });
+    });
+
+    test('a connected init does not look for a local clone', async () => {
+        const hasCloneOfDisplayedParticipation = sandbox.stub().resolves(true);
+        const { service, posted } = buildExerciseService({ hasCloneOfDisplayedParticipation });
+        sandbox.stub(workspaceDetection, 'detectWorkspaceForRepoUris')
+            .resolves({ isConnected: true, hasChanges: false, isPracticeRepo: false, matchedUri: 'https://a/repo.git' });
+
+        service.sendExerciseDetailInit();
+        await new Promise(r => setImmediate(r));
+
+        sinon.assert.notCalled(hasCloneOfDisplayedParticipation);
+        assert.deepStrictEqual(exerciseInits(posted)[0].repoStatus,
+            { isConnected: true, hasChanges: false, isPracticeRepo: false, hasLocalClone: false });
     });
 
     test('a detection that threw erases nothing', async () => {

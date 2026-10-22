@@ -108,7 +108,6 @@ export const ExtensionMsg = {
     // Exercise/Repo responses
     UpdateRepoStatus: 'updateRepoStatus',
     UpdateDirtyPagesStatus: 'updateDirtyPagesStatus',
-    ShowClonedRepoNotice: 'showClonedRepoNotice',
     SubmissionSetupResult: 'submissionSetupResult',
     SubmissionSetupInfo: 'submissionSetupInfo',
 
@@ -189,7 +188,7 @@ interface ExtensionMsgPayloads {
     exerciseDetailInit: {
         exerciseData: ExerciseDetailsResponse;
         hideDeveloperTools: boolean;
-        repoStatus?: { isConnected: boolean; hasChanges: boolean; isPracticeRepo: boolean };
+        repoStatus?: { isConnected: boolean; hasChanges: boolean; isPracticeRepo: boolean; hasLocalClone: boolean };
         serverRenderedProblemStatement?: RenderedProblemStatementPayload;
         /** EduIDE (managed Theia): hide clone affordances, show "Open in Artemis". */
         isManagedEnvironment?: boolean;
@@ -524,13 +523,17 @@ interface ExtensionMsgPayloads {
         isConnected: boolean;
         hasChanges: boolean;
         isPracticeRepo: boolean;
+        /**
+         * Only meaningful while disconnected: the participation a disconnected view
+         * shows has a clone on disk that is not the open workspace.
+         */
+        hasLocalClone: boolean;
     };
     updateDirtyPagesStatus: {
         hasDirtyPages: boolean;
         dirtyFileCount: number;
         autoSaveEnabled: boolean;
     };
-    showClonedRepoNotice: { exerciseTitle: string; participationId: number };
     /** One line of feedback about an action the page just took (save, renew, recheck). */
     submissionSetupResult: {
         status: 'success' | 'error' | 'warning' | 'info';

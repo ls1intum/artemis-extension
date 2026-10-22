@@ -5,7 +5,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as sinon from 'sinon';
 
-import { ExtensionMsg, WebviewCmd } from '@shared/messageContracts';
+import { WebviewCmd } from '@shared/messageContracts';
 
 import type { RepositoryCloneCommandsDeps } from '@extension/controller/commands/repositoryCloneCommands';
 import { RepositoryCloneCommands } from '@extension/controller/commands/repositoryCloneCommands';
@@ -26,7 +26,6 @@ suite('RepositoryCloneCommands', () => {
     let getWorkspaceRepositoryUrl: sinon.SinonStub;
     let normalizeRepositoryUrl: sinon.SinonStub;
     let statAsync: sinon.SinonStub;
-    let statSync: sinon.SinonStub;
     let configValues: Map<string, unknown>;
 
     function makeGitService(isAvailable: boolean): GitService {
@@ -39,7 +38,6 @@ suite('RepositoryCloneCommands', () => {
             normalizeRepositoryUrl,
             cloneRepositoryProgrammatic,
             getTheiaEnvironment,
-            statSync: statSync as unknown as RepositoryCloneCommandsDeps['statSync'],
             statAsync: statAsync as unknown as RepositoryCloneCommandsDeps['statAsync'],
         };
     }
@@ -48,16 +46,26 @@ suite('RepositoryCloneCommands', () => {
         getOrCreateVcsAccessToken?: sinon.SinonStub;
         getCurrentUser?: sinon.SinonStub;
         sendMessage?: sinon.SinonStub;
-    } = {}): { ctx: CommandContext; sendMessage: sinon.SinonStub } {
+        findLocalClone?: sinon.SinonStub;
+    } = {}): {
+        ctx: CommandContext;
+        sendMessage: sinon.SinonStub;
+        remember: sinon.SinonStub;
+        recheckRepoStatus: sinon.SinonStub;
+    } {
         const sendMessage = overrides.sendMessage ?? sandbox.stub();
+        const remember = sandbox.stub().resolves();
+        const recheckRepoStatus = sandbox.stub().resolves();
         const ctx = {
             artemisApi: {
                 getOrCreateVcsAccessToken: overrides.getOrCreateVcsAccessToken ?? sandbox.stub().resolves('vcs-token-xyz'),
                 getCurrentUser: overrides.getCurrentUser ?? sandbox.stub().resolves({ login: 'alice' }),
             },
             sendMessage,
+            localClones: { remember, find: overrides.findLocalClone ?? sandbox.stub().resolves(undefined) },
+            recheckRepoStatus,
         } as unknown as CommandContext;
-        return { ctx, sendMessage };
+        return { ctx, sendMessage, remember, recheckRepoStatus };
     }
 
     setup(() => {
@@ -85,7 +93,6 @@ suite('RepositoryCloneCommands', () => {
         getWorkspaceRepositoryUrl = sandbox.stub().resolves(undefined);
         normalizeRepositoryUrl = sandbox.stub().callsFake((u: string) => u);
         statAsync = sandbox.stub();
-        statSync = sandbox.stub();
     });
 
     teardown(() => {
@@ -231,7 +238,7 @@ suite('RepositoryCloneCommands', () => {
         sinon.assert.calledOnce(showErrorMessage);
     });
 
-    test('cloneRepository records the cloned repo in the FIFO cache and sends ShowClonedRepoNotice on success', async () => {
+    test('cloneRepository remembers where it cloned and rechecks the status on success', async () => {
         // Configure a default clone path so destination resolution succeeds without modal interaction.
         configValues.set('defaultClonePath', '/tmp/clones');
         configValues.set('showSetDefaultClonePathPrompt', false);
@@ -239,7 +246,7 @@ suite('RepositoryCloneCommands', () => {
         // Make the post-clone "Open Folder?" prompt resolve to 'Skip'.
         showInformationMessage.resolves('Skip' as never);
 
-        const { ctx, sendMessage } = buildContext();
+        const { ctx, remember, recheckRepoStatus } = buildContext();
         const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
 
         await mod.getHandlers()[WebviewCmd.CloneRepository]({
@@ -249,90 +256,78 @@ suite('RepositoryCloneCommands', () => {
         } as never);
 
         sinon.assert.calledOnce(cloneRepositoryProgrammatic);
-        const sentNotice = sendMessage.getCalls().find(c => (c.args[0] as { type: string }).type === ExtensionMsg.ShowClonedRepoNotice);
-        assert.ok(sentNotice, 'Expected ShowClonedRepoNotice message to be sent');
-        assert.deepStrictEqual(sentNotice.args[0], {
-            type: ExtensionMsg.ShowClonedRepoNotice,
-            exerciseTitle: 'Foo',
-            participationId: 42,
-        });
+        sinon.assert.calledOnceWithExactly(remember, 'https://artemis.example.com/git/foo.git', path.join('/tmp/clones', 'foo'));
+        sinon.assert.calledOnce(recheckRepoStatus);
+        assert.ok(remember.calledBefore(recheckRepoStatus), 'the recheck must see the remembered clone');
     });
 
-    test('FIFO eviction: after 11 successful clones, the first participationId is no longer retrievable via openClonedRepository', async () => {
+    test('cloneRepository neither remembers nor rechecks when git clone fails', async () => {
         configValues.set('defaultClonePath', '/tmp/clones');
         configValues.set('showSetDefaultClonePathPrompt', false);
         statAsync.resolves({ isDirectory: () => true } as fs.Stats);
-        showInformationMessage.resolves('Skip' as never);
+        cloneRepositoryProgrammatic.rejects(new Error('destination path already exists'));
 
-        const { ctx } = buildContext();
+        const { ctx, remember, recheckRepoStatus } = buildContext();
         const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
 
-        for (let i = 1; i <= 11; i++) {
-            await mod.getHandlers()[WebviewCmd.CloneRepository]({
-                type: 'command',
-                command: WebviewCmd.CloneRepository,
-                payload: { participationId: i, repositoryUri: `https://x/repo${i}.git`, exerciseTitle: `T${i}` },
-            } as never);
-        }
-
-        sinon.assert.callCount(cloneRepositoryProgrammatic, 11);
-        showWarningMessage.resetHistory();
-
-        await mod.getHandlers()[WebviewCmd.OpenClonedRepository]({
-            type: 'command',
-            command: WebviewCmd.OpenClonedRepository,
-            payload: { participationId: 1 },
-        } as never);
-
-        sinon.assert.calledOnce(showWarningMessage);
-        const msg = showWarningMessage.firstCall.args[0] as string;
-        assert.ok(msg.toLowerCase().includes('not found'), `Expected "not found" warning; got: ${msg}`);
-    });
-
-    test('openClonedRepository opens the recorded path when the cache contains the participation id and the directory exists', async () => {
-        configValues.set('defaultClonePath', '/tmp/clones');
-        configValues.set('showSetDefaultClonePathPrompt', false);
-        statAsync.resolves({ isDirectory: () => true } as fs.Stats);
-        statSync.returns({ isDirectory: () => true } as fs.Stats);
-        showInformationMessage.resolves('Skip' as never);
-
-        const { ctx } = buildContext();
-        const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
-
-        // Pre-populate the cache via a successful clone.
         await mod.getHandlers()[WebviewCmd.CloneRepository]({
             type: 'command',
             command: WebviewCmd.CloneRepository,
-            payload: { participationId: 99, repositoryUri: 'https://x/foo.git', exerciseTitle: 'Foo' },
+            payload: { participationId: 42, repositoryUri: 'https://artemis.example.com/git/foo.git', exerciseTitle: 'Foo' },
         } as never);
 
-        executeCommand.resetHistory();
-        showWarningMessage.resetHistory();
-
-        await mod.getHandlers()[WebviewCmd.OpenClonedRepository]({
-            type: 'command',
-            command: WebviewCmd.OpenClonedRepository,
-            payload: { participationId: 99 },
-        } as never);
-
-        sinon.assert.notCalled(showWarningMessage);
-        const openFolderCalls = executeCommand.getCalls().filter(c => c.args[0] === 'vscode.openFolder');
-        assert.strictEqual(openFolderCalls.length, 1, 'Expected exactly one vscode.openFolder execution');
+        sinon.assert.notCalled(remember);
+        sinon.assert.notCalled(recheckRepoStatus);
+        sinon.assert.calledOnce(showErrorMessage);
     });
 
-    test('openClonedRepository warns when the participation id is NOT in the cache', async () => {
-        const { ctx } = buildContext();
+    test('openClonedRepository opens the local clone of the given repository in a new window', async () => {
+        const findLocalClone = sandbox.stub().resolves('/tmp/clones/foo');
+        const { ctx } = buildContext({ findLocalClone });
         const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
 
         await mod.getHandlers()[WebviewCmd.OpenClonedRepository]({
             type: 'command',
             command: WebviewCmd.OpenClonedRepository,
-            payload: { participationId: 12345 },
+            payload: { repositoryUri: 'https://artemis.example.com/git/foo.git' },
         } as never);
 
+        sinon.assert.calledOnceWithExactly(findLocalClone, 'https://artemis.example.com/git/foo.git');
+        sinon.assert.calledOnce(executeCommand);
+        assert.strictEqual(executeCommand.firstCall.args[0], 'vscode.openFolder');
+        assert.strictEqual((executeCommand.firstCall.args[1] as vscode.Uri).fsPath, vscode.Uri.file('/tmp/clones/foo').fsPath);
+        assert.strictEqual(executeCommand.firstCall.args[2], true);
+    });
+
+    test('openClonedRepository reveals the explorer when the clone is already the workspace', async () => {
+        const repoPath = vscode.Uri.file('/tmp/clones/foo').fsPath;
+        sandbox.stub(vscode.workspace, 'workspaceFolders').value([{ uri: vscode.Uri.file(repoPath), name: 'foo', index: 0 }]);
+        const { ctx } = buildContext({ findLocalClone: sandbox.stub().resolves(repoPath) });
+        const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.OpenClonedRepository]({
+            type: 'command',
+            command: WebviewCmd.OpenClonedRepository,
+            payload: { repositoryUri: 'https://artemis.example.com/git/foo.git' },
+        } as never);
+
+        sinon.assert.calledOnceWithExactly(executeCommand, 'workbench.view.explorer');
+    });
+
+    test('openClonedRepository warns and rechecks when the clone is gone', async () => {
+        const { ctx, recheckRepoStatus } = buildContext({ findLocalClone: sandbox.stub().resolves(undefined) });
+        const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.OpenClonedRepository]({
+            type: 'command',
+            command: WebviewCmd.OpenClonedRepository,
+            payload: { repositoryUri: 'https://artemis.example.com/git/foo.git' },
+        } as never);
+
+        sinon.assert.notCalled(executeCommand);
         sinon.assert.calledOnce(showWarningMessage);
-        const msg = showWarningMessage.firstCall.args[0] as string;
-        assert.ok(msg.toLowerCase().includes('not found'), `Expected "not found" warning; got: ${msg}`);
+        assert.ok((showWarningMessage.firstCall.args[0] as string).toLowerCase().includes('not found'));
+        sinon.assert.calledOnce(recheckRepoStatus);
     });
 
     test('openRepository reveals the explorer when the workspace already matches the requested repositoryUri', async () => {

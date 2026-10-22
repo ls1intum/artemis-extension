@@ -428,27 +428,23 @@ describe('useExerciseDetailStore', () => {
 		expect(result.current.pendingSubmissionsByParticipationId).toEqual({});
 	});
 
-	it('setExerciseData clears stale clonedNotice and dirtyPagesStatus', () => {
+	it('setExerciseData clears a stale dirtyPagesStatus', () => {
 		const { result } = renderHook(() => useExerciseDetailStore());
 
 		act(() => {
 			result.current.setExerciseData(makeExerciseData(), false);
 		});
 
-		// Simulate receiving clonedNotice and dirtyPagesStatus from a previous exercise
 		act(() => {
-			result.current.setClonedNotice('Old Exercise', 42);
 			result.current.setDirtyPagesStatus({ hasDirtyPages: true, dirtyFileCount: 3, autoSaveEnabled: false });
 		});
 
-		expect(result.current.clonedNotice).toEqual({ exerciseTitle: 'Old Exercise', participationId: 42 });
 		expect(result.current.dirtyPagesStatus?.hasDirtyPages).toBe(true);
 
 		act(() => {
 			result.current.setExerciseData(makeExerciseData({ exercise: { id: 2, title: 'New Exercise', studentParticipations: [] } }), false);
 		});
 
-		expect(result.current.clonedNotice).toBeNull();
 		expect(result.current.dirtyPagesStatus).toBeNull();
 	});
 
@@ -497,7 +493,7 @@ describe('useExerciseDetailStore', () => {
 	});
 
 	describe('repository status across an init that omits it', () => {
-		const practice = { isConnected: true, hasChanges: false, isPracticeRepo: true };
+		const practice = { isConnected: true, hasChanges: false, isPracticeRepo: true, hasLocalClone: false };
 
 		it('keeps a known status when the init says nothing about the workspace', () => {
 			// The host omits it when a newer probe has already spoken. Reading the absence as

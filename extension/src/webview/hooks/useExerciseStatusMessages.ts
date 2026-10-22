@@ -10,19 +10,21 @@ import { useExtensionMessage } from './useExtensionMessage';
  * detail store.
  */
 export function useExerciseStatusMessages(vscodeApi: VsCodeApi): void {
-    const { setRepoStatus, setClonedNotice, setDirtyPagesStatus } = useExerciseDetailStore();
+    const { setRepoStatus, setDirtyPagesStatus } = useExerciseDetailStore();
 
     useExtensionMessage((msg) => {
         switch (msg.type) {
             case ExtensionMsg.UpdateRepoStatus:
-                setRepoStatus({ isConnected: msg.isConnected, hasChanges: msg.hasChanges, isPracticeRepo: msg.isPracticeRepo });
-                break;
-            case ExtensionMsg.ShowClonedRepoNotice:
-                setClonedNotice(msg.exerciseTitle, msg.participationId);
+                setRepoStatus({
+                    isConnected: msg.isConnected,
+                    hasChanges: msg.hasChanges,
+                    isPracticeRepo: msg.isPracticeRepo,
+                    hasLocalClone: msg.hasLocalClone,
+                });
                 break;
             case ExtensionMsg.UpdateDirtyPagesStatus:
                 setDirtyPagesStatus({ hasDirtyPages: msg.hasDirtyPages, dirtyFileCount: msg.dirtyFileCount, autoSaveEnabled: msg.autoSaveEnabled });
                 break;
         }
-    }, [vscodeApi, setRepoStatus, setClonedNotice, setDirtyPagesStatus]);
+    }, [vscodeApi, setRepoStatus, setDirtyPagesStatus]);
 }
