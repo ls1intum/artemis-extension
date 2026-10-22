@@ -314,10 +314,35 @@ suite('RepositoryCloneCommands', () => {
             payload: { participationId: 42, repositoryUri: 'https://artemis.example.com/git/foo.git', exerciseTitle: 'Foo' },
         } as never);
 
+        await new Promise(resolve => setImmediate(resolve));
+
         sinon.assert.calledOnce(executeCommand);
         assert.strictEqual(executeCommand.firstCall.args[0], 'vscode.openFolder');
         assert.strictEqual((executeCommand.firstCall.args[1] as vscode.Uri).fsPath, vscode.Uri.file(path.join('/tmp/clones', 'foo')).fsPath);
         assert.strictEqual(executeCommand.firstCall.args.length, 2);
+    });
+
+    test('cloneRepository returns while the "Open cloned repository?" toast is still open', async () => {
+        configValues.set('defaultClonePath', '/tmp/clones');
+        configValues.set('showSetDefaultClonePathPrompt', false);
+        statAsync.resolves({ isDirectory: () => true } as fs.Stats);
+        // A toast nobody answers: webview commands queue behind the handler, so it must not wait for it.
+        showInformationMessage.returns(new Promise(() => undefined) as never);
+
+        const { ctx } = buildContext();
+        const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+        const handled = mod.getHandlers()[WebviewCmd.CloneRepository]({
+            type: 'command',
+            command: WebviewCmd.CloneRepository,
+            payload: { participationId: 42, repositoryUri: 'https://artemis.example.com/git/foo.git', exerciseTitle: 'Foo' },
+        } as never).then(() => 'returned');
+        const settled = await Promise.race([
+            handled,
+            new Promise(resolve => setTimeout(() => resolve('still waiting'), 200)),
+        ]);
+
+        assert.strictEqual(settled, 'returned');
     });
 
     test('openClonedRepository reveals the explorer when the clone is already the workspace', async () => {

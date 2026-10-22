@@ -241,15 +241,18 @@ export class RepositoryCloneCommands {
             // The clone happened outside the workspace, so no file event reports it.
             void this.context.recheckRepoStatus?.();
 
-            const openAction = await vscode.window.showInformationMessage(
+            // Not awaited: a toast can stay open indefinitely, and every later webview command,
+            // the card's Open Folder included, queues behind this handler until it returns.
+            void vscode.window.showInformationMessage(
                 `Open cloned repository "${exerciseTitle}"?`,
                 'Open Folder',
                 'Skip',
-            );
-            if (openAction === 'Open Folder') {
-                // Same window, like File > Open Folder: the student wants to work in the clone.
-                void vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(repoPath));
-            }
+            ).then((openAction) => {
+                if (openAction === 'Open Folder') {
+                    // Same window, like File > Open Folder: the student wants to work in the clone.
+                    void vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(repoPath));
+                }
+            });
         } catch (error: unknown) {
             // A clone runs against the tokenised URL, and git quotes it back in
             // the failure, so neither the log nor the notification may carry the
