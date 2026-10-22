@@ -52,8 +52,13 @@ suite('SensorHub internal sources', () => {
         const doc = await vscode.workspace.openTextDocument({ content: '' });
         const editor = await vscode.window.showTextDocument(doc);
         await editor.edit(b => b.insert(new vscode.Position(0, 0), pasted));
-        // The clipboard confirmation resolves asynchronously after the edit.
-        await new Promise(resolve => setTimeout(resolve, 50));
+        // The clipboard confirmation resolves asynchronously after the edit, and how long
+        // the clipboard read takes depends on the host: a fixed 50 ms failed on a slow CI
+        // runner. Wait for the signal instead, bounded so a missing one still fails.
+        const deadline = Date.now() + 2000;
+        while (seen.length === 0 && Date.now() < deadline) {
+            await new Promise(resolve => setTimeout(resolve, 20));
+        }
         assert.strictEqual(seen.length, 1);
         assert.strictEqual(seen[0].lines, 2);
         sub.dispose();
