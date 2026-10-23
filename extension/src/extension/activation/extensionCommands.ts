@@ -10,9 +10,26 @@ import type { ArtemisWebsocketService } from '@extension/services/websocket';
 import { getTheiaEnvironment, KNOWN_BRIDGE_KEYS, probeDataBridge } from '@extension/theia';
 import { extractErrorMessage, normalizeRelativePath, resolveServerUrl, VSCODE_CONFIG } from '@extension/utils';
 
-function registerLoginCommand(): vscode.Disposable {
-    return vscode.commands.registerCommand('artemis.login', () => {
-        vscode.commands.executeCommand('artemis.loginView.focus');
+import { parseWalkthroughStep, type WalkthroughNavigator } from './onboarding';
+
+function registerLoginCommand(walkthrough: WalkthroughNavigator): vscode.Disposable {
+    return vscode.commands.registerCommand('artemis.login', async (arg?: unknown) => {
+        if (parseWalkthroughStep(arg) === 'signIn' && !(await walkthrough.signInRequested())) {
+            return;
+        }
+        await vscode.commands.executeCommand('artemis.loginView.focus');
+    });
+}
+
+function registerOpenIrisChatCommand(walkthrough: WalkthroughNavigator): vscode.Disposable {
+    return vscode.commands.registerCommand('artemis.openIrisChat', async (arg?: unknown) => {
+        const step = parseWalkthroughStep(arg);
+        // Before the focus: selecting a walkthrough step focuses that step, and the chat
+        // is what the student asked for.
+        if (step !== undefined) {
+            await walkthrough.stepDone(step);
+        }
+        await vscode.commands.executeCommand('iris.chatView.focus');
     });
 }
 
@@ -458,8 +475,8 @@ function pickServer(
  * The dialog options match the "Set Default Folder" branch of the clone flow, so both
  * routes to this setting look the same to a student.
  */
-function registerSetDefaultClonePathCommand(): vscode.Disposable {
-    return vscode.commands.registerCommand('artemis.setDefaultClonePath', async () => {
+function registerSetDefaultClonePathCommand(walkthrough: WalkthroughNavigator): vscode.Disposable {
+    return vscode.commands.registerCommand('artemis.setDefaultClonePath', async (arg?: unknown) => {
         const folderUri = await vscode.window.showOpenDialog({
             canSelectFiles: false,
             canSelectFolders: true,
@@ -476,95 +493,110 @@ function registerSetDefaultClonePathCommand(): vscode.Disposable {
         const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
         await config.update(VSCODE_CONFIG.DEFAULT_CLONE_PATH_KEY, folderPath, vscode.ConfigurationTarget.Global);
         vscode.window.showInformationMessage(`✓ All exercises will now be cloned to: ${folderPath}`);
+
+        const step = parseWalkthroughStep(arg);
+        if (step !== undefined) {
+            await walkthrough.stepDone(step);
+        }
     });
 }
 
-function registerSetServerUrlCommand(): vscode.Disposable {
-    return vscode.commands.registerCommand('artemis.setServerUrl', async () => {
-        const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-        // What the extension actually talks to, not what the setting happens to hold. An
-        // unset setting resolves to production, and the login page names it, so a picker
-        // reading the raw value would open with nothing marked and disagree with the
-        // screen it was opened from.
-        const currentUrl = resolveServerUrl();
-        const hasCustomCurrent = currentUrl.length > 0 && !KNOWN_SERVERS.some(s => s.url === currentUrl);
-
-        const items: vscode.QuickPickItem[] = [];
-        // Tracked while the list is built rather than searched for afterwards, so the
-        // highlighted row is decided by the URL itself and not by matching on a label.
-        let currentItem: vscode.QuickPickItem | undefined;
-
-        if (hasCustomCurrent) {
-            let hostname = currentUrl;
-            try {
-                hostname = new URL(currentUrl).host || currentUrl;
-            } catch {
-                // Fall back to the raw value if it fails to parse.
-            }
-            currentItem = {
-                label: `Custom (${hostname})`,
-                description: currentUrl,
-                detail: CURRENTLY_SELECTED_DETAIL,
-            };
-            items.push(
-                currentItem,
-                { label: '', kind: vscode.QuickPickItemKind.Separator },
-            );
-        }
-
-        const knownItems = KNOWN_SERVERS.map(server => ({
-            label: server.label,
-            description: server.url,
-            detail: server.url === currentUrl ? CURRENTLY_SELECTED_DETAIL : undefined,
-        }));
-        items.push(...knownItems);
-        if (!currentItem) {
-            currentItem = knownItems.find(item => item.description === currentUrl);
-        }
-
-        items.push(
-            { label: '', kind: vscode.QuickPickItemKind.Separator },
-            { label: '$(edit) Enter custom URL...', description: 'Use your own Artemis server URL' },
-        );
-
-        const selection = await pickServer(items, currentItem, currentUrl);
-
-        if (!selection) {
-            return;
-        }
-
-        let newUrl: string | undefined;
-
-        if (selection.label === '$(edit) Enter custom URL...') {
-            newUrl = await vscode.window.showInputBox({
-                title: 'Enter Custom Artemis Server URL',
-                prompt: 'Full URL including protocol (e.g. https://artemis.example.com)',
-                value: currentUrl,
-                validateInput: (value) => {
-                    try {
-                        const url = new URL(value);
-                        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-                            return 'URL must start with http:// or https://';
-                        }
-                        return undefined;
-                    } catch {
-                        return 'Please enter a valid URL';
-                    }
-                },
-            });
-        } else {
-            newUrl = KNOWN_SERVERS.find(s => s.label === selection.label)?.url;
-        }
-
-        if (newUrl) {
-            newUrl = newUrl.replace(/\/+$/, '');
-        }
-
-        if (newUrl && newUrl !== currentUrl) {
-            await config.update(VSCODE_CONFIG.SERVER_URL_KEY, newUrl, vscode.ConfigurationTarget.Global);
-            vscode.window.showInformationMessage(`Artemis server set to: ${newUrl}`);
+function registerSetServerUrlCommand(walkthrough: WalkthroughNavigator): vscode.Disposable {
+    return vscode.commands.registerCommand('artemis.setServerUrl', async (arg?: unknown) => {
+        await pickAndSaveServerUrl();
+        // Also after Escape: the step is "choose or confirm", and Escape keeps the
+        // preselected server, which is the confirm.
+        const step = parseWalkthroughStep(arg);
+        if (step !== undefined) {
+            await walkthrough.stepDone(step);
         }
     });
+}
+
+async function pickAndSaveServerUrl(): Promise<void> {
+    const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+    // What the extension actually talks to, not what the setting happens to hold. An
+    // unset setting resolves to production, and the login page names it, so a picker
+    // reading the raw value would open with nothing marked and disagree with the
+    // screen it was opened from.
+    const currentUrl = resolveServerUrl();
+    const hasCustomCurrent = currentUrl.length > 0 && !KNOWN_SERVERS.some(s => s.url === currentUrl);
+
+    const items: vscode.QuickPickItem[] = [];
+    // Tracked while the list is built rather than searched for afterwards, so the
+    // highlighted row is decided by the URL itself and not by matching on a label.
+    let currentItem: vscode.QuickPickItem | undefined;
+
+    if (hasCustomCurrent) {
+        let hostname = currentUrl;
+        try {
+            hostname = new URL(currentUrl).host || currentUrl;
+        } catch {
+            // Fall back to the raw value if it fails to parse.
+        }
+        currentItem = {
+            label: `Custom (${hostname})`,
+            description: currentUrl,
+            detail: CURRENTLY_SELECTED_DETAIL,
+        };
+        items.push(
+            currentItem,
+            { label: '', kind: vscode.QuickPickItemKind.Separator },
+        );
+    }
+
+    const knownItems = KNOWN_SERVERS.map(server => ({
+        label: server.label,
+        description: server.url,
+        detail: server.url === currentUrl ? CURRENTLY_SELECTED_DETAIL : undefined,
+    }));
+    items.push(...knownItems);
+    if (!currentItem) {
+        currentItem = knownItems.find(item => item.description === currentUrl);
+    }
+
+    items.push(
+        { label: '', kind: vscode.QuickPickItemKind.Separator },
+        { label: '$(edit) Enter custom URL...', description: 'Use your own Artemis server URL' },
+    );
+
+    const selection = await pickServer(items, currentItem, currentUrl);
+
+    if (!selection) {
+        return;
+    }
+
+    let newUrl: string | undefined;
+
+    if (selection.label === '$(edit) Enter custom URL...') {
+        newUrl = await vscode.window.showInputBox({
+            title: 'Enter Custom Artemis Server URL',
+            prompt: 'Full URL including protocol (e.g. https://artemis.example.com)',
+            value: currentUrl,
+            validateInput: (value) => {
+                try {
+                    const url = new URL(value);
+                    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+                        return 'URL must start with http:// or https://';
+                    }
+                    return undefined;
+                } catch {
+                    return 'Please enter a valid URL';
+                }
+            },
+        });
+    } else {
+        newUrl = KNOWN_SERVERS.find(s => s.label === selection.label)?.url;
+    }
+
+    if (newUrl) {
+        newUrl = newUrl.replace(/\/+$/, '');
+    }
+
+    if (newUrl && newUrl !== currentUrl) {
+        await config.update(VSCODE_CONFIG.SERVER_URL_KEY, newUrl, vscode.ConfigurationTarget.Global);
+        vscode.window.showInformationMessage(`Artemis server set to: ${newUrl}`);
+    }
 }
 
 
@@ -721,19 +753,21 @@ interface CommandDeps {
     chatWebviewProvider: ChatWebviewProvider;
     updateAuthContext: (isAuthenticated: boolean) => Promise<void>;
     authCancellation: AuthCancellationService;
+    walkthrough: WalkthroughNavigator;
 }
 
 export function registerAllCommands(deps: CommandDeps): vscode.Disposable {
     return vscode.Disposable.from(
-        registerLoginCommand(),
+        registerLoginCommand(deps.walkthrough),
+        registerOpenIrisChatCommand(deps.walkthrough),
         registerLogoutCommand(deps.authManager, deps.artemisApiService, deps.updateAuthContext, deps.artemisWebviewProvider, deps.authCancellation),
         registerReloadIrisChatCommand(deps.chatWebviewProvider),
         registerIrisHealthCheckCommand(deps.authManager, deps.artemisApiService, deps.chatWebviewProvider),
         registerWebSocketStatusCommand(deps.artemisWebsocketService, deps.authManager),
         registerConnectWebSocketCommand(deps.authManager, deps.artemisWebsocketService),
         registerGoToSourceErrorCommand(),
-        registerSetServerUrlCommand(),
-        registerSetDefaultClonePathCommand(),
+        registerSetServerUrlCommand(deps.walkthrough),
+        registerSetDefaultClonePathCommand(deps.walkthrough),
         registerShowJwtTokenCommand(deps.authManager),
         registerShowTheiaEnvironmentCommand(),
     );
