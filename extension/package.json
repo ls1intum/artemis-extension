@@ -86,6 +86,11 @@
         "icon": "$(folder)"
       },
       {
+        "command": "artemis.openIrisChat",
+        "title": "Artemis: Open Iris Chat",
+        "icon": "$(comment-discussion)"
+      },
+      {
         "command": "artemis.showJwtToken",
         "title": "Artemis: Show JWT Token (Developer)",
         "icon": "$(key)"
@@ -123,6 +128,10 @@
         {
           "command": "artemis.setDefaultClonePath",
           "when": "!iris:theia"
+        },
+        {
+          "command": "artemis.openIrisChat",
+          "when": "iris:authenticated"
         },
         {
           "command": "artemis.showJwtToken",
@@ -281,7 +290,7 @@
           {
             "id": "chooseServer",
             "title": "Choose your Artemis server",
-            "description": "The extension talks to **https://artemis.tum.de** out of the box. TUM students can confirm that and move on; everyone else can point it at a different Artemis instance.\n[Choose or confirm server](command:artemis.setServerUrl)",
+            "description": "The extension talks to **https://artemis.tum.de** out of the box. TUM students can confirm that and move on; everyone else can point it at a different Artemis instance.\n[Choose or confirm server](command:artemis.setServerUrl?%7B%22walkthroughStep%22%3A%22chooseServer%22%7D)",
             "media": {
               "markdown": "media/walkthrough/blank.md"
             },
@@ -293,7 +302,7 @@
           {
             "id": "signIn",
             "title": "Sign in",
-            "description": "Log in with your Artemis account. Your courses, exercises and build results all come from there.\n[Sign in](command:artemis.login)",
+            "description": "Log in with your Artemis account. Your courses, exercises and build results all come from there.\n[Sign in](command:artemis.login?%7B%22walkthroughStep%22%3A%22signIn%22%7D)",
             "media": {
               "markdown": "media/walkthrough/blank.md"
             },
@@ -304,7 +313,7 @@
           {
             "id": "exerciseFolder",
             "title": "Choose where exercises land",
-            "description": "Pick one folder and every exercise you clone goes there, without being asked again.\n[Choose folder](command:artemis.setDefaultClonePath)",
+            "description": "Pick one folder and every exercise you clone goes there, without being asked again.\n[Choose folder](command:artemis.setDefaultClonePath?%7B%22walkthroughStep%22%3A%22exerciseFolder%22%7D)",
             "media": {
               "markdown": "media/walkthrough/blank.md"
             },
@@ -315,7 +324,7 @@
           {
             "id": "meetIris",
             "title": "Meet Iris",
-            "description": "Iris is the Artemis tutor. Ask it about the exercise you are working on and it answers with your code and your build results in view.\n[Open Iris](command:iris.chatView.focus)",
+            "description": "Iris is the Artemis tutor. Ask it about the exercise you are working on and it answers with your code and your build results in view.\n[Open Iris](command:artemis.openIrisChat?%7B%22walkthroughStep%22%3A%22meetIris%22%7D)",
             "media": {
               "markdown": "media/walkthrough/blank.md"
             },
