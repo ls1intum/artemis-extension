@@ -18,6 +18,7 @@ export function useExerciseStatusMessages(vscodeApi: VsCodeApi): void {
                 setRepoStatus({
                     isConnected: msg.isConnected,
                     hasChanges: msg.hasChanges,
+                    hasUnpushedCommits: msg.hasUnpushedCommits,
                     isPracticeRepo: msg.isPracticeRepo,
                     hasLocalClone: msg.hasLocalClone,
                 });

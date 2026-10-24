@@ -493,7 +493,7 @@ describe('useExerciseDetailStore', () => {
 	});
 
 	describe('repository status across an init that omits it', () => {
-		const practice = { isConnected: true, hasChanges: false, isPracticeRepo: true, hasLocalClone: false };
+		const practice = { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: true, hasLocalClone: false };
 
 		it('keeps a known status when the init says nothing about the workspace', () => {
 			// The host omits it when a newer probe has already spoken. Reading the absence as

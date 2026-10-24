@@ -301,7 +301,7 @@ describe('ExerciseDetailView', () => {
 	it('shows submit button when participation exists', () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseDataWithParticipation(),
-			repoStatus: { isConnected: true, hasChanges: true, isPracticeRepo: false, hasLocalClone: false },
+			repoStatus: { isConnected: true, hasChanges: true, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
@@ -309,10 +309,32 @@ describe('ExerciseDetailView', () => {
 		expect(screen.getByRole('button', { name: /submit/i })).toBeInTheDocument();
 	});
 
+	it('offers Submit for commits that are not on Artemis yet', () => {
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseDataWithParticipation(),
+			repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: true, isPracticeRepo: false, hasLocalClone: false },
+			isLoading: false,
+		});
+		render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
+		expect(screen.getByText('Committed, not yet submitted')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /submit/i })).toBeEnabled();
+	});
+
+	it('says up to date only when nothing is left to submit', () => {
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseDataWithParticipation(),
+			repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
+			isLoading: false,
+		});
+		render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
+		expect(screen.getByText('Up to date')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /submit/i })).toBeDisabled();
+	});
+
 	it('submit button sends submitExercise postMessage', async () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseDataWithParticipation(),
-			repoStatus: { isConnected: true, hasChanges: true, isPracticeRepo: false, hasLocalClone: false },
+			repoStatus: { isConnected: true, hasChanges: true, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
@@ -333,7 +355,7 @@ describe('ExerciseDetailView', () => {
 	it('posts openRepository command with the repositoryUri when Open Repository is clicked', async () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseDataWithParticipation(),
-			repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false, hasLocalClone: false },
+			repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
@@ -354,7 +376,7 @@ describe('ExerciseDetailView', () => {
 	it('posts pullChanges with the exercise title when Pull Changes is clicked', async () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseDataWithParticipation(),
-			repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false, hasLocalClone: false },
+			repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
@@ -379,7 +401,7 @@ describe('ExerciseDetailView', () => {
 				type: 'exerciseDetailInit',
 				exerciseData: makeExerciseDataWithParticipation(),
 				hideDeveloperTools: false,
-				repoStatus: { isConnected: false, hasChanges: false, isPracticeRepo: false, hasLocalClone: false },
+				repoStatus: { isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 				isManagedEnvironment: true,
 			});
 
@@ -397,7 +419,7 @@ describe('ExerciseDetailView', () => {
 				type: 'exerciseDetailInit',
 				exerciseData: makeExerciseDataWithParticipation(),
 				hideDeveloperTools: false,
-				repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false, hasLocalClone: false },
+				repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 				isManagedEnvironment: true,
 			});
 
@@ -420,7 +442,7 @@ describe('ExerciseDetailView', () => {
 				type: 'exerciseDetailInit',
 				exerciseData: makeExerciseDataWithParticipation(),
 				hideDeveloperTools: false,
-				repoStatus: { isConnected: false, hasChanges: false, isPracticeRepo: false, hasLocalClone: true },
+				repoStatus: { isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: true },
 				isManagedEnvironment: true,
 			});
 
@@ -440,7 +462,7 @@ describe('ExerciseDetailView', () => {
 				type: 'exerciseDetailInit',
 				exerciseData: makeExerciseDataWithParticipation(),
 				hideDeveloperTools: false,
-				repoStatus: { isConnected: false, hasChanges: false, isPracticeRepo: false, hasLocalClone: true },
+				repoStatus: { isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: true },
 				isManagedEnvironment: false,
 			});
 
@@ -466,7 +488,7 @@ describe('ExerciseDetailView', () => {
 				type: 'exerciseDetailInit',
 				exerciseData: makeExerciseDataWithParticipation(),
 				hideDeveloperTools: false,
-				repoStatus: { isConnected: false, hasChanges: false, isPracticeRepo: false, hasLocalClone: false },
+				repoStatus: { isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 				isManagedEnvironment: false,
 			});
 			await screen.findByRole('button', { name: 'Clone Repository' });
@@ -475,6 +497,7 @@ describe('ExerciseDetailView', () => {
 				type: 'updateRepoStatus',
 				isConnected: false,
 				hasChanges: false,
+				hasUnpushedCommits: false,
 				isPracticeRepo: false,
 				hasLocalClone: true,
 			});
@@ -1057,7 +1080,7 @@ describe('ExerciseDetailView', () => {
 			// the status message; between the two, a render for the wrong one can arrive.
 			useExerciseDetailStore.setState({
 				exerciseData: bothParticipations(),
-				repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false, hasLocalClone: false },
+				repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 				isLoading: false,
 			});
 			render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
@@ -1079,7 +1102,7 @@ describe('ExerciseDetailView', () => {
 			// good in this order, because nothing resends it.
 			useExerciseDetailStore.setState({
 				exerciseData: bothParticipations(),
-				repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false, hasLocalClone: false },
+				repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 				isLoading: false,
 			});
 			render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
@@ -1097,7 +1120,7 @@ describe('ExerciseDetailView', () => {
 
 			act(() => {
 				useExerciseDetailStore.setState({
-					repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: true, hasLocalClone: false },
+					repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: true, hasLocalClone: false },
 				});
 			});
 
@@ -1133,7 +1156,7 @@ describe('ExerciseDetailView', () => {
 		it('shows an unlabelled render, which predates the field', () => {
 			useExerciseDetailStore.setState({
 				exerciseData: bothParticipations(),
-				repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false, hasLocalClone: false },
+				repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 				isLoading: false,
 			});
 			render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);

@@ -1,6 +1,7 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
+import { LogCategory, logger } from '@extension/services/loggingService';
 import { extractRedactedErrorMessage } from '@extension/utils';
 
 const execFileAsync = promisify(execFile);
@@ -104,6 +105,25 @@ export class GitService {
             cwd: options.cwd,
             timeout: options.timeout
         });
+    }
+
+    /**
+     * Whether the branch has commits its upstream does not, on the local tracking ref.
+     * Never throws: no upstream, a detached HEAD or a failing probe all answer false,
+     * which is what a submit saw before commits were counted at all.
+     */
+    public async hasUnpushedCommits(options: GitCommandOptions): Promise<boolean> {
+        try {
+            const { stdout } = await this.runGit(['rev-list', '--count', '@{u}..HEAD'], {
+                ...options,
+                timeout: options.timeout ?? 5000,
+            });
+            return Number.parseInt(stdout.trim(), 10) > 0;
+        } catch (error: unknown) {
+            // Redacted: git quotes the remote URL, which carries the VCS access token.
+            logger.info(`No unpushed commits detected: ${extractRedactedErrorMessage(error)}`, LogCategory.SUBMISSION);
+            return false;
+        }
     }
 
     /**

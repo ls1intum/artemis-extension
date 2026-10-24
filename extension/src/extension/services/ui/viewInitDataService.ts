@@ -285,10 +285,11 @@ export class ViewInitDataService {
                         ? {
                             isConnected: repoStatus.isConnected,
                             hasChanges: repoStatus.hasChanges,
+                            hasUnpushedCommits: repoStatus.hasUnpushedCommits,
                             isPracticeRepo: repoStatus.isPracticeRepo,
                             hasLocalClone: repoStatus.hasLocalClone,
                         }
-                        : { isConnected: false, hasChanges: false, isPracticeRepo: false, hasLocalClone: false }),
+                        : { isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false }),
                 serverRenderedProblemStatement,
             },
             repoStatus,
@@ -330,6 +331,7 @@ export class ViewInitDataService {
                         type: ExtensionMsg.UpdateRepoStatus,
                         isConnected: repoStatus.isConnected,
                         hasChanges: repoStatus.hasChanges,
+                        hasUnpushedCommits: repoStatus.hasUnpushedCommits,
                         isPracticeRepo: repoStatus.isPracticeRepo,
                         hasLocalClone: repoStatus.hasLocalClone,
                     });

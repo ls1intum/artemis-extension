@@ -173,7 +173,7 @@ describe('Exercise Submission Flow', () => {
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
 			exerciseData: makeExerciseDataWithParticipation(),
-			repoStatus: { isConnected: true, hasChanges: true, isPracticeRepo: false },
+			repoStatus: { isConnected: true, hasChanges: true, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 			hideDeveloperTools: false,
 		});
 
@@ -190,7 +190,7 @@ describe('Exercise Submission Flow', () => {
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
 			exerciseData: makeExerciseDataWithParticipation(),
-			repoStatus: { isConnected: true, hasChanges: true, isPracticeRepo: false },
+			repoStatus: { isConnected: true, hasChanges: true, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 			hideDeveloperTools: false,
 		});
 
@@ -207,6 +207,46 @@ describe('Exercise Submission Flow', () => {
 				payload: expect.objectContaining({ participationId: 99 }),
 			})
 		);
+	});
+
+	it('submits commits a failed push left behind, without the message typed for the earlier commit', async () => {
+		const user = userEvent.setup();
+		const mockApi = createMockVsCodeApi();
+		render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+		dispatchExtensionMessage({
+			type: 'exerciseDetailInit',
+			exerciseData: makeExerciseDataWithParticipation(),
+			repoStatus: { isConnected: true, hasChanges: true, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
+			hideDeveloperTools: false,
+		});
+		await waitFor(() => {
+			expect(screen.getByText('Submit')).toBeInTheDocument();
+		});
+		await user.click(screen.getByRole('button', { name: 'Add a commit message' }));
+		await user.type(screen.getByPlaceholderText('Enter commit message...'), 'my fix');
+
+		// The push failed: the commit is local and the tree is clean.
+		dispatchExtensionMessage({
+			type: 'updateRepoStatus',
+			isConnected: true,
+			hasChanges: false,
+			hasUnpushedCommits: true,
+			isPracticeRepo: false,
+			hasLocalClone: false,
+		});
+		await waitFor(() => {
+			expect(screen.getByText('Committed, not yet submitted')).toBeInTheDocument();
+		});
+		expect(screen.queryByPlaceholderText('Enter commit message...')).not.toBeInTheDocument();
+
+		await user.click(screen.getByText('Submit'));
+
+		const submit = vi.mocked(mockApi.postMessage).mock.calls
+			.map(([msg]) => msg as { command?: string; payload?: Record<string, unknown> })
+			.find(msg => msg.command === 'submitExercise');
+		expect(submit?.payload).toMatchObject({ participationId: 99 });
+		expect(submit?.payload).not.toHaveProperty('commitMessage');
 	});
 
 	it('shows build progress when pendingSubmission is set', async () => {
@@ -275,7 +315,7 @@ describe('Exercise Submission Flow', () => {
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
 			exerciseData: dataWithTwoParticipations,
-			repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+			repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 			hideDeveloperTools: false,
 		});
 
@@ -292,7 +332,9 @@ describe('Exercise Submission Flow', () => {
 			type: 'updateRepoStatus',
 			isConnected: true,
 			hasChanges: false,
+			hasUnpushedCommits: false,
 			isPracticeRepo: true,
+			hasLocalClone: false,
 		});
 
 		await waitFor(() => {
@@ -308,7 +350,7 @@ describe('Exercise Submission Flow', () => {
 		dispatchExtensionMessage({
 			type: 'exerciseDetailInit',
 			exerciseData: makeExerciseDataWithParticipation(),
-			repoStatus: { isConnected: true, hasChanges: true, isPracticeRepo: false },
+			repoStatus: { isConnected: true, hasChanges: true, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 			hideDeveloperTools: false,
 		});
 

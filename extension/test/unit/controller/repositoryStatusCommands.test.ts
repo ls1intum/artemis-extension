@@ -128,7 +128,7 @@ suite('RepositoryStatusCommands', () => {
 
     test('setRepositoryContext stores context and debounced save listener triggers getWorkspaceStatus after 500ms', async () => {
         const clock = sandbox.useFakeTimers();
-        getWorkspaceStatus.resolves({ isConnected: true, hasChanges: false, isPracticeRepo: false });
+        getWorkspaceStatus.resolves({ isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false });
 
         const { ctx } = buildContext();
         const mod = new RepositoryStatusCommands(ctx, makeDeps());
@@ -148,7 +148,7 @@ suite('RepositoryStatusCommands', () => {
 
     test('outside-workspace save: debounce is NOT scheduled when saved doc is outside currentWorkspacePath', async () => {
         const clock = sandbox.useFakeTimers();
-        getWorkspaceStatus.resolves({ isConnected: false, hasChanges: false, isPracticeRepo: false });
+        getWorkspaceStatus.resolves({ isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false });
 
         const { ctx } = buildContext();
         const mod = new RepositoryStatusCommands(ctx, makeDeps());
@@ -164,7 +164,7 @@ suite('RepositoryStatusCommands', () => {
 
     test('clearRepositoryContext: subsequent saves do not trigger status checks', async () => {
         const clock = sandbox.useFakeTimers();
-        getWorkspaceStatus.resolves({ isConnected: true, hasChanges: false, isPracticeRepo: false });
+        getWorkspaceStatus.resolves({ isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false });
 
         const { ctx } = buildContext();
         const mod = new RepositoryStatusCommands(ctx, makeDeps());
@@ -181,7 +181,7 @@ suite('RepositoryStatusCommands', () => {
 
     test('dispose: registered disposables are disposed and pending debounce timers do not fire', async () => {
         const clock = sandbox.useFakeTimers();
-        getWorkspaceStatus.resolves({ isConnected: true, hasChanges: false, isPracticeRepo: false });
+        getWorkspaceStatus.resolves({ isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false });
 
         const { ctx } = buildContext();
         const mod = new RepositoryStatusCommands(ctx, makeDeps());
@@ -203,7 +203,7 @@ suite('RepositoryStatusCommands', () => {
     });
 
     test('checkRepositoryStatus sends UpdateRepoStatus { isConnected:false,... } when no URI matches', async () => {
-        getWorkspaceStatus.resolves({ isConnected: false, hasChanges: false, isPracticeRepo: false });
+        getWorkspaceStatus.resolves({ isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false });
 
         const exerciseData = {
             exercise: {
@@ -228,13 +228,14 @@ suite('RepositoryStatusCommands', () => {
             type: ExtensionMsg.UpdateRepoStatus,
             isConnected: false,
             hasChanges: false,
+            hasUnpushedCommits: false,
             isPracticeRepo: false,
             hasLocalClone: false,
         });
     });
 
     test('checkRepositoryStatus reports a local clone of the displayed participation when disconnected', async () => {
-        getWorkspaceStatus.resolves({ isConnected: false, hasChanges: false, isPracticeRepo: false });
+        getWorkspaceStatus.resolves({ isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false });
         const participations = [{ repositoryUri: 'https://a/repo1.git' }];
         const hasCloneOfDisplayedParticipation = sandbox.stub().resolves(true);
         const { ctx, sendMessage } = buildContext({
@@ -254,7 +255,7 @@ suite('RepositoryStatusCommands', () => {
     });
 
     test('checkRepositoryStatus does not look for a clone when the workspace is connected', async () => {
-        getWorkspaceStatus.resolves({ isConnected: true, hasChanges: false, isPracticeRepo: false });
+        getWorkspaceStatus.resolves({ isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false });
         const hasCloneOfDisplayedParticipation = sandbox.stub().resolves(true);
         const { ctx, sendMessage } = buildContext({
             currentExerciseData: { exercise: { id: 14, studentParticipations: [{ repositoryUri: 'https://a/repo1.git' }] } },
@@ -273,8 +274,8 @@ suite('RepositoryStatusCommands', () => {
 
     test('checkRepositoryStatus sends UpdateRepoStatus { isConnected:true,... } when a URI matches', async () => {
         getWorkspaceStatus
-            .onFirstCall().resolves({ isConnected: false, hasChanges: false, isPracticeRepo: false })
-            .onSecondCall().resolves({ isConnected: true, hasChanges: true, isPracticeRepo: false });
+            .onFirstCall().resolves({ isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false })
+            .onSecondCall().resolves({ isConnected: true, hasChanges: true, hasUnpushedCommits: false, isPracticeRepo: false });
 
         const exerciseData = {
             exercise: {
@@ -298,16 +299,33 @@ suite('RepositoryStatusCommands', () => {
             type: ExtensionMsg.UpdateRepoStatus,
             isConnected: true,
             hasChanges: true,
+            hasUnpushedCommits: false,
             isPracticeRepo: false,
             hasLocalClone: false,
         });
         sinon.assert.notCalled(showErrorMessage);
     });
 
+    test('checkRepositoryStatus forwards commits a failed push left behind', async () => {
+        getWorkspaceStatus.resolves({ isConnected: true, hasChanges: false, hasUnpushedCommits: true, isPracticeRepo: false });
+        const exerciseData = { exercise: { id: 12, studentParticipations: [{ repositoryUri: 'https://a/repo1.git' }] } };
+        const { ctx, sendMessage } = buildContext({ currentExerciseData: exerciseData });
+        const mod = new RepositoryStatusCommands(ctx, makeDeps());
+
+        await mod.getHandlers()[WebviewCmd.CheckRepositoryStatus]({
+            type: 'command', command: WebviewCmd.CheckRepositoryStatus,
+        } as never);
+
+        const update = sendMessage.getCalls()
+            .map(c => c.args[0] as { type: string; hasUnpushedCommits?: boolean })
+            .find(m => m.type === ExtensionMsg.UpdateRepoStatus);
+        assert.strictEqual(update?.hasUnpushedCommits, true);
+    });
+
     test('says nothing about an exercise the student has already left', async () => {
         // UpdateRepoStatus carries no exercise id, so a probe that outlived its exercise would
         // rewrite the repository state of whichever one is on screen now.
-        getWorkspaceStatus.resolves({ isConnected: true, hasChanges: true, isPracticeRepo: true });
+        getWorkspaceStatus.resolves({ isConnected: true, hasChanges: true, hasUnpushedCommits: false, isPracticeRepo: true });
 
         const { ctx, sendMessage } = buildContext({ currentExerciseData: { exercise: { id: 12 } } });
         const mod = new RepositoryStatusCommands(ctx, makeDeps());
@@ -334,7 +352,7 @@ suite('RepositoryStatusCommands', () => {
             type: 'command', command: WebviewCmd.CheckRepositoryStatus,
         } as never);
         getWorkspaceStatus.resetHistory();
-        getWorkspaceStatus.resolves({ isConnected: true, hasChanges: false, isPracticeRepo: false });
+        getWorkspaceStatus.resolves({ isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false });
         await mod.recheckCurrentRepoStatus();
 
         sinon.assert.calledOnce(getWorkspaceStatus);
@@ -371,7 +389,7 @@ suite('RepositoryStatusCommands', () => {
     });
 
     test('recheckCurrentRepoStatus checks the exercise on screen when a disconnected init stored no context', async () => {
-        getWorkspaceStatus.resolves({ isConnected: false, hasChanges: false, isPracticeRepo: false });
+        getWorkspaceStatus.resolves({ isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false });
         const { ctx, sendMessage } = buildContext({
             currentExerciseData: { exercise: { id: 15, studentParticipations: [{ repositoryUri: 'https://a/repo1.git' }] } },
             hasCloneOfDisplayedParticipation: sandbox.stub().resolves(true),
@@ -400,7 +418,7 @@ suite('RepositoryStatusCommands', () => {
     });
 
     test('recheckCurrentRepoStatus triggers a fresh status check using the stored context', async () => {
-        getWorkspaceStatus.resolves({ isConnected: true, hasChanges: false, isPracticeRepo: false });
+        getWorkspaceStatus.resolves({ isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false });
 
         // The exercise the stored context belongs to has to be the one on screen. A context is only
         // ever set while its exercise is open, and a probe is not allowed to report about an
