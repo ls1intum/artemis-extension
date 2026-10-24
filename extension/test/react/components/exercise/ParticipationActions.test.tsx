@@ -128,6 +128,7 @@ describe('ParticipationActions', () => {
 				<ParticipationActions
 					exerciseType="programming"
 					participationStatus="in-progress"
+					workspaceStatus="dirty"
 					canSubmit={true}
 					showCommitMessageInput={true}
 				/>
@@ -591,6 +592,47 @@ describe('ParticipationActions', () => {
 			const statusEl = container.querySelector('[data-state="dirty"]');
 			expect(statusEl).toBeInTheDocument();
 			expect(screen.getByText('Uncommitted changes ready to submit')).toBeInTheDocument();
+		});
+
+		it('renders workspace status with data-state="unpushed"', () => {
+			const { container } = render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="unpushed"
+				/>
+			);
+			expect(container.querySelector('[data-state="unpushed"]')).toBeInTheDocument();
+			expect(screen.getByText('Committed, not yet submitted')).toBeInTheDocument();
+		});
+
+		it('keeps Submit enabled for commits that are not on Artemis yet, without a commit message', () => {
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="unpushed"
+					canSubmit={true}
+					showCommitMessageInput={true}
+					commitMessage="left over"
+				/>
+			);
+			expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled();
+			// No commit is made, so a message would be dropped: no toggle and no input.
+			expect(screen.getByRole('button', { name: 'Add a commit message' })).toBeDisabled();
+			expect(screen.queryByPlaceholderText('Enter commit message...')).not.toBeInTheDocument();
+		});
+
+		it('keeps Submit disabled when everything is on Artemis', () => {
+			render(
+				<ParticipationActions
+					exerciseType="programming"
+					participationStatus="in-progress"
+					workspaceStatus="clean"
+					canSubmit={true}
+				/>
+			);
+			expect(screen.getByRole('button', { name: 'Submit' })).toBeDisabled();
 		});
 
 		it('renders workspace status with data-state="disconnected"', () => {

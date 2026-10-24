@@ -151,6 +151,7 @@ export class RepositoryStatusCommands {
                         type: ExtensionMsg.UpdateRepoStatus,
                         isConnected: status.isConnected,
                         hasChanges: status.hasChanges,
+                        hasUnpushedCommits: status.hasUnpushedCommits,
                         isPracticeRepo: status.isPracticeRepo,
                         hasLocalClone: false,
                     });
@@ -170,6 +171,7 @@ export class RepositoryStatusCommands {
                 type: ExtensionMsg.UpdateRepoStatus,
                 isConnected: false,
                 hasChanges: false,
+                hasUnpushedCommits: false,
                 isPracticeRepo: false,
                 hasLocalClone,
             });

@@ -26,7 +26,7 @@ export function isExerciseType(value: string | undefined): value is ExerciseType
 
 export type ParticipationStatusType = 'not-started' | 'in-progress' | 'submitted' | 'graded';
 /** `cloned`: not the workspace, but the displayed participation has a clone on disk. */
-type WorkspaceStatus = 'clean' | 'dirty' | 'checking' | 'disconnected' | 'wrong-repo' | 'cloned';
+type WorkspaceStatus = 'clean' | 'dirty' | 'unpushed' | 'checking' | 'disconnected' | 'wrong-repo' | 'cloned';
 
 interface ParticipationActionsProps {
   exerciseType: ExerciseType;
@@ -134,6 +134,7 @@ export function ParticipationActions({
   const WORKSPACE_HINT_TEXT: Record<WorkspaceStatus, string> = {
     clean: 'Up to date',
     dirty: 'Uncommitted changes ready to submit',
+    unpushed: 'Committed, not yet submitted',
     disconnected: 'Repository not in your workspace',
     'wrong-repo': 'Repository not in your workspace',
     cloned: 'Cloned, but not open in this window',
@@ -169,7 +170,7 @@ export function ParticipationActions({
 
   // Submit button group
   const renderSubmitButtonGroup = () => {
-    const disabled = workspaceStatus !== 'dirty';
+    const disabled = workspaceStatus !== 'dirty' && workspaceStatus !== 'unpushed';
     return (
       <div className={styles.submitButtonGroup}>
         <Button variant="primary" onClick={onSubmit} fullWidth disabled={disabled}>
@@ -178,7 +179,8 @@ export function ParticipationActions({
         <button
           className={styles.uploadMessageBtn}
           onClick={onToggleCommitMessage}
-          disabled={disabled}
+          // A message only applies to a new commit, and only a dirty tree makes one.
+          disabled={workspaceStatus !== 'dirty'}
           aria-label="Add a commit message"
         >
           <Mail size={14} />
@@ -188,7 +190,7 @@ export function ParticipationActions({
   };
 
   const renderCommitMessageInput = () => {
-    if (!showCommitMessageInput) {return null;}
+    if (!showCommitMessageInput || workspaceStatus !== 'dirty') {return null;}
     return (
       <div className={styles.commitMessageInputContainer}>
         <input
@@ -236,7 +238,7 @@ export function ParticipationActions({
     }
 
     // Participated - the redesigned card.
-    const isWorkspaceConnected = workspaceStatus === 'clean' || workspaceStatus === 'dirty';
+    const isWorkspaceConnected = workspaceStatus === 'clean' || workspaceStatus === 'dirty' || workspaceStatus === 'unpushed';
     const isCloned = workspaceStatus === 'cloned';
     const isOutsideWorkspace = workspaceStatus === 'disconnected' || workspaceStatus === 'wrong-repo' || isCloned;
     const showSubmit = !isOutsideWorkspace && canSubmit;

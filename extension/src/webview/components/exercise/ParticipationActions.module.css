@@ -263,8 +263,10 @@
 }
 .workspaceHint[data-state='clean'] { color: var(--vscode-testing-iconPassed, #73c991); opacity: 0.9; font-size: 11.5px; }
 .workspaceHint[data-state='clean'] .workspaceHintDot { background: var(--vscode-testing-iconPassed, #73c991); }
-.workspaceHint[data-state='dirty'] { color: var(--vscode-editorWarning-foreground, #cca700); }
-.workspaceHint[data-state='dirty'] .workspaceHintDot { background: var(--vscode-editorWarning-foreground, #cca700); }
+.workspaceHint[data-state='dirty'],
+.workspaceHint[data-state='unpushed'] { color: var(--vscode-editorWarning-foreground, #cca700); }
+.workspaceHint[data-state='dirty'] .workspaceHintDot,
+.workspaceHint[data-state='unpushed'] .workspaceHintDot { background: var(--vscode-editorWarning-foreground, #cca700); }
 .workspaceHint[data-state='disconnected'],
 .workspaceHint[data-state='wrong-repo'] { color: var(--vscode-errorForeground, #f48771); }
 .workspaceHint[data-state='disconnected'] .workspaceHintDot,

@@ -461,7 +461,8 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
 
     const workspaceStatus = !repoStatus ? 'checking'
         : !repoStatus.isConnected ? (repoStatus.hasLocalClone ? 'cloned' : 'disconnected')
-        : repoStatus.hasChanges ? 'dirty' : 'clean';
+        : repoStatus.hasChanges ? 'dirty'
+        : repoStatus.hasUnpushedCommits ? 'unpushed' : 'clean';
 
     return (
         <div className={styles.exerciseDetailView}>
@@ -536,9 +537,11 @@ export function ExerciseDetailView({ vscodeApi }: ExerciseDetailViewProps) {
                     onCommitMessageChange={setCommitMessage}
                     onSubmit={() => {
                         if (participationId) {
+                            // Only a dirty tree gets a new commit; with nothing but unpushed
+                            // commits a message would be dropped.
                             postCommand(vscodeApi, 'submitExercise', {
                                 participationId,
-                                ...(commitMessage ? { commitMessage } : {}),
+                                ...(commitMessage && workspaceStatus === 'dirty' ? { commitMessage } : {}),
                             });
                             setCommitMessage('');
                             setShowCommitMessage(false);

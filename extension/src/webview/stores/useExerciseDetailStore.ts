@@ -13,6 +13,7 @@ import type {
 interface RepoStatus {
     isConnected: boolean;
     hasChanges: boolean;
+    hasUnpushedCommits: boolean;
     isPracticeRepo: boolean;
     hasLocalClone: boolean;
 }

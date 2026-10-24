@@ -16,6 +16,7 @@ interface GitServiceStubs {
     pullWithRebase: sinon.SinonStub;
     pullFastForwardOnly: sinon.SinonStub;
     push: sinon.SinonStub;
+    hasUnpushedCommits: sinon.SinonStub;
     getIdentity: sinon.SinonStub;
     setGlobalIdentity: sinon.SinonStub;
 }
@@ -37,6 +38,7 @@ suite('RepositorySubmitCommands', () => {
             pullWithRebase: overrides.pullWithRebase ?? sandbox.stub().resolves(undefined),
             pullFastForwardOnly: overrides.pullFastForwardOnly ?? sandbox.stub().resolves('Updating 1a2b3c4..5d6e7f8\nFast-forward\n'),
             push: overrides.push ?? sandbox.stub().resolves(undefined),
+            hasUnpushedCommits: overrides.hasUnpushedCommits ?? sandbox.stub().resolves(false),
             getIdentity: overrides.getIdentity ?? sandbox.stub().resolves({ name: 'Alice', email: 'alice@example.com' }),
             setGlobalIdentity: overrides.setGlobalIdentity ?? sandbox.stub().resolves(undefined),
         };
@@ -517,6 +519,80 @@ suite('RepositorySubmitCommands', () => {
         assert.strictEqual(fireSubmission.getCall(0).args[0].commitMessage.length, 512);
         assert.strictEqual(fireSubmission.getCall(1).args[0].commitMessage.length, 512);
         assert.strictEqual(fireSubmission.getCall(0).args[0].commitMessage, longMessage.slice(0, 512));
+    });
+
+    suite('commits a failed push left behind', () => {
+        function submit(mod: RepositorySubmitCommands, commitMessage = ''): Promise<void> {
+            return mod.getHandlers()[WebviewCmd.SubmitExercise]({
+                type: 'command', command: WebviewCmd.SubmitExercise,
+                payload: { participationId: 42, exerciseTitle: 'Foo', commitMessage },
+            } as never) as Promise<void>;
+        }
+
+        setup(() => {
+            checkWorkspaceFiles.resolves({ hasChanges: false, files: [] });
+        });
+
+        test('a clean tree with unpushed commits skips staging and committing, then pulls and pushes', async () => {
+            const { ctx, fireSubmission } = buildContext();
+            const { svc, stubs } = makeGitService({ hasUnpushedCommits: sandbox.stub().resolves(true) });
+
+            await submit(new RepositorySubmitCommands(ctx, svc, makeDeps()));
+
+            sinon.assert.calledOnceWithExactly(stubs.hasUnpushedCommits, { cwd: '/ws' });
+            sinon.assert.notCalled(stubs.addAll);
+            sinon.assert.notCalled(stubs.commit);
+            sinon.assert.callOrder(stubs.getIdentity, stubs.pullWithRebase, stubs.push);
+            assert.ok(showInformationMessage.getCalls().some(c => String(c.args[0]).includes('Successfully submitted "Foo"')));
+            // No commit was made, so the success event names none.
+            assert.strictEqual(fireSubmission.getCall(1).args[0].status, 'succeeded');
+            assert.strictEqual(fireSubmission.getCall(1).args[0].commitMessage, undefined);
+        });
+
+        test('still needs a git identity, because the rebase may replay the commits', async () => {
+            const { ctx } = buildContext();
+            const { svc, stubs } = makeGitService({
+                hasUnpushedCommits: sandbox.stub().resolves(true),
+                getIdentity: sandbox.stub().resolves(undefined),
+            });
+
+            await submit(new RepositorySubmitCommands(ctx, svc, makeDeps()));
+
+            sinon.assert.notCalled(stubs.pullWithRebase);
+            sinon.assert.notCalled(stubs.push);
+        });
+
+        test('a clean tree without unpushed commits still has nothing to submit', async () => {
+            const { ctx } = buildContext();
+            const { svc, stubs } = makeGitService();
+
+            await submit(new RepositorySubmitCommands(ctx, svc, makeDeps()));
+
+            sinon.assert.calledOnce(stubs.hasUnpushedCommits);
+            sinon.assert.notCalled(stubs.push);
+            assert.ok(showErrorMessage.getCalls().some(c => c.args[0] === 'No local changes detected to submit.'));
+        });
+
+        test('a dirty tree commits as before and never asks about unpushed commits', async () => {
+            checkWorkspaceFiles.resolves({ hasChanges: true, files: [] });
+            const { ctx } = buildContext();
+            const { svc, stubs } = makeGitService();
+
+            await submit(new RepositorySubmitCommands(ctx, svc, makeDeps()), 'My change');
+
+            sinon.assert.notCalled(stubs.hasUnpushedCommits);
+            sinon.assert.callOrder(stubs.addAll, stubs.commit, stubs.pullWithRebase, stubs.push);
+        });
+
+        test('a failed push rechecks the repository, so the view shows the commit it left behind', async () => {
+            checkWorkspaceFiles.resolves({ hasChanges: true, files: [] });
+            const { ctx, recheckRepoStatus } = buildContext();
+            const { svc } = makeGitService({ push: sandbox.stub().rejects(new Error('network down')) });
+
+            await submit(new RepositorySubmitCommands(ctx, svc, makeDeps()));
+
+            sinon.assert.calledOnce(recheckRepoStatus);
+        });
     });
 
     test('no-changes emits started then failed with reason no-changes', async () => {

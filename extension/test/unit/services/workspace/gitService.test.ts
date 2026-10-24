@@ -282,3 +282,35 @@ suite('GitService.pullFastForwardOnly', () => {
         assert.strictEqual(stdout, 'Already up to date.\n');
     });
 });
+
+suite('GitService.hasUnpushedCommits', () => {
+    let sandbox: sinon.SinonSandbox;
+
+    setup(() => { sandbox = sinon.createSandbox(); });
+    teardown(() => { sandbox.restore(); });
+
+    test('counts the commits the upstream does not have, with a bounded wait', async () => {
+        const service = new GitService();
+        const runGit = sandbox.stub(service, 'runGit').resolves({ stdout: '2\n', stderr: '' });
+
+        assert.strictEqual(await service.hasUnpushedCommits({ cwd: '/tmp/repo' }), true);
+        assert.deepStrictEqual(runGit.firstCall.args[0], ['rev-list', '--count', '@{u}..HEAD']);
+        const options = runGit.firstCall.args[1] as { cwd: string; timeout?: number };
+        assert.strictEqual(options.cwd, '/tmp/repo');
+        assert.ok(options.timeout && options.timeout > 0);
+    });
+
+    test('is false when the branch is level with its upstream', async () => {
+        const service = new GitService();
+        sandbox.stub(service, 'runGit').resolves({ stdout: '0\n', stderr: '' });
+
+        assert.strictEqual(await service.hasUnpushedCommits({ cwd: '/tmp/repo' }), false);
+    });
+
+    test('answers false instead of throwing when git cannot tell, e.g. without an upstream', async () => {
+        const service = new GitService();
+        sandbox.stub(service, 'runGit').rejects(new Error("fatal: no upstream configured for branch 'main'"));
+
+        assert.strictEqual(await service.hasUnpushedCommits({ cwd: '/tmp/repo' }), false);
+    });
+});
