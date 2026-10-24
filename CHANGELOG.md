@@ -2,6 +2,26 @@
 
 All notable changes to the Artemis VS Code extension will be documented in this file.
 
+## [Unreleased]
+
+## [1.2.5] - 2026-10-24
+
+### Fixed
+
+- **A course you were enrolled in later shows up without a reload.** The extension asked for your courses once and kept that answer for the whole session, so a course added afterwards stayed hidden until you pressed Reload or restarted VS Code. The dashboard and the course list now ask again each time you open them or return to the Artemis sidebar, at most once a minute.
+- **A course shows exercises released since you last loaded it.** Opening a course showed the exercises from the course list loaded earlier, so a newly released exercise was missing until you pressed Reload in the course. Opening a current course, coming back to it from an exercise or returning to the Artemis sidebar on it now asks again, within the same once-a-minute limit. Archived courses already loaded their exercises fresh.
+- **The course list says when it could not load your courses.** It showed "No courses available", which reads like you are not enrolled. It now says "Courses could not be loaded.", like the dashboard does.
+- **A remembered semester filter is visible.** A semester filter saved from an earlier session kept filtering while the dropdown showed "All Semesters". The dropdown now shows the filter, so **Clear Filters** explains the empty list.
+- **A cloned exercise offers Open Folder instead of Clone.** After cloning, the exercise kept showing **Clone Repository**, and cloning again failed because the folder already existed. While the repository is cloned on this machine but not open in the window, the exercise now shows **Open Folder**, which opens the clone in this window, like **File > Open Folder**. **Open Folder** in the notice after cloning does the same instead of opening a second window. This survives reloads and restarts, and also finds clones in your default clone folder.
+- **The Get Started walkthrough moves on by itself.** After a step's button did its job, the step was ticked but stayed selected, so you had to click the next step yourself. Each button now opens the next step. After **Sign in**, the walkthrough comes back to the next step once the login in the sidebar succeeds. The folder step is also ticked when you choose the folder that was already set.
+- **Submit sends a commit a failed push left behind.** When a push failed (for example because Artemis refused your access), the commit stayed on your computer, and the next Submit said "No local changes detected to submit." The exercise now shows "Committed, not yet submitted" and Submit pushes that commit.
+- **Cloning says why it could not get your access token.** When Artemis refused the token, Clone and Copy Clone URL only said "Failed to obtain VCS access token." The message now includes Artemis's reason.
+- **Cloning stops when your account cannot be read.** If the extension could not load your Artemis login, it cloned with the placeholder username "user", which git then rejected with a misleading error. It now stops and says why.
+
+### Security
+
+- **Math rendering:** Updated KaTeX to 0.18.2. It ships inside the extension and renders the formulas in problem statements, so the fix only reaches you with this release. Addresses [CVE-2026-103923](https://nvd.nist.gov/vuln/detail/CVE-2026-103923), where a polluted object prototype could make KaTeX render untrusted links.
+
 ## [1.2.4] - 2026-10-14
 
 ### Fixed

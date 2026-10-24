@@ -58,6 +58,7 @@ suite('WebviewNavigationFacade', () => {
             injectCourseEntry: sinon.SinonStub;
             currentState: string;
             currentExerciseData: ExerciseDetailsResponse | undefined;
+            currentCourseData?: { course: { id: number; title?: string; description?: string; exercises?: unknown[] } };
             coursesData: { courses: unknown[] } | undefined;
             archivedCoursesData: unknown[] | undefined;
             userInfo: unknown;
@@ -86,6 +87,7 @@ suite('WebviewNavigationFacade', () => {
             fetch: sinon.SinonStub;
             upsertSupplemental: sinon.SinonStub;
             currentEpoch: number;
+            dashboardExercises?: sinon.SinonStub;
         };
         postMessage: sinon.SinonStub;
         render: sinon.SinonStub;
@@ -297,14 +299,17 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.called(stubs.sendInitData);
     });
 
-    test('showDashboard: fetches unforced by default, so ordinary navigation spends no request', async () => {
+    test('showDashboard: renders the cached list, then revalidates it', async () => {
         const { deps, stubs } = buildDeps();
         const facade = new WebviewNavigationFacade(deps);
 
         await facade.showDashboard({ username: 'alice', serverUrl: 'https://x/' });
         await flushBackgroundWork();
 
-        sinon.assert.calledOnceWithExactly(stubs.courseCatalog.fetch, undefined);
+        sinon.assert.calledTwice(stubs.courseCatalog.fetch);
+        sinon.assert.calledWithExactly(stubs.courseCatalog.fetch.firstCall, undefined);
+        sinon.assert.calledWithExactly(stubs.courseCatalog.fetch.secondCall, { revalidate: true });
+        assert.ok(stubs.courseCatalog.fetch.secondCall.calledAfter(stubs.render.firstCall), 'revalidates after rendering the cached list');
     });
 
     test('showDashboard: forwards force to the catalog, so a reload reaches the server', async () => {
@@ -478,6 +483,7 @@ suite('WebviewNavigationFacade', () => {
 
         sinon.assert.calledWith(stubs.appStateManager.seedAuthenticatedSession, userInfo);
         sinon.assert.called(stubs.appStateManager.showCourseList);
+        sinon.assert.calledWithExactly(stubs.courseCatalog.fetch, { revalidate: true });
     });
 
     test('navigateToStartPage: workspace-exercise branch opens exercise details', async () => {
@@ -693,15 +699,66 @@ suite('WebviewNavigationFacade', () => {
         sinon.assert.notCalled(stubs.appStateManager.showExerciseDetail);
     });
 
-    test('showCourseList: with courseCatalog, fetches and renders', async () => {
+    test('showCourseList: with courseCatalog, fetches, renders, then revalidates', async () => {
         const { deps, stubs } = buildDeps();
         const facade = new WebviewNavigationFacade(deps);
 
         await facade.showCourseList();
 
-        sinon.assert.calledOnce(stubs.courseCatalog.fetch);
+        sinon.assert.calledTwice(stubs.courseCatalog.fetch);
+        sinon.assert.calledWithExactly(stubs.courseCatalog.fetch.firstCall);
+        sinon.assert.calledWithExactly(stubs.courseCatalog.fetch.secondCall, { revalidate: true });
         sinon.assert.calledOnce(stubs.appStateManager.showCourseList);
-        sinon.assert.called(stubs.render);
+        assert.ok(stubs.courseCatalog.fetch.secondCall.calledAfter(stubs.render.firstCall), 'revalidates after rendering the cached list');
+    });
+
+    for (const state of ['dashboard', 'course-list']) {
+        test(`revalidateCourses: re-sends the ${state} once the answer is in`, async () => {
+            const { deps, stubs } = buildDeps();
+            stubs.appStateManager.currentState = state;
+            const facade = new WebviewNavigationFacade(deps);
+
+            await facade.revalidateCourses();
+
+            sinon.assert.calledOnceWithExactly(stubs.courseCatalog.fetch, { revalidate: true });
+            sinon.assert.calledOnce(stubs.sendInitData);
+            sinon.assert.callOrder(stubs.courseCatalog.fetch, stubs.sendInitData);
+        });
+    }
+
+    test('revalidateCourses: re-sends after a failed refresh too, so the view can say so', async () => {
+        const { deps, stubs } = buildDeps();
+        stubs.appStateManager.currentState = 'course-list';
+        stubs.courseCatalog.fetch.resolves(undefined);
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.revalidateCourses();
+
+        sinon.assert.calledOnce(stubs.sendInitData);
+    });
+
+    test('revalidateCourses: does not re-send a view the student has left', async () => {
+        const { deps, stubs } = buildDeps();
+        stubs.appStateManager.currentState = 'course-list';
+        stubs.courseCatalog.fetch.callsFake(async () => {
+            stubs.appStateManager.currentState = 'course-detail';
+            return undefined;
+        });
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.revalidateCourses();
+
+        sinon.assert.notCalled(stubs.sendInitData);
+    });
+
+    test('revalidateCourses: a throwing catalog is logged, not propagated', async () => {
+        const { deps, stubs } = buildDeps();
+        stubs.courseCatalog.fetch.rejects(new Error('boom'));
+        const facade = new WebviewNavigationFacade(deps);
+
+        await facade.revalidateCourses();
+
+        sinon.assert.notCalled(stubs.sendInitData);
     });
 
     test('showCourseList: tolerates missing courseCatalog', async () => {
@@ -768,6 +825,97 @@ suite('WebviewNavigationFacade', () => {
             5,
         );
         sinon.assert.called(stubs.render);
+    });
+
+    test('showCourseDetail: refreshes the course after rendering it (workspace start page)', () => {
+        const { deps, stubs } = buildDeps();
+        const facade = new WebviewNavigationFacade(deps);
+        const revalidate = sandbox.stub(facade, 'revalidateCourseDetail').resolves();
+
+        facade.showCourseDetail({ course: { id: 9, title: 'Algorithms' } } as Parameters<WebviewNavigationFacade['showCourseDetail']>[0], 5);
+
+        sinon.assert.calledOnce(revalidate);
+        sinon.assert.callOrder(stubs.render, revalidate);
+    });
+
+    suite('revalidateCourseDetail', () => {
+        const open = { course: { id: 7, title: 'ITP', description: 'kept', exercises: [{ id: 1, title: 'W01' }] } };
+        const freshExercises = [{ id: 1, title: 'W01' }, { id: 2, title: 'W02' }];
+        const fresh = { courses: [{ course: { id: 7, title: 'ITP', exercises: freshExercises } }] };
+
+        function onCourse(fetch: sinon.SinonStub, dashboardExercises = sandbox.stub().withArgs(7).returns(freshExercises)) {
+            const built = buildDeps({
+                courseCatalog: { fetch, upsertSupplemental: sandbox.stub(), currentEpoch: 3, dashboardExercises },
+            });
+            built.stubs.appStateManager.currentState = 'course-detail';
+            built.stubs.appStateManager.currentCourseData = open;
+            return { ...built, facade: new WebviewNavigationFacade(built.deps) };
+        }
+
+        test('an exercise released since the cached list appears, the course keeps its other fields', async () => {
+            const fetch = sandbox.stub().resolves(fresh);
+            const { facade, stubs } = onCourse(fetch);
+
+            await facade.revalidateCourseDetail();
+
+            sinon.assert.calledOnceWithExactly(fetch, { revalidate: true });
+            const shown = stubs.appStateManager.showCourseDetail.firstCall.args[0];
+            assert.deepStrictEqual(shown.course.exercises.map((e: { id: number }) => e.id), [1, 2]);
+            assert.strictEqual(shown.course.description, 'kept');
+            sinon.assert.callOrder(stubs.appStateManager.showCourseDetail, stubs.sendInitData);
+        });
+
+        test('asks nothing when no course detail is open', async () => {
+            const fetch = sandbox.stub().resolves(fresh);
+            const { facade, stubs } = onCourse(fetch);
+            stubs.appStateManager.currentState = 'dashboard';
+
+            await facade.revalidateCourseDetail();
+
+            sinon.assert.notCalled(fetch);
+        });
+
+        const movedOn: Array<[string, (stubs: ReturnType<typeof buildDeps>['stubs']) => void]> = [
+            ['opened an exercise', stubs => { stubs.appStateManager.currentState = 'exercise-detail'; }],
+            ['opened another course', stubs => { stubs.appStateManager.currentCourseData = { course: { id: 8, title: 'Other' } }; }],
+            ['changed session', stubs => { stubs.courseCatalog.currentEpoch = 4; }],
+        ];
+        for (const [what, move] of movedOn) {
+            test(`writes nothing when the student ${what} during the request`, async () => {
+                const fetch = sandbox.stub();
+                const { facade, stubs } = onCourse(fetch);
+                fetch.callsFake(async () => { move(stubs); return fresh; });
+
+                await facade.revalidateCourseDetail();
+
+                sinon.assert.notCalled(stubs.appStateManager.showCourseDetail);
+                sinon.assert.notCalled(stubs.sendInitData);
+            });
+        }
+
+        test('leaves the view alone when the newest list has no entry for the course (archived course)', async () => {
+            const { facade, stubs } = onCourse(sandbox.stub().resolves({ courses: [] }), sandbox.stub().returns(undefined));
+
+            await facade.revalidateCourseDetail();
+
+            sinon.assert.notCalled(stubs.appStateManager.showCourseDetail);
+        });
+
+        test('a failed request without an installed list keeps the shown list', async () => {
+            const { facade, stubs } = onCourse(sandbox.stub().resolves(undefined), sandbox.stub().returns(undefined));
+
+            await facade.revalidateCourseDetail();
+
+            sinon.assert.notCalled(stubs.appStateManager.showCourseDetail);
+        });
+
+        test('a throwing catalog is logged, not propagated', async () => {
+            const { facade, stubs } = onCourse(sandbox.stub().rejects(new Error('boom')));
+
+            await facade.revalidateCourseDetail();
+
+            sinon.assert.notCalled(stubs.appStateManager.showCourseDetail);
+        });
     });
 
     test('showCourseDetail: tolerates a missing courseCatalog', () => {

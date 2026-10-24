@@ -10,12 +10,13 @@ import type { UserInfo } from './appStateManager';
 export interface WebViewActionHandler {
     showCourseList(): Promise<void>;
     /**
-     * `force` makes the course list come from the server rather than the catalog's memoised
-     * copy. Optional, and absent on every navigation path: only an explicit reload gesture
-     * spends a request.
+     * `force` makes the course list come from the server before the dashboard renders. Only the
+     * reload gesture passes it; navigation renders the catalog's copy and revalidates it after.
      */
     showDashboard(userInfo: UserInfo, options?: { force?: boolean }): Promise<void>;
     navigateToStartPage(userInfo: UserInfo): Promise<void>;
+    /** Refreshes the open course detail's exercises from the course list. Never throws. */
+    revalidateCourseDetail(): Promise<void>;
     showStruggleDetection(): void;
     showSubmissionSetup(): void;
     openJsonInEditor(data: unknown): Promise<void>;

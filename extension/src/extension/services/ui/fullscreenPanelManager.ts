@@ -42,7 +42,9 @@ export class FullscreenPanelManager {
         });
     }
 
-    public openCourseListFullscreen(courses: CourseDetailData[], archivedCourses?: ArchivedCourse[]): void {
+    public openCourseListFullscreen(
+        courses: CourseDetailData[], archivedCourses: ArchivedCourse[] | undefined, coursesUnavailable: boolean,
+    ): void {
         this._openFullscreenPanel({
             viewType: 'artemis.courseListFullscreen',
             title: 'All Courses',
@@ -52,6 +54,7 @@ export class FullscreenPanelManager {
                     type: ExtensionMsg.CourseListInit,
                     courses,
                     archivedCourses,
+                    coursesUnavailable,
                 });
             },
         });

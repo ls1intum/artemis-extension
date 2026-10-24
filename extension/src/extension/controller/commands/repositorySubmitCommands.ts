@@ -172,25 +172,33 @@ export class RepositorySubmitCommands {
                     throwOnGitError: true
                 });
 
-                if (!result.hasChanges) {
+                // A clean tree can still hold work: a commit whose push failed earlier.
+                const hasUnpushedCommits = !result.hasChanges && await this.gitService.hasUnpushedCommits({ cwd });
+                if (!result.hasChanges && !hasUnpushedCommits) {
                     failureReason = 'no-changes';
                     throw new Error('No local changes detected to submit.');
                 }
 
-                progress.report({ message: 'Staging changes...' });
-                await this.gitService.addAll({ cwd });
+                if (result.hasChanges) {
+                    progress.report({ message: 'Staging changes...' });
+                    await this.gitService.addAll({ cwd });
 
-                const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
-                const configuredDefault = config.get<string>(
-                    VSCODE_CONFIG.DEFAULT_COMMIT_MESSAGE_KEY,
-                    'Solution submission via Iris extension'
-                );
-                resolvedCommitMessage = (commitMessage && commitMessage.trim()) || configuredDefault;
+                    const config = vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION);
+                    const configuredDefault = config.get<string>(
+                        VSCODE_CONFIG.DEFAULT_COMMIT_MESSAGE_KEY,
+                        'Solution submission via Iris extension'
+                    );
+                    resolvedCommitMessage = (commitMessage && commitMessage.trim()) || configuredDefault;
 
-                await this.ensureGitIdentityConfigured(cwd);
+                    await this.ensureGitIdentityConfigured(cwd);
 
-                progress.report({ message: 'Committing changes...' });
-                await this.gitService.commit(resolvedCommitMessage, { cwd });
+                    progress.report({ message: 'Committing changes...' });
+                    await this.gitService.commit(resolvedCommitMessage, { cwd });
+                } else {
+                    // `pull --rebase` replays the local commits when Artemis moved, and
+                    // git needs a committer identity for that.
+                    await this.ensureGitIdentityConfigured(cwd);
+                }
 
                 progress.report({ message: 'Syncing with remote...' });
                 try {
@@ -275,6 +283,10 @@ export class RepositorySubmitCommands {
             if (participationId !== undefined && !succeededEmitted) {
                 fireSubmission({ status: 'failed', participationId, failureReason });
             }
+
+            // A failed push leaves its commit behind; show it as committed but not
+            // submitted instead of the status from before the submit.
+            void this.context.recheckRepoStatus?.();
         } finally {
             this._gitOperationInFlight = undefined;
         }

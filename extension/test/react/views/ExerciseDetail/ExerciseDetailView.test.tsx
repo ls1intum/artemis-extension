@@ -301,7 +301,7 @@ describe('ExerciseDetailView', () => {
 	it('shows submit button when participation exists', () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseDataWithParticipation(),
-			repoStatus: { isConnected: true, hasChanges: true, isPracticeRepo: false },
+			repoStatus: { isConnected: true, hasChanges: true, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
@@ -309,10 +309,32 @@ describe('ExerciseDetailView', () => {
 		expect(screen.getByRole('button', { name: /submit/i })).toBeInTheDocument();
 	});
 
+	it('offers Submit for commits that are not on Artemis yet', () => {
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseDataWithParticipation(),
+			repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: true, isPracticeRepo: false, hasLocalClone: false },
+			isLoading: false,
+		});
+		render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
+		expect(screen.getByText('Committed, not yet submitted')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /submit/i })).toBeEnabled();
+	});
+
+	it('says up to date only when nothing is left to submit', () => {
+		useExerciseDetailStore.setState({
+			exerciseData: makeExerciseDataWithParticipation(),
+			repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
+			isLoading: false,
+		});
+		render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
+		expect(screen.getByText('Up to date')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /submit/i })).toBeDisabled();
+	});
+
 	it('submit button sends submitExercise postMessage', async () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseDataWithParticipation(),
-			repoStatus: { isConnected: true, hasChanges: true, isPracticeRepo: false },
+			repoStatus: { isConnected: true, hasChanges: true, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
@@ -333,7 +355,7 @@ describe('ExerciseDetailView', () => {
 	it('posts openRepository command with the repositoryUri when Open Repository is clicked', async () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseDataWithParticipation(),
-			repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+			repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
@@ -354,7 +376,7 @@ describe('ExerciseDetailView', () => {
 	it('posts pullChanges with the exercise title when Pull Changes is clicked', async () => {
 		useExerciseDetailStore.setState({
 			exerciseData: makeExerciseDataWithParticipation(),
-			repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+			repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 			isLoading: false,
 		});
 		const mockApi = createMockVsCodeApi();
@@ -379,7 +401,7 @@ describe('ExerciseDetailView', () => {
 				type: 'exerciseDetailInit',
 				exerciseData: makeExerciseDataWithParticipation(),
 				hideDeveloperTools: false,
-				repoStatus: { isConnected: false, hasChanges: false, isPracticeRepo: false },
+				repoStatus: { isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 				isManagedEnvironment: true,
 			});
 
@@ -397,7 +419,7 @@ describe('ExerciseDetailView', () => {
 				type: 'exerciseDetailInit',
 				exerciseData: makeExerciseDataWithParticipation(),
 				hideDeveloperTools: false,
-				repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+				repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 				isManagedEnvironment: true,
 			});
 
@@ -412,43 +434,76 @@ describe('ExerciseDetailView', () => {
 			expect(screen.queryByRole('button', { name: /Open Repository/i })).not.toBeInTheDocument();
 		});
 
-		it('hides the "Repository cloned" banner when managed', async () => {
+		it('shows "Open in Artemis", not Open Folder, when managed and a local clone exists', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<ExerciseDetailView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({
 				type: 'exerciseDetailInit',
-				exerciseData: makeExerciseData(),
+				exerciseData: makeExerciseDataWithParticipation(),
 				hideDeveloperTools: false,
+				repoStatus: { isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: true },
 				isManagedEnvironment: true,
 			});
-			await waitFor(() => expect(screen.getByText('My Exercise')).toBeInTheDocument());
 
-			// clonedNotice is set later (store ← ShowClonedRepoNotice), after init resets it.
-			act(() => {
-				useExerciseDetailStore.getState().setClonedNotice('My Exercise', 99);
+			await waitFor(() => {
+				expect(screen.getByRole('button', { name: 'Open in Artemis' })).toBeInTheDocument();
 			});
-
-			expect(screen.queryByText(/Repository cloned for/i)).not.toBeInTheDocument();
+			expect(screen.queryByRole('button', { name: 'Open Folder' })).not.toBeInTheDocument();
 		});
+	});
 
-		it('shows the "Repository cloned" banner in non-managed (desktop) mode', async () => {
+	describe('local clone outside the workspace', () => {
+		it('offers Open Folder instead of Clone and opens the displayed repository', async () => {
 			const mockApi = createMockVsCodeApi();
 			render(<ExerciseDetailView vscodeApi={mockApi} />);
 
 			dispatchExtensionMessage({
 				type: 'exerciseDetailInit',
-				exerciseData: makeExerciseData(),
+				exerciseData: makeExerciseDataWithParticipation(),
 				hideDeveloperTools: false,
+				repoStatus: { isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: true },
 				isManagedEnvironment: false,
 			});
-			await waitFor(() => expect(screen.getByText('My Exercise')).toBeInTheDocument());
 
-			act(() => {
-				useExerciseDetailStore.getState().setClonedNotice('My Exercise', 99);
+			const open = await screen.findByRole('button', { name: 'Open Folder' });
+			expect(screen.getByText('Cloned, but not open in this window')).toBeInTheDocument();
+			expect(screen.queryByRole('button', { name: 'Clone Repository' })).not.toBeInTheDocument();
+
+			await userEvent.click(open);
+			expect(mockApi.postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: 'command',
+					command: 'openClonedRepository',
+					payload: { repositoryUri: 'https://git.example.com/repo' },
+				})
+			);
+		});
+
+		it('switches from Clone to Open Folder when a status update reports the clone', async () => {
+			const mockApi = createMockVsCodeApi();
+			render(<ExerciseDetailView vscodeApi={mockApi} />);
+
+			dispatchExtensionMessage({
+				type: 'exerciseDetailInit',
+				exerciseData: makeExerciseDataWithParticipation(),
+				hideDeveloperTools: false,
+				repoStatus: { isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
+				isManagedEnvironment: false,
+			});
+			await screen.findByRole('button', { name: 'Clone Repository' });
+
+			dispatchExtensionMessage({
+				type: 'updateRepoStatus',
+				isConnected: false,
+				hasChanges: false,
+				hasUnpushedCommits: false,
+				isPracticeRepo: false,
+				hasLocalClone: true,
 			});
 
-			expect(screen.getByText(/Repository cloned for/i)).toBeInTheDocument();
+			await screen.findByRole('button', { name: 'Open Folder' });
+			expect(screen.queryByRole('button', { name: 'Clone Repository' })).not.toBeInTheDocument();
 		});
 	});
 
@@ -1025,7 +1080,7 @@ describe('ExerciseDetailView', () => {
 			// the status message; between the two, a render for the wrong one can arrive.
 			useExerciseDetailStore.setState({
 				exerciseData: bothParticipations(),
-				repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+				repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 				isLoading: false,
 			});
 			render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
@@ -1047,7 +1102,7 @@ describe('ExerciseDetailView', () => {
 			// good in this order, because nothing resends it.
 			useExerciseDetailStore.setState({
 				exerciseData: bothParticipations(),
-				repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+				repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 				isLoading: false,
 			});
 			render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);
@@ -1065,7 +1120,7 @@ describe('ExerciseDetailView', () => {
 
 			act(() => {
 				useExerciseDetailStore.setState({
-					repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: true },
+					repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: true, hasLocalClone: false },
 				});
 			});
 
@@ -1101,7 +1156,7 @@ describe('ExerciseDetailView', () => {
 		it('shows an unlabelled render, which predates the field', () => {
 			useExerciseDetailStore.setState({
 				exerciseData: bothParticipations(),
-				repoStatus: { isConnected: true, hasChanges: false, isPracticeRepo: false },
+				repoStatus: { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false },
 				isLoading: false,
 			});
 			render(<ExerciseDetailView vscodeApi={createMockVsCodeApi()} />);

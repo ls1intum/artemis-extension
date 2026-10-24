@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import type { WebCmd, WebviewToExtensionMessage } from '@shared/messageContracts';
-import { ExtensionMsg, getOptionalPayload, getPayload, WebviewCmd } from '@shared/messageContracts';
+import { getOptionalPayload, getPayload, WebviewCmd } from '@shared/messageContracts';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import {
@@ -21,14 +21,6 @@ import { expandHomePath, extractRedactedErrorMessage, VSCODE_CONFIG } from '@ext
 import type { CommandContext, CommandMap } from './types';
 
 /**
- * Soft cap on the in-memory map of recently cloned repositories per
- * participation. Bounded to keep the map from growing unboundedly during a
- * long session; FIFO eviction is acceptable because the map is only used to
- * surface "open cloned repo" notices.
- */
-const MAX_CLONED_REPO_CACHE_SIZE = 10;
-
-/**
  * Helper functions injected via the constructor so tests can substitute
  * deterministic doubles. The defaults wire up to the production modules.
  *
@@ -43,7 +35,6 @@ export interface RepositoryCloneCommandsDeps {
     normalizeRepositoryUrl: typeof defaultNormalizeRepositoryUrl;
     cloneRepositoryProgrammatic: typeof defaultCloneRepositoryProgrammatic;
     getTheiaEnvironment: typeof defaultGetTheiaEnvironment;
-    statSync: typeof fs.statSync;
     statAsync: (p: fs.PathLike) => Promise<fs.Stats>;
 }
 
@@ -52,12 +43,19 @@ const defaultDeps: RepositoryCloneCommandsDeps = {
     normalizeRepositoryUrl: defaultNormalizeRepositoryUrl,
     cloneRepositoryProgrammatic: defaultCloneRepositoryProgrammatic,
     getTheiaEnvironment: defaultGetTheiaEnvironment,
-    statSync: fs.statSync,
     statAsync: fs.promises.stat,
 };
 
+/**
+ * Like File > Open Folder: the student wants to work in the clone. Reuse is forced because
+ * `window.openFoldersInNewWindow` would otherwise decide, and a second window beside an
+ * empty one is what this replaces.
+ */
+async function openInThisWindow(repoPath: string): Promise<void> {
+    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(repoPath), { forceReuseWindow: true });
+}
+
 export class RepositoryCloneCommands {
-    private clonedRepositoriesByParticipationId: Map<number, { path: string; title: string }> = new Map();
     private readonly deps: RepositoryCloneCommandsDeps;
 
     constructor(
@@ -79,29 +77,36 @@ export class RepositoryCloneCommands {
 
     /**
      * Build an authenticated clone URL by fetching a VCS token and the current user's login.
-     * Returns the URL string on success, or null if token retrieval or URL construction fails.
+     * Returns the URL string on success, or null after reporting why the token, the login
+     * or the URL could not be obtained.
      */
     private async buildAuthenticatedUrl(participationId: number, repositoryUri: string): Promise<string | null> {
         let vcsToken: string;
         try {
             vcsToken = await this.context.artemisApi.getOrCreateVcsAccessToken(participationId);
         } catch (tokenErr) {
-            logger.error('Failed to get participation token:', LogCategory.SUBMISSION, tokenErr);
-            vscode.window.showErrorMessage('Failed to obtain VCS access token.');
+            logger.error('Failed to get participation token:', LogCategory.SUBMISSION, extractRedactedErrorMessage(tokenErr));
+            vscode.window.showErrorMessage(`Failed to obtain VCS access token: ${extractRedactedErrorMessage(tokenErr)}`);
             return null;
         }
 
-        let username = 'user';
+        // The token only authenticates together with its owner's login, so a
+        // guessed username would yield a URL that git rejects later with a
+        // less helpful error.
+        let login: string | undefined;
         try {
-            const currentUser = await this.context.artemisApi.getCurrentUser();
-            if (currentUser?.login) {
-                username = currentUser.login;
-            }
+            login = (await this.context.artemisApi.getCurrentUser())?.login?.trim();
         } catch (userErr) {
-            logger.warn('Could not fetch current user, defaulting username:', LogCategory.SUBMISSION, userErr);
+            logger.error('Failed to get current user:', LogCategory.SUBMISSION, extractRedactedErrorMessage(userErr));
+            vscode.window.showErrorMessage(`Could not read your Artemis account: ${extractRedactedErrorMessage(userErr)}`);
+            return null;
+        }
+        if (!login) {
+            vscode.window.showErrorMessage('Could not read your Artemis account. Sign in again, then retry.');
+            return null;
         }
 
-        const authenticatedUrl = buildAuthenticatedRepositoryUrl(repositoryUri, username, vcsToken);
+        const authenticatedUrl = buildAuthenticatedRepositoryUrl(repositoryUri, login, vcsToken);
         if (!authenticatedUrl) {
             vscode.window.showErrorMessage('Invalid repository URL received from server.');
             return null;
@@ -211,17 +216,6 @@ export class RepositoryCloneCommands {
      * Insert a freshly cloned repository into the per-participation cache,
      * evicting the oldest entry by insertion order when the cap is reached.
      */
-    private _rememberClonedRepo(participationId: number, repoPath: string, title: string): void {
-        if (this.clonedRepositoriesByParticipationId.size >= MAX_CLONED_REPO_CACHE_SIZE
-            && !this.clonedRepositoriesByParticipationId.has(participationId)) {
-            const firstKey = this.clonedRepositoriesByParticipationId.keys().next().value;
-            if (firstKey !== undefined) {
-                this.clonedRepositoriesByParticipationId.delete(firstKey);
-            }
-        }
-        this.clonedRepositoriesByParticipationId.set(participationId, { path: repoPath, title });
-    }
-
     private handleCloneRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
             const payload = getPayload<WebCmd<'cloneRepository'>>(message);
@@ -252,22 +246,24 @@ export class RepositoryCloneCommands {
             // outer catch and the prompt is reached only on success.
             await this.deps.cloneRepositoryProgrammatic(cloneUrl, repoPath, exerciseTitle);
 
-            this._rememberClonedRepo(participationId, repoPath, exerciseTitle);
+            await this.context.localClones?.remember(repositoryUri, repoPath);
+            // The clone happened outside the workspace, so no file event reports it. Awaited so the
+            // status reaches the view that cloned: the sender is swapped back once this returns.
+            await this.context.recheckRepoStatus?.();
 
-            this.context.sendMessage({
-                type: ExtensionMsg.ShowClonedRepoNotice,
-                exerciseTitle: exerciseTitle,
-                participationId,
-            });
-
-            const openAction = await vscode.window.showInformationMessage(
+            // Not awaited: a toast can stay open indefinitely, and every later webview command,
+            // the card's Open Folder included, queues behind this handler until it returns.
+            vscode.window.showInformationMessage(
                 `Open cloned repository "${exerciseTitle}"?`,
                 'Open Folder',
                 'Skip',
-            );
-            if (openAction === 'Open Folder') {
-                void vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(repoPath), true);
-            }
+            ).then(async (openAction) => {
+                if (openAction === 'Open Folder') {
+                    await openInThisWindow(repoPath);
+                }
+            }).then(undefined, (error: unknown) => {
+                logger.error('Open cloned repository error:', LogCategory.SUBMISSION, error);
+            });
         } catch (error: unknown) {
             // A clone runs against the tokenised URL, and git quotes it back in
             // the failure, so neither the log nor the notification may carry the
@@ -303,36 +299,23 @@ export class RepositoryCloneCommands {
 
     private handleOpenClonedRepository = async (message: WebviewToExtensionMessage): Promise<void> => {
         try {
-            const { participationId } = getPayload<WebCmd<'openClonedRepository'>>(message);
-            const repoInfo = this.clonedRepositoriesByParticipationId.get(participationId);
+            const { repositoryUri } = getPayload<WebCmd<'openClonedRepository'>>(message);
+            const repoPath = await this.context.localClones?.find(repositoryUri);
 
-            if (!repoInfo) {
+            if (!repoPath) {
                 vscode.window.showWarningMessage('Cloned repository not found. It may have been moved or deleted.');
+                await this.context.recheckRepoStatus?.();
                 return;
             }
-
-            try {
-                const stats = this.deps.statSync(repoInfo.path);
-                if (!stats.isDirectory()) {
-                    this.clonedRepositoriesByParticipationId.delete(participationId);
-                    vscode.window.showWarningMessage('Cloned repository path is not a directory.');
-                    return;
-                }
-            } catch {
-                this.clonedRepositoriesByParticipationId.delete(participationId);
-                vscode.window.showWarningMessage('Cloned repository not found. It may have been moved or deleted.');
-                return;
-            }
-
-            const repoUri = vscode.Uri.file(repoInfo.path);
 
             const currentFolder = vscode.workspace.workspaceFolders?.[0];
-            if (currentFolder && currentFolder.uri.fsPath === repoInfo.path) {
+            // path.relative compares case-insensitively on Windows, where a raw comparison misses.
+            if (currentFolder && path.relative(currentFolder.uri.fsPath, repoPath) === '') {
                 await vscode.commands.executeCommand('workbench.view.explorer');
                 return;
             }
 
-            await vscode.commands.executeCommand('vscode.openFolder', repoUri, true);
+            await openInThisWindow(repoPath);
         } catch (error: unknown) {
             logger.error('Open cloned repository error:', LogCategory.SUBMISSION, error);
             vscode.window.showErrorMessage('Failed to open cloned repository.');

@@ -21,7 +21,7 @@ import { isServerUrlLocked, resolveServerUrl } from '@extension/utils';
 import { selectRecentCourses } from './recentCourseSelector';
 
 /** Resolved workspace status for an exercise's repos, incl. the matched workspace URI (if any). */
-type ExerciseRepoStatus = Awaited<ReturnType<typeof detectWorkspaceForRepoUris>>;
+type ExerciseRepoStatus = Awaited<ReturnType<typeof detectWorkspaceForRepoUris>> & { hasLocalClone: boolean };
 
 export class ViewInitDataService {
     private _initGeneration = 0;
@@ -143,6 +143,7 @@ export class ViewInitDataService {
         this._postMessage({
             type: ExtensionMsg.CourseListInit,
             courses: mappedCourses, archivedCourses,
+            coursesUnavailable: appState.coursesUnavailable,
         });
     }
 
@@ -226,11 +227,17 @@ export class ViewInitDataService {
         let detectionFailed = false;
         if (repoUris.length > 0) {
             try {
-                repoStatus = await detectWorkspaceForRepoUris(repoUris);
+                repoStatus = { ...await detectWorkspaceForRepoUris(repoUris), hasLocalClone: false };
             } catch (error) {
                 logger.error('Failed to detect workspace status for exercise detail', LogCategory.VIEW, error);
                 detectionFailed = true;
             }
+        }
+        // Outside the detection's try and never throwing, so a clone lookup cannot cost the
+        // view its status. Before the record below, which the ticket still guards after it.
+        if (repoStatus && !repoStatus.isConnected && this._messageHandler.localClones) {
+            repoStatus.hasLocalClone = await this._messageHandler.localClones
+                .hasCloneOfDisplayedParticipation(exerciseData.exercise?.studentParticipations);
         }
 
         // Recorded here, ahead of the caller's generation check, which answers "may I post the
@@ -274,7 +281,15 @@ export class ViewInitDataService {
                 // has moved to graded.
                 repoStatus: !accepted || detectionFailed
                     ? undefined
-                    : (repoStatus ?? { isConnected: false, hasChanges: false, isPracticeRepo: false }),
+                    : (repoStatus
+                        ? {
+                            isConnected: repoStatus.isConnected,
+                            hasChanges: repoStatus.hasChanges,
+                            hasUnpushedCommits: repoStatus.hasUnpushedCommits,
+                            isPracticeRepo: repoStatus.isPracticeRepo,
+                            hasLocalClone: repoStatus.hasLocalClone,
+                        }
+                        : { isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false }),
                 serverRenderedProblemStatement,
             },
             repoStatus,
@@ -316,7 +331,9 @@ export class ViewInitDataService {
                         type: ExtensionMsg.UpdateRepoStatus,
                         isConnected: repoStatus.isConnected,
                         hasChanges: repoStatus.hasChanges,
+                        hasUnpushedCommits: repoStatus.hasUnpushedCommits,
                         isPracticeRepo: repoStatus.isPracticeRepo,
+                        hasLocalClone: repoStatus.hasLocalClone,
                     });
                 }
                 return;

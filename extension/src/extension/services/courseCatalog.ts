@@ -8,6 +8,13 @@ import { LogCategory, logger } from './loggingService';
 import type { SessionIdentityCoordinator } from './session/sessionIdentityCoordinator';
 import { getEntryExercises } from './workspace';
 
+/**
+ * How long a dashboard request answers `fetch({ revalidate: true })` [ENG]. Long enough that sign-in
+ * (start page resolver, then dashboard) and toggling the sidebar send one request, short enough
+ * that coming back to the course list a minute later asks again.
+ */
+const REVALIDATE_MIN_AGE_MS = 60_000;
+
 /** A course the picker may offer. Never assembled out of fragments. */
 export interface CatalogCourse {
     id: number;
@@ -145,6 +152,8 @@ export class CourseCatalog implements vscode.Disposable {
      */
     private _requestSeq = 0;
     private _inflight: Promise<CourseDashboardResponse | undefined> | undefined;
+    /** `Date.now()` when the newest request was sent, for the revalidate throttle. */
+    private _lastRequestAt: number | undefined;
 
     /**
      * The newest dashboard request failed. Read by the picker so an empty
@@ -184,6 +193,17 @@ export class CourseCatalog implements vscode.Disposable {
         return { ...this._dashboardExtras, courses: [...dashboard, ...extras] };
     }
 
+    /**
+     * The exercises the newest dashboard response lists for a course, or `undefined` when that
+     * response does not contain it. Deliberately blind to the supplemental layer: an archived or
+     * individually opened course is recorded there with whatever exercises it was opened with,
+     * which is no fresher than what the caller already shows.
+     */
+    public dashboardExercises(courseId: number): ExerciseDetail[] | undefined {
+        const entry = this._dashboard?.find(e => courseIdOf(e) === courseId);
+        return entry ? getEntryExercises(entry) : undefined;
+    }
+
     /** Whether the newest dashboard request failed to reach the server. */
     public get coursesUnavailable(): boolean {
         return this._lastFetchFailed;
@@ -198,7 +218,14 @@ export class CourseCatalog implements vscode.Disposable {
         return this._dashboard !== undefined;
     }
 
-    public async fetch(options?: { force?: boolean }): Promise<CourseDashboardResponse | undefined> {
+    /**
+     * `force` always asks the server. `revalidate` is for a view that has already rendered the
+     * cached list: it asks again only if a list is installed and the last request is older than
+     * {@link REVALIDATE_MIN_AGE_MS}, and joins a request that is already open. Without either,
+     * the cached list is served for the whole session, which hides a course the student was
+     * enrolled in after the first request.
+     */
+    public async fetch(options?: { force?: boolean; revalidate?: boolean }): Promise<CourseDashboardResponse | undefined> {
         // A request sent while the identity is still resolving is doomed: the
         // transition that answers it resets the catalog and discards the
         // response, and nothing asks again. So wait for the answer first, and
@@ -210,9 +237,18 @@ export class CourseCatalog implements vscode.Disposable {
             const outcome = await this._identity.whenSettled();
             if (outcome === 'anonymous' || outcome === 'disposed') { return this.get(); }
         }
-        if (this._dashboard && !options?.force) { return this.get(); }
-        if (this._inflight && !options?.force) { return this._inflight; }
+        if (options?.revalidate && !options.force) {
+            if (this._inflight) { return this._inflight; }
+            // No list installed means the caller's own plain fetch just failed, and that failure
+            // is already reported. Retrying here would only double the request.
+            const recent = this._lastRequestAt !== undefined && Date.now() - this._lastRequestAt < REVALIDATE_MIN_AGE_MS;
+            if (!this._dashboard || recent) { return this.get(); }
+        } else {
+            if (this._dashboard && !options?.force) { return this.get(); }
+            if (this._inflight && !options?.force) { return this._inflight; }
+        }
         const token = ++this._requestSeq;
+        this._lastRequestAt = Date.now();
         const epoch = this._epoch;
         const run = this._doFetch(token, epoch);
         this._inflight = run;
@@ -457,6 +493,7 @@ export class CourseCatalog implements vscode.Disposable {
         this._supplemental.clear();
         this._inflight = undefined;
         this._lastFetchFailed = false;
+        this._lastRequestAt = undefined;
         // Orphaning in-flight results is this method's contract, and the epoch
         // alone cannot deliver it: `clear()` resets to the SAME epoch, which
         // leaves an open request matching on both counts, free to install a

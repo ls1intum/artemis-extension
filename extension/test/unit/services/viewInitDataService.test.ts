@@ -163,6 +163,14 @@ suite('ViewInitDataService.sendCourseListInit', () => {
             .courses.map(c => c.course.id);
         assert.deepStrictEqual(ids, [1], 'invalid courses must be dropped');
     });
+
+    for (const coursesUnavailable of [true, false]) {
+        test(`carries coursesUnavailable=${coursesUnavailable}, so an empty list can say why`, () => {
+            const { service, getPosted } = buildService({ courses: [] }, undefined, coursesUnavailable);
+            service.sendCourseListInit();
+            assert.strictEqual((getPosted() as { coursesUnavailable: boolean }).coursesUnavailable, coursesUnavailable);
+        });
+    }
 });
 
 
@@ -173,7 +181,7 @@ suite('ViewInitDataService.sendExerciseDetailInit', () => {
     teardown(() => sandbox.restore());
 
     /** A service whose app state really holds the exercise, because the arbitration compares it. */
-    function buildExerciseService() {
+    function buildExerciseService(localClones?: { hasCloneOfDisplayedParticipation: sinon.SinonStub }) {
         const posted: ExtensionToWebviewMessage[] = [];
         const appState = new AppStateManager();
         appState.showCourseDetail({ course: { id: 1, title: 'Course' } });
@@ -190,7 +198,7 @@ suite('ViewInitDataService.sendExerciseDetailInit', () => {
         const service = new ViewInitDataService(
             appState as never,
             undefined,
-            { setRepositoryContext, clearRepositoryContext } as never,
+            { setRepositoryContext, clearRepositoryContext, localClones } as never,
             (msg: ExtensionToWebviewMessage) => { posted.push(msg); },
             { getLastAccessedCourses: () => [] } as never,
         );
@@ -215,7 +223,7 @@ suite('ViewInitDataService.sendExerciseDetailInit', () => {
         service.sendExerciseDetailInit();
         service.sendInitData();
         await new Promise(r => setImmediate(r));
-        resolveFirst({ isConnected: true, hasChanges: false, isPracticeRepo: true, matchedUri: 'https://a/repo.git' });
+        resolveFirst({ isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: true, matchedUri: 'https://a/repo.git' });
         await new Promise(r => setImmediate(r));
 
         assert.strictEqual(appState.workspaceIsPractice, true);
@@ -236,7 +244,7 @@ suite('ViewInitDataService.sendExerciseDetailInit', () => {
         // A probe started after this init reports while its detection is still running, so the
         // init's own answer is stale by the time it lands.
         appState.recordWorkspaceMode(appState.beginWorkspaceModeProbe(), 42, false);
-        resolveDetection({ isConnected: true, hasChanges: false, isPracticeRepo: true, matchedUri: 'https://a/repo.git' });
+        resolveDetection({ isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: true, matchedUri: 'https://a/repo.git' });
         await new Promise(r => setImmediate(r));
 
         const inits = exerciseInits(posted);
@@ -245,6 +253,62 @@ suite('ViewInitDataService.sendExerciseDetailInit', () => {
             'saying nothing is not the same as saying graded; the webview keeps what it has');
         sinon.assert.notCalled(setRepositoryContext);
         assert.strictEqual(appState.workspaceIsPractice, false);
+    });
+
+    test('a disconnected init says whether the displayed participation has a local clone', async () => {
+        const hasCloneOfDisplayedParticipation = sandbox.stub().resolves(true);
+        const { service, posted } = buildExerciseService({ hasCloneOfDisplayedParticipation });
+        sandbox.stub(workspaceDetection, 'detectWorkspaceForRepoUris')
+            .resolves({ isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false });
+
+        service.sendExerciseDetailInit();
+        await new Promise(r => setImmediate(r));
+
+        assert.deepStrictEqual(hasCloneOfDisplayedParticipation.firstCall.args[0], [{ id: 7, repositoryUri: 'https://a/repo.git' }]);
+        assert.deepStrictEqual(exerciseInits(posted)[0].repoStatus,
+            { isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: true });
+    });
+
+    test('a connected init does not look for a local clone', async () => {
+        const hasCloneOfDisplayedParticipation = sandbox.stub().resolves(true);
+        const { service, posted } = buildExerciseService({ hasCloneOfDisplayedParticipation });
+        sandbox.stub(workspaceDetection, 'detectWorkspaceForRepoUris')
+            .resolves({ isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, matchedUri: 'https://a/repo.git' });
+
+        service.sendExerciseDetailInit();
+        await new Promise(r => setImmediate(r));
+
+        sinon.assert.notCalled(hasCloneOfDisplayedParticipation);
+        assert.deepStrictEqual(exerciseInits(posted)[0].repoStatus,
+            { isConnected: true, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false, hasLocalClone: false });
+    });
+
+    test('carries commits a failed push left behind in the init', async () => {
+        const { service, posted } = buildExerciseService();
+        sandbox.stub(workspaceDetection, 'detectWorkspaceForRepoUris')
+            .resolves({ isConnected: true, hasChanges: false, hasUnpushedCommits: true, isPracticeRepo: false, matchedUri: 'https://a/repo.git' });
+
+        service.sendExerciseDetailInit();
+        await new Promise(r => setImmediate(r));
+
+        assert.deepStrictEqual(exerciseInits(posted)[0].repoStatus,
+            { isConnected: true, hasChanges: false, hasUnpushedCommits: true, isPracticeRepo: false, hasLocalClone: false });
+    });
+
+    test('carries them in the status post of a superseded init too', async () => {
+        const { service, posted } = buildExerciseService();
+        let resolveDetection!: (v: unknown) => void;
+        sandbox.stub(workspaceDetection, 'detectWorkspaceForRepoUris')
+            .returns(new Promise(r => { resolveDetection = r; }) as never);
+
+        service.sendExerciseDetailInit();
+        service.sendInitData();
+        await new Promise(r => setImmediate(r));
+        resolveDetection({ isConnected: true, hasChanges: false, hasUnpushedCommits: true, isPracticeRepo: false, matchedUri: 'https://a/repo.git' });
+        await new Promise(r => setImmediate(r));
+
+        const update = posted.find(m => m.type === 'updateRepoStatus') as { hasUnpushedCommits?: boolean } | undefined;
+        assert.strictEqual(update?.hasUnpushedCommits, true);
     });
 
     test('a detection that threw erases nothing', async () => {

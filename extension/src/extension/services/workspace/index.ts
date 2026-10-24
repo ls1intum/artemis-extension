@@ -1,6 +1,7 @@
 export { buildAuthenticatedRepositoryUrl } from './authenticatedRepositoryUrl';
 export { FileMonitorService } from './fileMonitorService';
 export { GitService } from './gitService';
+export { LocalCloneStore } from './localCloneStore';
 export { NoAiDetectionService } from './noAiDetectionService';
 export {
     type ResolvedParticipation,

@@ -9,9 +9,11 @@ import { logger } from '@extension/services/loggingService';
 import type { CourseDashboardCourse, CourseDashboardEntry, ExerciseDetail } from '@extension/types';
 
 import type { DetectionOutcome } from './detectionOutcome';
+import { GitService } from './gitService';
 import { checkWorkspaceFiles } from './workspaceFileChecker';
 
 const execFileAsync = promisify(execFile);
+const git = new GitService();
 
 /** A workspace-detected exercise. Structurally identical to ExerciseRegistryEntry. */
 export type DetectedExercise = ExerciseRegistryEntry;
@@ -118,13 +120,14 @@ export async function getWorkspaceRepositoryUrl(
 ): Promise<string | null> {
     const folder = workspaceFolder || vscode.workspace.workspaceFolders?.[0];
 
-    if (!folder) {
-        return null;
-    }
+    return folder ? getRepositoryOriginUrl(folder.uri.fsPath) : null;
+}
 
+/** The git remote origin URL of the folder at `fsPath`. Null when it is not a git repository. */
+export async function getRepositoryOriginUrl(fsPath: string): Promise<string | null> {
     try {
         const { stdout } = await execFileAsync('git', ['remote', 'get-url', 'origin'], {
-            cwd: folder.uri.fsPath
+            cwd: fsPath
         });
 
         const url = stdout.trim();
@@ -139,6 +142,8 @@ export async function getWorkspaceRepositoryUrl(
 interface WorkspaceStatus {
     isConnected: boolean;
     hasChanges: boolean;
+    /** Commits on the branch that its upstream does not have, e.g. after a failed push. */
+    hasUnpushedCommits: boolean;
     isPracticeRepo: boolean;
 }
 
@@ -152,7 +157,7 @@ export async function getWorkspaceStatus(
 ): Promise<WorkspaceStatus> {
     const folder = workspaceFolder || vscode.workspace.workspaceFolders?.[0];
 
-    const disconnected: WorkspaceStatus = { isConnected: false, hasChanges: false, isPracticeRepo: false };
+    const disconnected: WorkspaceStatus = { isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false };
 
     if (!folder) {
         return disconnected;
@@ -175,9 +180,16 @@ export async function getWorkspaceStatus(
         }
     }
 
+    const hasUnpushedCommits = () => git.hasUnpushedCommits({ cwd: folder.uri.fsPath });
+
     if (normalizedWorkspace === normalizedExpected) {
         const hasChanges = await getFileChanges();
-        return { isConnected: true, hasChanges, isPracticeRepo: normalizedWorkspace.includes('-practice-') };
+        return {
+            isConnected: true,
+            hasChanges,
+            hasUnpushedCommits: await hasUnpushedCommits(),
+            isPracticeRepo: normalizedWorkspace.includes('-practice-'),
+        };
     }
 
     // Practice-repo fallback: a practice workspace still belongs to the exercise
@@ -185,7 +197,7 @@ export async function getWorkspaceStatus(
     // string, so the null returned for a non-practice URL simply fails to match.
     if (degradePracticeUrl(normalizedWorkspace) === normalizedExpected) {
         const hasChanges = await getFileChanges();
-        return { isConnected: true, hasChanges, isPracticeRepo: true };
+        return { isConnected: true, hasChanges, hasUnpushedCommits: await hasUnpushedCommits(), isPracticeRepo: true };
     }
 
     return disconnected;
@@ -291,7 +303,7 @@ export async function detectWorkspaceForRepoUris(
             return { ...status, matchedUri: uri };
         }
     }
-    return { isConnected: false, hasChanges: false, isPracticeRepo: false };
+    return { isConnected: false, hasChanges: false, hasUnpushedCommits: false, isPracticeRepo: false };
 }
 
 /**

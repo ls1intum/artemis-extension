@@ -186,3 +186,21 @@ describe('completion events', () => {
         }
     });
 });
+
+describe('continuing to the next step', () => {
+    /** The `{ walkthroughStep }` argument of a step's first command link, decoded. */
+    function linkedStep(step: Step): unknown {
+        const match = /\(command:[^)?\s]+\?([^)\s]+)\)/.exec(step.description);
+        if (!match) { return undefined; }
+        const arg = JSON.parse(decodeURIComponent(match[1])) as { walkthroughStep?: unknown };
+        return arg.walkthroughStep;
+    }
+
+    it('lets every step but the last name itself in its link, so its button ticks it and moves on', () => {
+        // VS Code only ticks a step on its completion events and never selects the next
+        // one; the extension's command does both when its link names the step.
+        for (const step of steps.slice(0, -1)) {
+            expect(linkedStep(step), `step "${step.id}" does not name itself`).toBe(step.id);
+        }
+    });
+});

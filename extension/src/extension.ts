@@ -8,6 +8,7 @@ import {
     maybeOpenGetStartedWalkthrough,
     type StartupAuthState,
     WALKTHROUGH_SHOWN_KEY,
+    WalkthroughNavigator,
 } from '@extension/activation/onboarding';
 import { ArtemisApiService } from '@extension/api';
 import type { DataCollectionHandle } from '@extension/dataCollection/types';
@@ -237,6 +238,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.languages.registerCodeLensProvider({ scheme: 'file' }, buildErrorCodeLensProvider)
 	);
 
+	const walkthrough = new WalkthroughNavigator({
+		extensionId: context.extension.id,
+		isSignedIn: () => authManager.hasAuthToken(),
+		markStepComplete: stepId => vscode.commands.executeCommand('welcome.markStepComplete', stepId),
+		openWalkthrough: target => vscode.commands.executeCommand('workbench.action.openWalkthrough', target),
+		onError: error => logger.error('Failed to continue the Get Started walkthrough', LogCategory.GENERAL, error),
+	});
+
 	const updateAuthContext = async (isAuthenticated: boolean) => {
 		if (isAuthenticated) {
 			// A login just succeeded; find out who it was.
@@ -251,6 +260,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		await vscode.commands.executeCommand('setContext', 'iris:authenticated', isAuthenticated);
 		websocketStatusBarService.setAuthenticated(isAuthenticated);
 		if (isAuthenticated) {
+			// After the context key: it ticks the sign-in step and reveals Meet Iris.
+			void walkthrough.signedIn();
 			artemisApiService.resetAuthExpiredGuard();
 			void artemisWebsocketService.connect().catch(error => {
 				logger.error('Failed to connect to Artemis WebSocket', LogCategory.WEBSOCKET, error);
@@ -495,7 +506,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(registerAllCommands({
 		authManager, artemisApiService, artemisWebsocketService,
 		providerRegistry, artemisWebviewProvider, chatWebviewProvider,
-		updateAuthContext, authCancellation,
+		updateAuthContext, authCancellation, walkthrough,
 	}));
 
 	// Defensive safety net for future when-clause gating; no view reads this key.

@@ -75,7 +75,7 @@ describe('useCourseListStore', () => {
 		});
 
 		act(() => {
-			result.current.setCourses(courses);
+			result.current.setCourses(courses, undefined, false);
 		});
 
 		expect(result.current.courses).toEqual(courses);
@@ -88,7 +88,7 @@ describe('useCourseListStore', () => {
 		const archived = [makeArchivedCourse()];
 
 		act(() => {
-			result.current.setCourses(courses, archived);
+			result.current.setCourses(courses, archived, false);
 		});
 
 		expect(result.current.courses).toEqual(courses);
@@ -100,7 +100,7 @@ describe('useCourseListStore', () => {
 		const { result } = renderHook(() => useCourseListStore());
 
 		act(() => {
-			result.current.setCourses([makeCourseDetailData()]);
+			result.current.setCourses([makeCourseDetailData()], undefined, false);
 		});
 
 		expect(result.current.archivedLoaded).toBe(false);
@@ -191,7 +191,7 @@ describe('useCourseListStore', () => {
 			result.current.setCourses([
 				makeCourseDetailData({ title: 'Algorithms and Data Structures', id: 1 }),
 				makeCourseDetailData({ title: 'Software Engineering', id: 2 }),
-			]);
+			], undefined, false);
 			result.current.setSearchTerm('algorithm');
 		});
 
@@ -207,7 +207,7 @@ describe('useCourseListStore', () => {
 			result.current.setCourses([
 				makeCourseDetailData({ id: 1 }),
 				makeCourseDetailData({ id: 2, title: 'Another' }),
-			]);
+			], undefined, false);
 		});
 
 		const { active } = result.current.filteredCourses();
@@ -221,7 +221,7 @@ describe('useCourseListStore', () => {
 			result.current.setCourses([
 				makeCourseDetailData({ title: 'Zebra Course', id: 1 }),
 				makeCourseDetailData({ title: 'Alpha Course', id: 2 }),
-			]);
+			], undefined, false);
 			result.current.setSortBy('title-asc');
 		});
 
@@ -237,7 +237,7 @@ describe('useCourseListStore', () => {
 			result.current.setCourses([
 				makeCourseDetailData({ title: 'Old Course', semester: 'WS23/24', id: 1 }),
 				makeCourseDetailData({ title: 'New Course', semester: 'SS25', id: 2 }),
-			]);
+			], undefined, false);
 			result.current.setSortBy('semester-desc');
 		});
 
@@ -252,7 +252,7 @@ describe('useCourseListStore', () => {
 			result.current.setCourses([
 				makeCourseDetailData({ title: 'Spring Course', semester: 'ss25', id: 1 }),
 				makeCourseDetailData({ title: 'Winter Course', semester: 'ws24/25', id: 2 }),
-			]);
+			], undefined, false);
 			result.current.setSemesterFilter('ss25');
 		});
 

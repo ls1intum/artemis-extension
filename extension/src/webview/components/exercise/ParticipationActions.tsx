@@ -25,7 +25,8 @@ export function isExerciseType(value: string | undefined): value is ExerciseType
 }
 
 export type ParticipationStatusType = 'not-started' | 'in-progress' | 'submitted' | 'graded';
-type WorkspaceStatus = 'clean' | 'dirty' | 'checking' | 'disconnected' | 'wrong-repo';
+/** `cloned`: not the workspace, but the displayed participation has a clone on disk. */
+type WorkspaceStatus = 'clean' | 'dirty' | 'unpushed' | 'checking' | 'disconnected' | 'wrong-repo' | 'cloned';
 
 interface ParticipationActionsProps {
   exerciseType: ExerciseType;
@@ -51,7 +52,6 @@ interface ParticipationActionsProps {
   className?: string;
   isPracticeMode?: boolean;
   isPracticeAvailable?: boolean;
-  showClonedNotice?: boolean;
   onOpenClonedRepository?: () => void;
   /**
    * EduIDE (managed Theia) mode. The exercise repo is already the workspace,
@@ -85,7 +85,6 @@ export function ParticipationActions({
   className,
   isPracticeMode = false,
   isPracticeAvailable = false,
-  showClonedNotice = false,
   onOpenClonedRepository,
   isManagedEnvironment = false,
 }: ParticipationActionsProps) {
@@ -135,8 +134,10 @@ export function ParticipationActions({
   const WORKSPACE_HINT_TEXT: Record<WorkspaceStatus, string> = {
     clean: 'Up to date',
     dirty: 'Uncommitted changes ready to submit',
+    unpushed: 'Committed, not yet submitted',
     disconnected: 'Repository not in your workspace',
     'wrong-repo': 'Repository not in your workspace',
+    cloned: 'Cloned, but not open in this window',
     checking: 'Checking workspace…',
   };
 
@@ -167,22 +168,9 @@ export function ParticipationActions({
     );
   };
 
-  // Cloned repository notice
-  const renderClonedNotice = () => {
-    if (!showClonedNotice) {return null;}
-    return (
-      <div className={styles.clonedRepoNotice}>
-        <span>Repository recently cloned.</span>{' '}
-        <Button variant="link" onClick={onOpenClonedRepository}>
-          Open now
-        </Button>
-      </div>
-    );
-  };
-
   // Submit button group
   const renderSubmitButtonGroup = () => {
-    const disabled = workspaceStatus !== 'dirty';
+    const disabled = workspaceStatus !== 'dirty' && workspaceStatus !== 'unpushed';
     return (
       <div className={styles.submitButtonGroup}>
         <Button variant="primary" onClick={onSubmit} fullWidth disabled={disabled}>
@@ -191,7 +179,8 @@ export function ParticipationActions({
         <button
           className={styles.uploadMessageBtn}
           onClick={onToggleCommitMessage}
-          disabled={disabled}
+          // A message only applies to a new commit, and only a dirty tree makes one.
+          disabled={workspaceStatus !== 'dirty'}
           aria-label="Add a commit message"
         >
           <Mail size={14} />
@@ -201,7 +190,7 @@ export function ParticipationActions({
   };
 
   const renderCommitMessageInput = () => {
-    if (!showCommitMessageInput) {return null;}
+    if (!showCommitMessageInput || workspaceStatus !== 'dirty') {return null;}
     return (
       <div className={styles.commitMessageInputContainer}>
         <input
@@ -249,9 +238,10 @@ export function ParticipationActions({
     }
 
     // Participated - the redesigned card.
-    const isWorkspaceConnected = workspaceStatus === 'clean' || workspaceStatus === 'dirty';
-    const showClone = workspaceStatus === 'disconnected' || workspaceStatus === 'wrong-repo';
-    const showSubmit = !showClone && canSubmit;
+    const isWorkspaceConnected = workspaceStatus === 'clean' || workspaceStatus === 'dirty' || workspaceStatus === 'unpushed';
+    const isCloned = workspaceStatus === 'cloned';
+    const isOutsideWorkspace = workspaceStatus === 'disconnected' || workspaceStatus === 'wrong-repo' || isCloned;
+    const showSubmit = !isOutsideWorkspace && canSubmit;
     const showAutoSaveWarning = hasUnsavedChanges && isWorkspaceConnected;
 
     return (
@@ -351,12 +341,15 @@ export function ParticipationActions({
         </div>
 
         {showAutoSaveWarning ? renderAutoSaveWarning() : renderWorkspaceHint()}
-        {renderClonedNotice()}
-
-        {showClone && (
+        {isOutsideWorkspace && (
           isManagedEnvironment ? (
             <Button variant="primary" onClick={onOpenInBrowser} fullWidth>
               Open in Artemis
+            </Button>
+          ) : isCloned ? (
+            // No Clone here or in the menu: cloning again would hit the existing folder.
+            <Button variant="primary" onClick={onOpenClonedRepository} fullWidth>
+              Open Folder
             </Button>
           ) : (
             <Button variant="primary" onClick={onClone} fullWidth>

@@ -74,6 +74,7 @@ export class NavigationCommandModule {
             }
 
             await this.processCourseDetails(detail, epoch);
+            void this.context.actionHandler.revalidateCourseDetail();
         } catch (error: unknown) {
             logger.viewError('View course details error:', error);
             vscode.window.showErrorMessage('Error viewing course details');
@@ -134,6 +135,7 @@ export class NavigationCommandModule {
     private handleBackToCourseDetails = async (_message: WebviewToExtensionMessage): Promise<void> => {
         this.context.appStateManager.backToCourseDetails();
         this.context.actionHandler.render();
+        void this.context.actionHandler.revalidateCourseDetail();
     };
 
     private handleShowStruggleDetection = async (_message: WebviewToExtensionMessage): Promise<void> => {

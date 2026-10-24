@@ -78,9 +78,9 @@ export class SubmissionSetupCommands {
 
         const login = (await this.currentLogin())?.trim();
         if (!login) {
-            // The clone path falls back to the literal "user" here. Renewal must
-            // not: that produces a URL which authenticates as nobody, and the
-            // student would be left with a remote that is broken in a new way.
+            // A guessed username produces a URL which authenticates as nobody,
+            // and the student would be left with a remote that is broken in a
+            // new way.
             this.sendResult('error', 'Could not read your Artemis account. Sign in again, then retry.');
             return;
         }

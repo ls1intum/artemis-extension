@@ -107,9 +107,58 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
             }
             this.deps.appStateManager.showCourseList();
             this.deps.render();
+            void this.revalidateCourses();
         } catch (error) {
             logger.error('Error loading courses', LogCategory.VIEW, error);
             vscode.window.showErrorMessage('Failed to load courses');
+        }
+    }
+
+    /**
+     * Asks the server for the course list again while the dashboard or the course list shows the
+     * cached one, and re-sends that view when the answer is in. Re-sending after a failure too is
+     * what lets the view say the courses could not be loaded.
+     */
+    public async revalidateCourses(): Promise<void> {
+        if (!this.deps.courseCatalog) { return; }
+        try {
+            await this.deps.courseCatalog.fetch({ revalidate: true });
+            const state = this.deps.appStateManager.currentState;
+            if (state === 'dashboard' || state === 'course-list') {
+                this.deps.sendInitData();
+            }
+        } catch (error) {
+            logger.error('Error revalidating courses', LogCategory.VIEW, error);
+        }
+    }
+
+    /**
+     * The course detail's counterpart of {@link revalidateCourses}: opening a course shows the
+     * exercises of the cached course list, so an exercise released since that list was fetched is
+     * missing until the list is asked for again.
+     *
+     * Only the exercises are taken over, like the Reload button does, so the open course keeps the
+     * fields it was opened with. Nothing is written once the student has moved on or the session
+     * changed while the request was open.
+     */
+    public async revalidateCourseDetail(): Promise<void> {
+        const catalog = this.deps.courseCatalog;
+        const appState = this.deps.appStateManager;
+        const courseId = appState.currentCourseData?.course.id;
+        if (!catalog || appState.currentState !== 'course-detail' || courseId === undefined) { return; }
+        const epoch = catalog.currentEpoch;
+        try {
+            await catalog.fetch({ revalidate: true });
+            const open = appState.currentCourseData;
+            if (catalog.currentEpoch !== epoch || appState.currentState !== 'course-detail' || open?.course.id !== courseId) {
+                return;
+            }
+            const exercises = catalog.dashboardExercises(courseId);
+            if (!exercises) { return; }
+            appState.showCourseDetail({ ...open, course: { ...open.course, exercises } });
+            this.deps.sendInitData();
+        } catch (error) {
+            logger.error('Error revalidating course detail', LogCategory.VIEW, error);
         }
     }
 
@@ -131,6 +180,9 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         }
 
         this.deps.render();
+        if (!options?.force) {
+            void this.revalidateCourses();
+        }
 
         // Check archived courses in the background.
         // Flag prevents sendDashboardInit from publishing workspace result too early.
@@ -169,6 +221,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
                 this.deps.appStateManager.seedAuthenticatedSession(userInfo);
                 this.deps.appStateManager.showCourseList();
                 this.deps.render();
+                void this.revalidateCourses();
                 return;
 
             case 'workspace-exercise': {
@@ -249,6 +302,7 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
         this.deps.courseCatalog?.upsertSupplemental({ kind: 'course', entry: { course: courseData.course } }, epoch);
 
         this.deps.render();
+        void this.revalidateCourseDetail();
     }
 
     public async openExerciseFullscreen(exerciseData: ExerciseDetailsResponse): Promise<void> {
@@ -291,7 +345,9 @@ export class WebviewNavigationFacade implements WebViewActionHandler {
             return [detail];
         });
 
-        this.deps.fullscreenPanelManager.openCourseListFullscreen(mappedCourses, archivedCourses);
+        this.deps.fullscreenPanelManager.openCourseListFullscreen(
+            mappedCourses, archivedCourses, this.deps.appStateManager.coursesUnavailable,
+        );
     }
 
     public async openJsonInEditor(data: Record<string, unknown>): Promise<void> {

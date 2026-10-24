@@ -44,6 +44,7 @@ describe('Message contracts: ExtensionToWebviewMessage types', () => {
             courses: [
                 { course: { id: 1, title: 'Test Course' } },
             ],
+            coursesUnavailable: false,
         } satisfies ExtMsg<'courseListInit'>;
 
         expect(msg.type).toBe('courseListInit');
@@ -620,6 +621,7 @@ describe('Message contracts: runtime shape validation', () => {
         const courseList: ExtensionToWebviewMessage = {
             type: 'courseListInit',
             courses: [],
+            coursesUnavailable: false,
         };
         const wsStatus: ExtensionToWebviewMessage = {
             type: 'updateWebSocketStatus',
@@ -698,6 +700,7 @@ describe('Message contracts: runtime shape validation', () => {
             courses: [
                 { course: { id: 1, title: 'Algorithms & Data Structures' } },
             ],
+            coursesUnavailable: false,
         };
 
         expect(reloadCmd).toMatchObject({ command: 'reloadCourses' });
@@ -718,11 +721,13 @@ describe('Message contracts: runtime shape validation', () => {
             type: 'courseListInit',
             courses: [],
             archivedCourses: [{ id: 1, title: 'Old Course' }],
+            coursesUnavailable: false,
         };
 
         const withoutArchived: ExtensionToWebviewMessage = {
             type: 'courseListInit',
             courses: [],
+            coursesUnavailable: false,
         };
 
         expect(withArchived.type).toBe('courseListInit');
