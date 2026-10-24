@@ -4,6 +4,8 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+## [1.2.5] - 2026-10-24
+
 ### Fixed
 
 - **A course you were enrolled in later shows up without a reload.** The extension asked for your courses once and kept that answer for the whole session, so a course added afterwards stayed hidden until you pressed Reload or restarted VS Code. The dashboard and the course list now ask again each time you open them or return to the Artemis sidebar, at most once a minute.
@@ -15,6 +17,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 - **Submit sends a commit a failed push left behind.** When a push failed (for example because Artemis refused your access), the commit stayed on your computer, and the next Submit said "No local changes detected to submit." The exercise now shows "Committed, not yet submitted" and Submit pushes that commit.
 - **Cloning says why it could not get your access token.** When Artemis refused the token, Clone and Copy Clone URL only said "Failed to obtain VCS access token." The message now includes Artemis's reason.
 - **Cloning stops when your account cannot be read.** If the extension could not load your Artemis login, it cloned with the placeholder username "user", which git then rejected with a misleading error. It now stops and says why.
+
+### Security
+
+- **Math rendering:** Updated KaTeX to 0.18.2. It ships inside the extension and renders the formulas in problem statements, so the fix only reaches you with this release. Addresses [CVE-2026-103923](https://nvd.nist.gov/vuln/detail/CVE-2026-103923), where a polluted object prototype could make KaTeX render untrusted links.
 
 ## [1.2.4] - 2026-10-14
 
