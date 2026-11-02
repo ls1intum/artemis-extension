@@ -29,7 +29,6 @@
     "tutoring"
   ],
   "extensionKind": [
-    "ui",
     "workspace"
   ],
   "activationEvents": [
@@ -234,8 +233,9 @@
         "artemis.defaultClonePath": {
           "type": "string",
           "default": "",
+          "scope": "machine",
           "description": "Default folder where all exercise repositories will be cloned automatically. Leave empty to choose a location each time.",
-          "markdownDescription": "**Default folder for exercise repositories**\n\nWhen set, all exercises will be automatically cloned to this folder without asking. Leave empty to choose manually each time.\n\nA leading `~` is expanded to your home folder. Example: `~/artemis-exercises`, `/Users/username/artemis-exercises` or `C:\\Users\\username\\artemis-exercises`"
+          "markdownDescription": "**Default folder for exercise repositories**\n\nWhen set, all exercises will be automatically cloned to this folder without asking. Leave empty to choose manually each time.\n\nA leading `~` is expanded to your home folder. Example: `~/artemis-exercises`, `/Users/username/artemis-exercises` or `C:\\Users\\username\\artemis-exercises`\n\nSet per machine: a remote window (WSL, SSH, Dev Container) has its own value."
         },
         "artemis.showSetDefaultClonePathPrompt": {
           "type": "boolean",
