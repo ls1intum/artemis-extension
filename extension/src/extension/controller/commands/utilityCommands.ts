@@ -6,7 +6,7 @@ import { selectParticipation } from '@shared/utils/participationSelection';
 
 import { LogCategory, logger } from '@extension/services/loggingService';
 import { ProblemStatementRenderService } from '@extension/services/problemStatementRenderService';
-import { extractErrorMessage, resolveServerUrl } from '@extension/utils';
+import { extractErrorMessage, isCancellationError, resolveServerUrl } from '@extension/utils';
 
 import type { CommandContext, CommandMap } from './types';
 
@@ -96,12 +96,17 @@ export class UtilityCommandModule {
      * The command is wrapped because this also ships to Theia/EduIDE, where
      * `workbench.action.reloadWindow` may not exist. A button that silently
      * does nothing is worse than a sentence telling the user to reload
-     * themselves.
+     * themselves. A working reload ends this extension host while the command is
+     * still pending, so its cancellation means success, not failure.
      */
     private handleReloadWindow = async (_message: WebviewToExtensionMessage): Promise<void> => {
         try {
             await vscode.commands.executeCommand('workbench.action.reloadWindow');
         } catch (error: unknown) {
+            if (isCancellationError(error)) {
+                logger.debug('Reload window cancelled the pending command', LogCategory.VIEW);
+                return;
+            }
             logger.error('Reload window command failed', LogCategory.VIEW, error);
             vscode.window.showErrorMessage(
                 'Could not reload automatically. Please reload the window to finish signing in.',

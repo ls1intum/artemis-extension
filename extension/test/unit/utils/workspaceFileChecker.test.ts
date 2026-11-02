@@ -271,8 +271,10 @@ suite('Workspace File Checker Test Suite', () => {
         );
     });
 
-    test('git status failure is swallowed by default so existing callers keep best-effort behaviour', async () => {
+    test('a folder outside any repository has no changes and logs no error', async () => {
+        // The file monitor polls this every 5 s, so an error per call floods the log.
         fs.rmSync(path.join(tempDir, '.git'), { recursive: true, force: true });
+        const loggerError = sinon.spy(logger, 'error');
 
         const mockFolder: vscode.WorkspaceFolder = {
             uri: vscode.Uri.file(tempDir),
@@ -280,8 +282,33 @@ suite('Workspace File Checker Test Suite', () => {
             index: 0
         };
 
-        const result = await checkWorkspaceFiles(mockFolder);
-        assert.strictEqual(result.hasChanges, false);
+        try {
+            const result = await checkWorkspaceFiles(mockFolder);
+            assert.strictEqual(result.hasChanges, false);
+            sinon.assert.notCalled(loggerError);
+        } finally {
+            loggerError.restore();
+        }
+    });
+
+    test('a git status failure inside a repository is swallowed by default but logged', async () => {
+        // git exits 128 here too; only the message tells it apart from "not a git repository".
+        fs.writeFileSync(path.join(tempDir, '.git', 'config'), '[core\n');
+        const loggerError = sinon.spy(logger, 'error');
+
+        const mockFolder: vscode.WorkspaceFolder = {
+            uri: vscode.Uri.file(tempDir),
+            name: 'test',
+            index: 0
+        };
+
+        try {
+            const result = await checkWorkspaceFiles(mockFolder);
+            assert.strictEqual(result.hasChanges, false);
+            sinon.assert.calledOnceWithMatch(loggerError, 'Git status failed');
+        } finally {
+            loggerError.restore();
+        }
     });
 
     test('should include files from unpushed commits', async () => {
