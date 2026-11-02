@@ -4,6 +4,10 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+### Fixed
+
+- **The extension works in WSL, SSH and Dev Container windows.** In a remote window the extension ran on your local computer instead of where your files are. It asked for Git on Windows even though WSL had it, and a clone folder picked inside WSL was created on the Windows drive instead (for example `C:\home\...`). The extension now runs where the workspace is and uses the Git and folders there. After updating, VS Code may show **Install in WSL: Ubuntu** (or the SSH or container equivalent) once. The default clone folder is now set separately for each machine, so a remote window has its own and a folder from Windows is no longer used inside WSL.
+
 ## [1.2.5] - 2026-10-24
 
 ### Fixed

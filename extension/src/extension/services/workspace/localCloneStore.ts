@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 import { selectParticipation } from '@shared/utils/participationSelection';
@@ -21,6 +22,8 @@ export interface LocalCloneStoreDeps {
     readOriginUrl: (fsPath: string) => Promise<string | null>;
     isDirectory: (fsPath: string) => Promise<boolean>;
     getDefaultClonePath: () => string;
+    /** The remote this extension host runs on, undefined in a local window. */
+    remoteHost: () => string | undefined;
 }
 
 const defaultDeps: LocalCloneStoreDeps = {
@@ -30,18 +33,29 @@ const defaultDeps: LocalCloneStoreDeps = {
         vscode.workspace.getConfiguration(VSCODE_CONFIG.ARTEMIS_SECTION)
             .get<string>(VSCODE_CONFIG.DEFAULT_CLONE_PATH_KEY, '').trim(),
     ),
+    // `remoteName` is only the remote type (`wsl`, `ssh-remote`); the hostname, read in this
+    // extension host, tells hosts of one type apart.
+    remoteHost: () => vscode.env.remoteName ? `${vscode.env.remoteName}:${os.hostname()}` : undefined,
 };
 
 /**
  * Where each exercise repository was cloned on this machine, so a clone that is
  * not the open workspace can still be offered for opening after a reload or a
- * restart. Paths are machine-local, hence globalState without sync.
+ * restart.
+ *
+ * globalState is shared by the local and remote windows of a profile, but a path
+ * belongs to one host, so each remote host keeps its own key and local windows keep
+ * the original one. Remotes of one type with the same hostname (several WSL distros
+ * by default) share a key and can forget each other's entries.
  */
 export class LocalCloneStore {
     private readonly deps: LocalCloneStoreDeps;
+    private readonly storageKey: string;
 
     constructor(private readonly memento: vscode.Memento, deps: Partial<LocalCloneStoreDeps> = {}) {
         this.deps = { ...defaultDeps, ...deps };
+        const remoteHost = this.deps.remoteHost();
+        this.storageKey = remoteHost ? `${STORAGE_KEY}@${remoteHost}` : STORAGE_KEY;
     }
 
     /** Never throws: a clone that worked must not be reported as failed over bookkeeping. */
@@ -56,7 +70,7 @@ export class LocalCloneStore {
             for (const evicted of keys.slice(0, Math.max(0, keys.length - MAX_ENTRIES))) {
                 delete clones[evicted];
             }
-            await this.memento.update(STORAGE_KEY, clones);
+            await this.memento.update(this.storageKey, clones);
         } catch (error: unknown) {
             logger.warn('Could not remember a local clone', LogCategory.SUBMISSION, error);
         }
@@ -125,14 +139,14 @@ export class LocalCloneStore {
         const clones = { ...this.read() };
         delete clones[key];
         try {
-            await this.memento.update(STORAGE_KEY, clones);
+            await this.memento.update(this.storageKey, clones);
         } catch (error: unknown) {
             logger.warn('Could not forget a stale local clone', LogCategory.SUBMISSION, error);
         }
     }
 
     private read(): CloneMap {
-        const stored = this.memento.get<unknown>(STORAGE_KEY);
+        const stored = this.memento.get<unknown>(this.storageKey);
         if (!stored || typeof stored !== 'object' || Array.isArray(stored)) {
             return {};
         }
