@@ -24,3 +24,13 @@ export function redactUrlCredentials(text: string): string {
 export function extractRedactedErrorMessage(error: unknown): string {
     return redactUrlCredentials(extractErrorMessage(error));
 }
+
+/**
+ * Whether `error` is VS Code's cancellation: the plain `Canceled` error the extension host gets for
+ * every call still pending when it shuts down (window reload, opening another folder). The API's
+ * `vscode.CancellationError` sets the same name and message, so it matches too. Same test as VS
+ * Code's own `isCancellationError`.
+ */
+export function isCancellationError(error: unknown): boolean {
+    return error instanceof Error && error.name === 'Canceled' && error.message === 'Canceled';
+}

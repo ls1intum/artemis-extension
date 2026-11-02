@@ -16,7 +16,7 @@ import {
     cloneRepositoryProgrammatic as defaultCloneRepositoryProgrammatic,
     getTheiaEnvironment as defaultGetTheiaEnvironment,
 } from '@extension/theia';
-import { expandHomePath, extractRedactedErrorMessage, VSCODE_CONFIG } from '@extension/utils';
+import { expandHomePath, extractRedactedErrorMessage, isCancellationError, VSCODE_CONFIG } from '@extension/utils';
 
 import type { CommandContext, CommandMap } from './types';
 
@@ -262,9 +262,19 @@ export class RepositoryCloneCommands {
                     await openInThisWindow(repoPath);
                 }
             }).then(undefined, (error: unknown) => {
+                // Opening the clone ends this extension host, and so does a reload while the toast
+                // is open: both reject what is still pending with a cancellation.
+                if (isCancellationError(error)) {
+                    logger.debug('Open cloned repository cancelled by the window closing', LogCategory.SUBMISSION);
+                    return;
+                }
                 logger.error('Open cloned repository error:', LogCategory.SUBMISSION, error);
             });
         } catch (error: unknown) {
+            if (isCancellationError(error)) {
+                logger.debug('Clone cancelled by the window closing', LogCategory.SUBMISSION);
+                return;
+            }
             // A clone runs against the tokenised URL, and git quotes it back in
             // the failure, so neither the log nor the notification may carry the
             // raw text.
@@ -317,6 +327,11 @@ export class RepositoryCloneCommands {
 
             await openInThisWindow(repoPath);
         } catch (error: unknown) {
+            // A successful open ends this extension host while the command is still pending.
+            if (isCancellationError(error)) {
+                logger.debug('Open cloned repository cancelled by the window closing', LogCategory.SUBMISSION);
+                return;
+            }
             logger.error('Open cloned repository error:', LogCategory.SUBMISSION, error);
             vscode.window.showErrorMessage('Failed to open cloned repository.');
         }

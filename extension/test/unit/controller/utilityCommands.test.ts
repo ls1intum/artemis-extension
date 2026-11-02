@@ -6,6 +6,7 @@ import { WebviewCmd } from '@shared/messageContracts';
 
 import type { CommandContext } from '@extension/controller/commands/types';
 import { UtilityCommandModule } from '@extension/controller/commands/utilityCommands';
+import { logger } from '@extension/services/loggingService';
 import { initializeTheiaContext } from '@extension/theia/theiaEnvironment';
 
 suite('UtilityCommandModule.handleOpenWebsite', () => {
@@ -113,5 +114,50 @@ suite('UtilityCommandModule.handleSetServerUrl', () => {
 
         assert.ok(shown.calledOnce);
         assert.match(shown.firstCall.args[0] as string, /no such command/);
+    });
+});
+
+suite('UtilityCommandModule.handleReloadWindow', () => {
+    let sandbox: sinon.SinonSandbox;
+    let executeCommand: sinon.SinonStub;
+    let showErrorMessage: sinon.SinonStub;
+    let loggerError: sinon.SinonSpy;
+
+    function dispatchReload(): Promise<void> {
+        const mod = new UtilityCommandModule({} as CommandContext);
+        return mod.getHandlers()[WebviewCmd.ReloadWindow]({
+            type: 'command',
+            command: WebviewCmd.ReloadWindow,
+        } as never);
+    }
+
+    setup(() => {
+        sandbox = sinon.createSandbox();
+        executeCommand = sandbox.stub(vscode.commands, 'executeCommand');
+        showErrorMessage = sandbox.stub(vscode.window, 'showErrorMessage').resolves(undefined as never);
+        loggerError = sandbox.spy(logger, 'error');
+    });
+
+    teardown(() => {
+        sandbox.restore();
+    });
+
+    test('a reload that ends this extension host is not reported as a failure', async () => {
+        executeCommand.rejects(Object.assign(new Error('Canceled'), { name: 'Canceled' }));
+
+        await dispatchReload();
+
+        sinon.assert.calledOnceWithExactly(executeCommand, 'workbench.action.reloadWindow');
+        sinon.assert.notCalled(loggerError);
+        sinon.assert.notCalled(showErrorMessage);
+    });
+
+    test('a reload command that fails tells the user to reload themselves', async () => {
+        executeCommand.rejects(new Error("command 'workbench.action.reloadWindow' not found"));
+
+        await dispatchReload();
+
+        sinon.assert.calledOnce(loggerError);
+        sinon.assert.calledOnce(showErrorMessage);
     });
 });

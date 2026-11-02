@@ -10,6 +10,7 @@ import { WebviewCmd } from '@shared/messageContracts';
 import type { RepositoryCloneCommandsDeps } from '@extension/controller/commands/repositoryCloneCommands';
 import { RepositoryCloneCommands } from '@extension/controller/commands/repositoryCloneCommands';
 import type { CommandContext } from '@extension/controller/commands/types';
+import { logger } from '@extension/services/loggingService';
 import type { GitService } from '@extension/services/workspace';
 
 suite('RepositoryCloneCommands', () => {
@@ -588,5 +589,130 @@ suite('RepositoryCloneCommands', () => {
             return typeof arg === 'string' && arg.toLowerCase().includes('clone cancelled');
         });
         assert.ok(cancelledNotice, 'Expected a "Clone cancelled" information message');
+    });
+
+    suite('a window switch or reload is not an error', () => {
+        // VS Code rejects pending calls with this error when the extension host stops.
+        const canceled = () => Object.assign(new Error('Canceled'), { name: 'Canceled' });
+        const cloneMessage = {
+            type: 'command',
+            command: WebviewCmd.CloneRepository,
+            payload: { participationId: 42, repositoryUri: 'https://artemis.example.com/git/foo.git', exerciseTitle: 'Foo' },
+        } as never;
+        const openClonedMessage = {
+            type: 'command',
+            command: WebviewCmd.OpenClonedRepository,
+            payload: { repositoryUri: 'https://artemis.example.com/git/foo.git' },
+        } as never;
+        let loggerError: sinon.SinonSpy;
+
+        setup(() => {
+            loggerError = sandbox.spy(logger, 'error');
+        });
+
+        function useDefaultClonePath(): void {
+            configValues.set('defaultClonePath', '/tmp/clones');
+            configValues.set('showSetDefaultClonePathPrompt', false);
+            statAsync.resolves({ isDirectory: () => true } as fs.Stats);
+        }
+
+        test('Open Folder on the card logs nothing when opening the clone ends this extension host', async () => {
+            executeCommand.rejects(canceled());
+            const { ctx } = buildContext({ findLocalClone: sandbox.stub().resolves('/tmp/clones/foo') });
+            const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.OpenClonedRepository](openClonedMessage);
+
+            sinon.assert.notCalled(loggerError);
+            sinon.assert.notCalled(showErrorMessage);
+        });
+
+        test('Open Folder on the card still reports a real failure', async () => {
+            executeCommand.rejects(new Error('boom'));
+            const { ctx } = buildContext({ findLocalClone: sandbox.stub().resolves('/tmp/clones/foo') });
+            const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.OpenClonedRepository](openClonedMessage);
+
+            sinon.assert.calledOnce(loggerError);
+            sinon.assert.calledOnce(showErrorMessage);
+        });
+
+        test('Open Folder after a clone logs nothing when opening the clone ends this extension host', async () => {
+            useDefaultClonePath();
+            showInformationMessage.resolves('Open Folder' as never);
+            executeCommand.rejects(canceled());
+            const { ctx } = buildContext();
+            const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.CloneRepository](cloneMessage);
+            await new Promise(resolve => setImmediate(resolve));
+
+            sinon.assert.calledOnce(executeCommand);
+            sinon.assert.notCalled(loggerError);
+        });
+
+        test('Open Folder after a clone still logs a real failure to open', async () => {
+            useDefaultClonePath();
+            showInformationMessage.resolves('Open Folder' as never);
+            executeCommand.rejects(new Error('window refused'));
+            const { ctx } = buildContext();
+            const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.CloneRepository](cloneMessage);
+            await new Promise(resolve => setImmediate(resolve));
+
+            sinon.assert.calledWithMatch(loggerError, 'Open cloned repository error:');
+        });
+
+        test('the post-clone toast still logs a real failure', async () => {
+            useDefaultClonePath();
+            showInformationMessage.rejects(new Error('boom'));
+            const { ctx } = buildContext();
+            const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.CloneRepository](cloneMessage);
+            await new Promise(resolve => setImmediate(resolve));
+
+            sinon.assert.calledWithMatch(loggerError, 'Open cloned repository error:');
+        });
+
+        test('the post-clone toast logs nothing when a reload cancels it', async () => {
+            useDefaultClonePath();
+            showInformationMessage.rejects(canceled());
+            const { ctx } = buildContext();
+            const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.CloneRepository](cloneMessage);
+            await new Promise(resolve => setImmediate(resolve));
+
+            sinon.assert.notCalled(loggerError);
+        });
+
+        test('a clone whose folder question is cancelled by a reload logs nothing and shows no failure', async () => {
+            showInformationMessage
+                .withArgs(sinon.match(/Where should exercise repositories be cloned/))
+                .rejects(canceled());
+            const { ctx } = buildContext();
+            const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.CloneRepository](cloneMessage);
+
+            sinon.assert.notCalled(loggerError);
+            sinon.assert.notCalled(showErrorMessage);
+        });
+
+        test('a clone whose folder question fails for another reason still reports it', async () => {
+            showInformationMessage
+                .withArgs(sinon.match(/Where should exercise repositories be cloned/))
+                .rejects(new Error('boom'));
+            const { ctx } = buildContext();
+            const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.CloneRepository](cloneMessage);
+
+            sinon.assert.calledWithMatch(loggerError, 'Clone repository error:');
+            sinon.assert.calledWithMatch(showErrorMessage, 'Failed to clone repository: boom');
+        });
     });
 });
