@@ -652,6 +652,31 @@ suite('RepositoryCloneCommands', () => {
             sinon.assert.notCalled(loggerError);
         });
 
+        test('Open Folder after a clone still logs a real failure to open', async () => {
+            useDefaultClonePath();
+            showInformationMessage.resolves('Open Folder' as never);
+            executeCommand.rejects(new Error('window refused'));
+            const { ctx } = buildContext();
+            const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.CloneRepository](cloneMessage);
+            await new Promise(resolve => setImmediate(resolve));
+
+            sinon.assert.calledWithMatch(loggerError, 'Open cloned repository error:');
+        });
+
+        test('the post-clone toast still logs a real failure', async () => {
+            useDefaultClonePath();
+            showInformationMessage.rejects(new Error('boom'));
+            const { ctx } = buildContext();
+            const mod = new RepositoryCloneCommands(ctx, makeGitService(true), makeDeps());
+
+            await mod.getHandlers()[WebviewCmd.CloneRepository](cloneMessage);
+            await new Promise(resolve => setImmediate(resolve));
+
+            sinon.assert.calledWithMatch(loggerError, 'Open cloned repository error:');
+        });
+
         test('the post-clone toast logs nothing when a reload cancels it', async () => {
             useDefaultClonePath();
             showInformationMessage.rejects(canceled());
