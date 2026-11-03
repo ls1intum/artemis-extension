@@ -229,6 +229,15 @@ async function collectDirtyFiles(
     }
 }
 
+/**
+ * git's answer for a folder outside any repository, read off the `execFile` error. Exit 128 alone
+ * is not enough: a malformed config or dubious ownership fail with it too, and those are errors.
+ */
+function isNotARepository(error: unknown): boolean {
+    const { code, stderr } = error as { code?: unknown; stderr?: unknown };
+    return code === 128 && String(stderr).split('\n', 1)[0].startsWith('fatal: not a git repository');
+}
+
 export async function checkWorkspaceFiles(
     workspaceFolder?: vscode.WorkspaceFolder,
     options: FileCheckOptions = {}
@@ -265,21 +274,31 @@ export async function checkWorkspaceFiles(
 
     // The NUL-terminated porcelain format (-z) leaves paths unquoted and lists
     // rename/copy destinations explicitly, so paths with spaces survive intact.
+    // The C locale keeps git's messages English for `isNotARepository`; the env
+    // is merged so proxy, credential and PATH settings still apply.
     try {
         const { stdout: statusOutput } = await execFileAsync('git', ['status', '--porcelain=v1', '-z'], {
             cwd: folder.uri.fsPath,
-            timeout: 5000
+            timeout: 5000,
+            env: { ...process.env, LC_ALL: 'C' }
         });
 
         for (const file of parseGitStatusZ(statusOutput)) {
             allFiles.add(file);
         }
     } catch (error) {
-        logger.error('Git status failed', LogCategory.FILE_MONITOR, error);
         // Submit opts into fail-fast so a locked/unreadable repo is not misread
         // as "no changes"; all other callers keep the best-effort behaviour.
         if (throwOnGitError) {
+            logger.error('Git status failed', LogCategory.FILE_MONITOR, error);
             throw error;
+        }
+        // A folder outside any repository is a normal state, and the file
+        // monitor asks every few seconds.
+        if (isNotARepository(error)) {
+            logger.debug('Not a git repository, no git changes', LogCategory.FILE_MONITOR);
+        } else {
+            logger.error('Git status failed', LogCategory.FILE_MONITOR, error);
         }
     }
 

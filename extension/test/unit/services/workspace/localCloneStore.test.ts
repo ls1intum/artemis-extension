@@ -13,11 +13,12 @@ suite('LocalCloneStore', () => {
     let directories: Set<string>;
     let defaultClonePath: string;
 
-    function makeStore(): LocalCloneStore {
+    function makeStore(remoteHost?: string): LocalCloneStore {
         return new LocalCloneStore(memento, {
             readOriginUrl: async (fsPath) => origins.get(fsPath) ?? null,
             isDirectory: async (fsPath) => directories.has(fsPath),
             getDefaultClonePath: () => defaultClonePath,
+            remoteHost: () => remoteHost,
         });
     }
 
@@ -119,6 +120,56 @@ suite('LocalCloneStore', () => {
         const stored = memento.get<Record<string, string>>('artemis.localClones') ?? {};
         assert.ok(Object.values(stored).includes('/work/new'));
         assert.ok(!Object.values(stored).includes('/work/p-0'));
+    });
+
+    suite('per host', () => {
+        const LOCAL_KEY = 'artemis.localClones';
+        const REMOTE_KEY = 'artemis.localClones@wsl:box';
+        const NORMALIZED = 'https://artemis.example.com/git/prog/prog-alice';
+
+        test('a local window reads entries stored before hosts had their own key', async () => {
+            addClone('/work/prog', REPO);
+            await memento.update(LOCAL_KEY, { [NORMALIZED]: '/work/prog' });
+
+            assert.strictEqual(await makeStore().find(REPO), '/work/prog');
+        });
+
+        test('a remote window keeps its clones under its own key', async () => {
+            await makeStore('wsl:box').remember(REPO, '/home/alice/prog');
+
+            assert.deepStrictEqual(memento.get(REMOTE_KEY), { [NORMALIZED]: '/home/alice/prog' });
+            assert.strictEqual(memento.get(LOCAL_KEY), undefined);
+        });
+
+        test('a stale remote entry is forgotten without touching the local one', async () => {
+            addClone('C:\\work\\prog', REPO);
+            await memento.update(LOCAL_KEY, { [NORMALIZED]: 'C:\\work\\prog' });
+            await memento.update(REMOTE_KEY, { [NORMALIZED]: '/home/alice/gone' });
+
+            assert.strictEqual(await makeStore('wsl:box').find(REPO), undefined);
+            assert.deepStrictEqual(memento.get(REMOTE_KEY), {});
+            assert.deepStrictEqual(memento.get(LOCAL_KEY), { [NORMALIZED]: 'C:\\work\\prog' });
+        });
+
+        test('a stale local entry is forgotten without touching the remote one', async () => {
+            addClone('/home/alice/prog', REPO);
+            await memento.update(LOCAL_KEY, { [NORMALIZED]: 'C:\\work\\gone' });
+            await memento.update(REMOTE_KEY, { [NORMALIZED]: '/home/alice/prog' });
+
+            assert.strictEqual(await makeStore().find(REPO), undefined);
+            assert.deepStrictEqual(memento.get(LOCAL_KEY), {});
+            assert.deepStrictEqual(memento.get(REMOTE_KEY), { [NORMALIZED]: '/home/alice/prog' });
+        });
+
+        test('the same repository cloned locally and remotely keeps both folders', async () => {
+            addClone('C:\\work\\prog', REPO);
+            addClone('/home/alice/prog', REPO);
+            await makeStore().remember(REPO, 'C:\\work\\prog');
+            await makeStore('wsl:box').remember(REPO, '/home/alice/prog');
+
+            assert.strictEqual(await makeStore().find(REPO), 'C:\\work\\prog');
+            assert.strictEqual(await makeStore('wsl:box').find(REPO), '/home/alice/prog');
+        });
     });
 
     suite('hasCloneOfDisplayedParticipation', () => {
