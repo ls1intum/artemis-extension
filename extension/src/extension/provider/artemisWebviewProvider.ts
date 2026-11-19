@@ -486,6 +486,9 @@ export class ArtemisWebviewProvider extends BaseWebviewProvider implements vscod
                                 && this._appStateManager.currentState === 'exercise-detail'
                                 && this._appStateManager.currentExerciseData?.exercise?.id === exerciseId) {
                                 this._appStateManager.showExerciseDetail(freshData);
+                                // showExerciseDetail drops the cached render, and the init below would
+                                // otherwise tell the webview to forget the one it already has.
+                                void this._ssrCoordinator.scheduleRender();
                             }
                         }
                     }
