@@ -417,7 +417,6 @@ suite('IrisWebSocketSessionClient Safety Features', () => {
     let authManager: AuthManager;
     let sessionManager: IrisWebSocketSessionClient;
     let context: MockExtensionContext;
-    let clock: sinon.SinonFakeTimers | undefined;
 
     setup(async () => {
         context = new MockExtensionContext();
@@ -435,9 +434,6 @@ suite('IrisWebSocketSessionClient Safety Features', () => {
     });
 
     teardown(async () => {
-        if (clock) {
-            clock.restore();
-        }
         if (sessionManager) {
             sessionManager.dispose();
         }

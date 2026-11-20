@@ -2,7 +2,7 @@
   "name": "iris-thaumantias",
   "displayName": "Artemis - TUM",
   "description": "Artemis brings interactive learning to life with instant, individual feedback on programming exercises, quizzes, modeling tasks, and more. This VS Code extension integrates Iris, an LLM-based virtual assistant that supports students with instant answers about exercises, lectures, and learning performance. Iris provides context-aware, personalized assistance for programming exercises, encouraging independent problem-solving through subtle hints and guiding questions instead of giving full solutions.",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "publisher": "aet-tum",
   "license": "MIT",
   "icon": "media/artemis-blue.png",
@@ -409,10 +409,10 @@
     "@types/sinon": "21.0.0",
     "@types/vscode": "1.93.0",
     "@types/ws": "8.18.1",
-    "@typescript-eslint/eslint-plugin": "8.58.0",
-    "@typescript-eslint/parser": "8.58.0",
+    "@typescript-eslint/eslint-plugin": "8.73.0",
+    "@typescript-eslint/parser": "8.73.0",
     "@vitejs/plugin-react": "5.2.0",
-    "@vitest/coverage-v8": "4.1.11",
+    "@vitest/coverage-v8": "4.1.12",
     "@vscode/test-cli": "0.0.15",
     "@vscode/test-electron": "3.1.0",
     "axe-core": "4.13.0",
@@ -420,9 +420,9 @@
     "esbuild-css-modules-plugin": "3.1.5",
     "esbuild-plugin-inline-worker": "0.1.1",
     "esbuild-visualizer": "0.7.0",
-    "eslint": "10.8.1",
+    "eslint": "10.15.0",
     "eslint-plugin-simple-import-sort": "13.0.0",
-    "happy-dom": "20.14.5",
+    "happy-dom": "21.0.4",
     "husky": "9.1.7",
     "knip": "5.88.1",
     "lint-staged": "16.4.0",
@@ -434,8 +434,8 @@
     "tsx": "4.23.13",
     "typescript": "5.9.3",
     "typescript-plugin-css-modules": "5.2.0",
-    "vitest": "4.1.11",
-    "vscode-extension-tester": "8.26.1"
+    "vitest": "4.1.12",
+    "vscode-extension-tester": "8.29.0"
   },
   "dependencies": {
     "@stomp/stompjs": "7.3.0",
@@ -446,9 +446,18 @@
     "react-dom": "18.3.1",
     "recharts": "3.8.0",
     "shiki": "3.23.0",
-    "streamdown": "2.5.0",
+    "streamdown": "2.8.0",
     "use-stick-to-bottom": "1.1.6",
     "ws": "8.21.3",
     "zustand": "5.0.14"
+  },
+  "overrides": {
+    "minimatch": "11.0.9",
+    "stylus": {
+      "minimatch": "3.1.5"
+    },
+    "mocha": {
+      "serialize-javascript": "7.1.4"
+    }
   }
 }

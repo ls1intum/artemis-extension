@@ -63,6 +63,23 @@ describe('LiveTailer (deterministic)', () => {
         ]);
     });
 
+    it('detects rotation to a larger file and re-reads it from line 1', async () => {
+        fs.writeFileSync(filePath, '{"old":1}\n');
+        const got: Array<{ line: string; lineNo: number }> = [];
+        const t = new LiveTailer(filePath);
+        t.subscribe((line, lineNo) => got.push({ line, lineNo }));
+        await t.pollOnce();
+        const replacement = path.join(tmpDir, 'events.jsonl.new');
+        fs.writeFileSync(replacement, '{"new":1}\n{"new":2}\n');
+        fs.renameSync(replacement, filePath);
+        await t.pollOnce();
+        expect(got).toEqual([
+            { line: '{"old":1}', lineNo: 1 },
+            { line: '{"new":1}', lineNo: 1 },
+            { line: '{"new":2}', lineNo: 2 },
+        ]);
+    });
+
     it('handles UTF-8 multi-byte characters split across chunks', async () => {
         const got: string[] = [];
         const t = new LiveTailer(filePath, { maxChunkBytes: 2 });

@@ -4,6 +4,12 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+## [1.2.8] - 2026-11-20
+
+### Security
+
+- **Dependencies are updated to clear the open security alerts.** None of the vulnerable packages was part of the installed extension.
+
 ## [1.2.7] - 2026-11-20
 
 ### Fixed

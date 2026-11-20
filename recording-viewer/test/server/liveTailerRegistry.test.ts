@@ -66,6 +66,22 @@ describe('LiveTailerRegistry', () => {
         handle.release();
     });
 
+    it('seeds the cursor before a partial last line so the finished line emits whole', async () => {
+        const eventsPath = path.join(tmpDir, 'sess-1/events.jsonl');
+        fs.writeFileSync(eventsPath, '{"a":1}\n{"a":');
+        const reg = new LiveTailerRegistry(tmpDir);
+        const handle = reg.acquire('sess-1');
+        expect(handle.tailer.currentLineNo()).toBe(1);
+        const got: Array<{ line: string; lineNo: number }> = [];
+        handle.tailer.subscribe((line, lineNo) => got.push({ line, lineNo }));
+        await handle.tailer.pollOnce();
+        expect(got).toEqual([]);
+        fs.appendFileSync(eventsPath, '2}\n');
+        await handle.tailer.pollOnce();
+        expect(got).toEqual([{ line: '{"a":2}', lineNo: 2 }]);
+        handle.release();
+    });
+
     it('disposeAll() stops all tailers and clears the registry', () => {
         fs.mkdirSync(path.join(tmpDir, 'sess-2'));
         fs.writeFileSync(path.join(tmpDir, 'sess-2/events.jsonl'), '');
