@@ -29,33 +29,51 @@ export class LiveTailerRegistry {
             // tail from disk; the shared tailer only broadcasts lines that
             // arrive AFTER this construction-time cursor.
             //
-            // Doing this synchronously (statSync + sync newline count)
+            // Doing this synchronously (fstat + sync newline count)
             // closes the race between construction and the first poll: any
             // line written in that window would otherwise be skipped (if it
             // landed before the first poll's first-time seek) or
             // double-broadcast (if it landed after the seek but before
             // subscribers attached).
+            //
+            // The recorder keeps appending while we read, so newlines are
+            // counted only in the bytes the offset covers: the tailer
+            // requires its line number to match its offset. The offset stops
+            // after the last newline, so a record still being written is
+            // re-read and buffered by the tailer instead of emitted as a
+            // suffix.
             let initialOffset = 0;
             let initialLineNo = 0;
             let initialMtimeNs: bigint = 0n;
+            let initialDev: bigint | undefined;
+            let initialIno: bigint | undefined;
+            let fd: number | undefined;
             try {
-                const stat = fs.statSync(eventsPath, { bigint: true });
+                fd = fs.openSync(eventsPath, 'r');
+                const stat = fs.fstatSync(fd, { bigint: true });
                 initialMtimeNs = stat.mtimeNs;
-                if (stat.size > 0n) {
-                    const buf = fs.readFileSync(eventsPath);
-                    let count = 0;
-                    for (let i = 0; i < buf.length; i++) {
-                        if (buf[i] === 0x0A) count++;
-                    }
-                    initialOffset = Number(stat.size);
-                    initialLineNo = count;
+                initialDev = stat.dev;
+                initialIno = stat.ino;
+                const buf = Buffer.alloc(Number(stat.size));
+                const read = fs.readSync(fd, buf, 0, buf.length, 0);
+                let count = 0;
+                for (let i = 0; i < read; i++) {
+                    if (buf[i] === 0x0A) count++;
                 }
-            } catch { /* file missing, leave the cursor at 0/0 */ }
+                initialOffset = buf.subarray(0, read).lastIndexOf(0x0A) + 1;
+                initialLineNo = count;
+            } catch {
+                /* file missing, leave the cursor at 0/0 */
+            } finally {
+                if (fd !== undefined) fs.closeSync(fd);
+            }
             const tailer = new LiveTailer(eventsPath, {
                 ...this._opts,
                 initialOffset,
                 initialLineNo,
                 initialMtimeNs,
+                initialDev,
+                initialIno,
             });
             tailer.start();
             entry = { tailer, refCount: 0 };
