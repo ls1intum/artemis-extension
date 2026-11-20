@@ -1,4 +1,3 @@
-import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import { StringDecoder } from 'string_decoder';
 
@@ -105,33 +104,36 @@ export class LiveTailer {
     }
 
     private async _doPoll(): Promise<void> {
-        let stat: fs.BigIntStats;
-        try { stat = await fsPromises.stat(this._filePath, { bigint: true }); }
+        // Stat through the open handle, not the path: a rotation between a
+        // path stat and the open would pair the old file's size with the new
+        // file's bytes.
+        let fd: fsPromises.FileHandle;
+        try { fd = await fsPromises.open(this._filePath, 'r'); }
         catch { return; }
-        const size = Number(stat.size);
-        const mtimeNs = stat.mtimeNs;
-        // Truncation/rotation: shrunk file, OR same/smaller file that was
-        // rewritten since we last saw it (mtime advanced past our marker).
-        const rewritten = mtimeNs > this._lastMtimeNs && size <= this._offset;
-        if (size < this._offset || rewritten) {
-            // Truncation/rotation forces a re-read from the start. Pre-seeded
-            // initialOffset/initialLineNo are intentionally discarded here:
-            // the file has been replaced, so the construction-time cursor
-            // no longer corresponds to any real file content.
-            this._offset = 0;
-            this._lineNo = 0;
-            this._partial = '';
-            this._decoder = new StringDecoder('utf8');
-        }
-        this._lastMtimeNs = mtimeNs;
-
-        if (size === this._offset) return;
-
-        const start = this._offset;
-        const end = Math.min(size, start + this._maxChunkBytes);
-        const length = end - start;
-        const fd = await fsPromises.open(this._filePath, 'r');
         try {
+            const stat = await fd.stat({ bigint: true });
+            const size = Number(stat.size);
+            const mtimeNs = stat.mtimeNs;
+            // Truncation/rotation: shrunk file, OR same/smaller file that was
+            // rewritten since we last saw it (mtime advanced past our marker).
+            const rewritten = mtimeNs > this._lastMtimeNs && size <= this._offset;
+            if (size < this._offset || rewritten) {
+                // Truncation/rotation forces a re-read from the start. Pre-seeded
+                // initialOffset/initialLineNo are intentionally discarded here:
+                // the file has been replaced, so the construction-time cursor
+                // no longer corresponds to any real file content.
+                this._offset = 0;
+                this._lineNo = 0;
+                this._partial = '';
+                this._decoder = new StringDecoder('utf8');
+            }
+            this._lastMtimeNs = mtimeNs;
+
+            if (size === this._offset) return;
+
+            const start = this._offset;
+            const end = Math.min(size, start + this._maxChunkBytes);
+            const length = end - start;
             const buf = Buffer.alloc(length);
             let read = 0;
             while (read < length) {

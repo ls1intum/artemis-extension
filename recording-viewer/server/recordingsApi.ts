@@ -932,12 +932,9 @@ export function createRecordingsApi(config: AppConfig): ApiHandler {
                     if (headerBuffer.length < needed) return; // wait for more data
 
                     headerValidated = true;
-                    let valid = true;
-                    if (ext === 'mp4') {
-                        valid = headerBuffer.toString('ascii', 4, 8) === 'ftyp';
-                    } else {
-                        valid = headerBuffer[0] === 0x1A && headerBuffer[1] === 0x45 && headerBuffer[2] === 0xDF && headerBuffer[3] === 0xA3;
-                    }
+                    const valid = ext === 'mp4'
+                        ? headerBuffer.toString('ascii', 4, 8) === 'ftyp'
+                        : headerBuffer[0] === 0x1A && headerBuffer[1] === 0x45 && headerBuffer[2] === 0xDF && headerBuffer[3] === 0xA3;
                     if (!valid) {
                         rejected = true;
                         cleanup();

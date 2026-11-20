@@ -7,6 +7,8 @@ const path = require('path');
 
 const root = path.join(__dirname, '..');
 const staging = path.join(root, 'build', 'desktop-pkg');
+// `run` goes through a shell, so paths in a command are relative to its cwd:
+// an absolute path would split into several arguments if the checkout path has a space.
 const run = (cmd, opts = {}) => execSync(cmd, { stdio: 'inherit', cwd: root, ...opts });
 
 // Build the full variant (recorder off; writes dist/ + non-suffixed metafiles).
@@ -37,7 +39,7 @@ for (const doc of ['README.md', 'CHANGELOG.md']) {
 }
 
 // Generate the clean Desktop manifest into staging (drops recorder + consent, keeps struggle).
-run(`node scripts/generate-clean-manifest.js ${path.join(staging, 'package.json')} --profile=desktop`);
+run(`node scripts/generate-clean-manifest.js ${path.relative(root, path.join(staging, 'package.json'))} --profile=desktop`);
 
 // Package from staging. Nothing rebuilds: the staged manifest has no vscode:prepublish.
 const pkg = JSON.parse(fs.readFileSync(path.join(staging, 'package.json'), 'utf8'));
@@ -47,5 +49,5 @@ const hasVsce = (() => {
     try { execSync('vsce --version', { stdio: 'ignore' }); return true; } catch { return false; }
 })();
 const vsceCmd = hasVsce ? 'vsce' : 'npx --yes @vscode/vsce@3.9.1';
-run(`${vsceCmd} package --no-dependencies --out ${vsixOut}`, { cwd: staging });
+run(`${vsceCmd} package --no-dependencies --out ${path.relative(staging, vsixOut)}`, { cwd: staging });
 console.log(`[package-desktop] wrote ${vsixOut}`);

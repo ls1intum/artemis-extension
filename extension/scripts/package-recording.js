@@ -7,6 +7,8 @@ const path = require('path');
 
 const root = path.join(__dirname, '..');
 const env = { ...process.env, IRIS_BUILD_VARIANT: 'local-recording' };
+// `run` goes through a shell, so paths in a command are relative to its cwd:
+// an absolute path would split into several arguments if the checkout path has a space.
 const run = (cmd, opts = {}) => execSync(cmd, { stdio: 'inherit', cwd: root, env, ...opts });
 
 // check-types + lint:src + esbuild --production, variant from env.
@@ -21,5 +23,5 @@ const vsceCmd = hasVsce ? 'vsce' : 'npx --yes @vscode/vsce@3.9.1';
 // package, which inherits `env` and stays local-recording.
 const pkg = JSON.parse(require('fs').readFileSync(path.join(root, 'package.json'), 'utf8'));
 const vsixOut = path.join(root, `${pkg.name}-${pkg.version}-recording.vsix`);
-run(`${vsceCmd} package --no-dependencies --out ${vsixOut}`);
+run(`${vsceCmd} package --no-dependencies --out ${path.relative(root, vsixOut)}`);
 console.log(`[package-recording] wrote ${vsixOut}`);
