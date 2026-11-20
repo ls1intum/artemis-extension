@@ -295,7 +295,7 @@ The store listings show the repo-root `README.md` and `CHANGELOG.md`. Both packa
 
 ## Releasing
 
-`.github/workflows/release-openvsx.yml` ("Release to Open VSX and VS Marketplace") is started by hand from `main` or `dev`. It checks the branch, that the version matches `extension/package.json`, that `CHANGELOG.md` has a section for it and that the commit has a green `CI gate`. Then it builds both packages with build provenance, publishes to Open VSX and the VS Marketplace, tags the commit and creates a GitHub release from the changelog section. After a successful Open VSX publish it dispatches EduIDE's `artemis_extension_auto_update.yml`, which opens a PR there bumping the bundled extension. Reviewing, merging and deploying that PR is done by hand in EduIDE.
+`.github/workflows/release-openvsx.yml` ("Release to Open VSX and VS Marketplace") is started by hand from `main` or `dev`. It checks the branch, that the version matches `extension/package.json`, that `CHANGELOG.md` has a section for it and that the commit has a green `CI gate`. Then it builds both packages with build provenance, publishes to Open VSX and the VS Marketplace, tags the commit and creates a GitHub release from the changelog section. After a successful Open VSX publish it waits until Open VSX serves the new VSIX (this can take about ten minutes) and then dispatches EduIDE's `artemis_extension_auto_update.yml`, which opens a PR there bumping the bundled extension. Reviewing, merging and deploying that PR is done by hand in EduIDE.
 
 ### Cutting a release
 
