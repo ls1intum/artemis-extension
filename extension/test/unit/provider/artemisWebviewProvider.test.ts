@@ -286,6 +286,25 @@ suite('Panel hide/show state persistence', () => {
         assert.strictEqual(revalidateDetail.calledOnce, true);
     });
 
+    test('showing the panel on exercise-detail re-renders the problem statement the refetch dropped', async () => {
+        const appState = (provider as any)._appStateManager;
+        const exerciseData = { exercise: { id: 92, problemStatement: 'Do it', studentParticipations: [] } };
+        sandbox.stub(appState, 'currentState').get(() => 'exercise-detail');
+        sandbox.stub(appState, 'currentExerciseData').get(() => exerciseData);
+        sandbox.stub(mockApiService, 'getExerciseDetails').resolves(exerciseData as any);
+        const showDetail = sandbox.stub(appState, 'showExerciseDetail');
+        sandbox.stub(provider, 'sendInitData');
+        const scheduleRender = sandbox.stub((provider as any)._ssrCoordinator, 'scheduleRender').resolves();
+
+        controllableView.simulateHide();
+        controllableView.simulateShow();
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        assert.strictEqual(showDetail.calledOnce, true);
+        assert.strictEqual(scheduleRender.calledOnce, true);
+        assert.ok(scheduleRender.calledAfter(showDetail), 'the render must follow the reset of its cache');
+    });
+
     for (const [state, revalidates] of [['dashboard', true], ['course-list', true], ['course-detail', false]] as const) {
         test(`showing the panel on ${state} ${revalidates ? 'revalidates' : 'does not revalidate'} the course list`, async () => {
             sandbox.stub((provider as any)._appStateManager, 'currentState').get(() => state);
