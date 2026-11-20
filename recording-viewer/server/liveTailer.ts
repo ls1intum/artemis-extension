@@ -23,6 +23,12 @@ export interface TailerOptions {
      * would otherwise reset the seeded cursor to 0/0 unnecessarily.
      */
     initialMtimeNs?: bigint;
+    /**
+     * Device and inode of the file the cursor was seeded from. Without them
+     * the first poll adopts whatever file it opens as the seeded one.
+     */
+    initialDev?: bigint;
+    initialIno?: bigint;
 }
 
 /**
@@ -32,7 +38,8 @@ export interface TailerOptions {
  *
  * Robust to:
  *   - file not yet existing
- *   - truncation/rotation (size < offset → re-read from 0, lineNo resets)
+ *   - truncation/rotation (size < offset, or a different dev/ino → re-read
+ *     from 0, lineNo resets)
  *   - partial last line (buffered until \n)
  *   - UTF-8 multi-byte chars split across chunk boundaries (StringDecoder)
  *   - short fs.read returns (loops until requested length consumed)
@@ -43,6 +50,8 @@ export class LiveTailer {
     private _partial = '';
     private _decoder = new StringDecoder('utf8');
     private _lastMtimeNs: bigint = 0n;
+    private _dev: bigint | undefined;
+    private _ino: bigint | undefined;
     private _timer: NodeJS.Timeout | undefined;
     private readonly _listeners = new Set<LineListener>();
     private readonly _pollIntervalMs: number;
@@ -57,6 +66,8 @@ export class LiveTailer {
         this._offset = opts.initialOffset ?? 0;
         this._lineNo = opts.initialLineNo ?? 0;
         this._lastMtimeNs = opts.initialMtimeNs ?? 0n;
+        this._dev = opts.initialDev;
+        this._ino = opts.initialIno;
     }
 
     /**
@@ -114,10 +125,13 @@ export class LiveTailer {
             const stat = await fd.stat({ bigint: true });
             const size = Number(stat.size);
             const mtimeNs = stat.mtimeNs;
-            // Truncation/rotation: shrunk file, OR same/smaller file that was
-            // rewritten since we last saw it (mtime advanced past our marker).
+            // Truncation/rotation: a different file at the path (any size),
+            // a shrunk file, OR a same/smaller file that was rewritten since
+            // we last saw it (mtime advanced past our marker).
+            const replaced = this._ino !== undefined
+                && (stat.dev !== this._dev || stat.ino !== this._ino);
             const rewritten = mtimeNs > this._lastMtimeNs && size <= this._offset;
-            if (size < this._offset || rewritten) {
+            if (replaced || size < this._offset || rewritten) {
                 // Truncation/rotation forces a re-read from the start. Pre-seeded
                 // initialOffset/initialLineNo are intentionally discarded here:
                 // the file has been replaced, so the construction-time cursor
@@ -128,6 +142,8 @@ export class LiveTailer {
                 this._decoder = new StringDecoder('utf8');
             }
             this._lastMtimeNs = mtimeNs;
+            this._dev = stat.dev;
+            this._ino = stat.ino;
 
             if (size === this._offset) return;
 
