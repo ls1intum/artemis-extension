@@ -4,9 +4,11 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+## [1.2.7] - 2026-11-20
+
 ### Fixed
 
-- **The exercise description loads when the Artemis sidebar opens on an exercise.** Showing the sidebar fetched the exercise again and then threw away the description that had already arrived, so the exercise showed "Failed to load the exercise description" after ten seconds until you pressed Reload. This hit every start that opens straight into an exercise, for example an EduIDE session launched from Artemis. Showing the sidebar now renders the description again.
+- **The exercise description loads when the Artemis sidebar is shown on an exercise.** It showed "Failed to load the exercise description" until you pressed Reload, for example in EduIDE sessions started from Artemis.
 
 ## [1.2.6] - 2026-11-03
 
