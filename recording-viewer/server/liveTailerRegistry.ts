@@ -38,22 +38,29 @@ export class LiveTailerRegistry {
             //
             // The recorder keeps appending while we read, so newlines are
             // counted only in the bytes the offset covers: the tailer
-            // requires its line number to match its offset.
+            // requires its line number to match its offset. The offset stops
+            // after the last newline, so a record still being written is
+            // re-read and buffered by the tailer instead of emitted as a
+            // suffix.
             let initialOffset = 0;
             let initialLineNo = 0;
             let initialMtimeNs: bigint = 0n;
+            let initialDev: bigint | undefined;
+            let initialIno: bigint | undefined;
             let fd: number | undefined;
             try {
                 fd = fs.openSync(eventsPath, 'r');
                 const stat = fs.fstatSync(fd, { bigint: true });
                 initialMtimeNs = stat.mtimeNs;
+                initialDev = stat.dev;
+                initialIno = stat.ino;
                 const buf = Buffer.alloc(Number(stat.size));
                 const read = fs.readSync(fd, buf, 0, buf.length, 0);
                 let count = 0;
                 for (let i = 0; i < read; i++) {
                     if (buf[i] === 0x0A) count++;
                 }
-                initialOffset = read;
+                initialOffset = buf.subarray(0, read).lastIndexOf(0x0A) + 1;
                 initialLineNo = count;
             } catch {
                 /* file missing, leave the cursor at 0/0 */
@@ -65,6 +72,8 @@ export class LiveTailerRegistry {
                 initialOffset,
                 initialLineNo,
                 initialMtimeNs,
+                initialDev,
+                initialIno,
             });
             tailer.start();
             entry = { tailer, refCount: 0 };
