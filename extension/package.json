@@ -452,14 +452,11 @@
     "zustand": "5.0.14"
   },
   "overrides": {
-    "@vscode/test-cli": {
-      "minimatch": "11.0.9"
-    },
-    "@vscode/vsce": {
-      "minimatch": "11.0.9"
+    "minimatch": "11.0.9",
+    "stylus": {
+      "minimatch": "3.1.5"
     },
     "mocha": {
-      "minimatch": "11.0.9",
       "serialize-javascript": "7.1.4"
     }
   }
