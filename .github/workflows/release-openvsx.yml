@@ -549,10 +549,31 @@ jobs:
       needs.publish_openvsx.result == 'success' &&
       needs.release.result == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
+      - name: Wait until Open VSX serves the VSIX
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          # EduIDE's bump downloads this exact URL to pin its SHA256 (keep in sync with
+          # its artemis_extension_auto_update.yml). Open VSX answers 404 for a few minutes
+          # after 'ovsx publish' returns (about 10 minutes for 1.2.6), and EduIDE's own
+          # retries give up after about 30 seconds.
+          url="https://open-vsx.org/api/aet-tum/iris-thaumantias/${VERSION}/file/aet-tum.iris-thaumantias-${VERSION}.vsix"
+          deadline=$(( $(date +%s) + 25 * 60 ))
+          until curl -fsL --max-time 60 -o /dev/null "$url"; do
+            if (( $(date +%s) >= deadline )); then
+              echo "::error::Open VSX still does not serve $url after 25 minutes. Re-run this job once it does."
+              exit 1
+            fi
+            echo "Open VSX does not serve $VERSION yet, retrying in 30s"
+            sleep 30
+          done
+          echo "Open VSX serves $VERSION"
+
       - name: Trigger EduIDE bundled-extension bump
         env:
           EDUIDE_DISPATCH_TOKEN: ${{ secrets.EDUIDE_DISPATCH_TOKEN }}
