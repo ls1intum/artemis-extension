@@ -11,7 +11,7 @@ const { cleanManifest } = require(join(EXTENSION_ROOT, 'scripts/generate-clean-m
     cleanManifest: (m: unknown, profile: string) => Manifest;
 };
 
-type Manifest = { contributes: { configuration: { properties: Record<string, { default?: unknown }> } } };
+type Manifest = { contributes: { configuration: { properties: Record<string, { default?: unknown; scope?: string }> } } };
 
 const manifest = JSON.parse(readFileSync(join(EXTENSION_ROOT, 'package.json'), 'utf8')) as Manifest;
 const contributedKeys = Object.keys(manifest.contributes.configuration.properties);
@@ -68,6 +68,22 @@ describe('contributes.configuration', () => {
     // feature removal still needs reading, not just a green run here.
     it('contributes no setting that nothing in the extension mentions', () => {
         expect(contributedKeys.filter(key => !isRead(key))).toEqual([]);
+    });
+
+    it('takes the server, the consents and developer mode from user settings only', () => {
+        // A window or resource scope lets an opened repository's .vscode/settings.json override
+        // them: it could pick the server the stored token is sent to, consent for the student, or
+        // unlock the developer command that copies the token. `machine` blocks that too, but a
+        // remote window would then not inherit the local value.
+        const userOnly = [
+            'artemis.serverUrl',
+            'artemis.iris.sendUncommittedChanges',
+            'artemis.iris.proactiveCodeEgress',
+            'artemis.dataCollectionConsent',
+            'artemis.developerMode',
+        ];
+        expect(userOnly.map(key => [key, manifest.contributes.configuration.properties[key]?.scope]))
+            .toEqual(userOnly.map(key => [key, 'application']));
     });
 });
 
