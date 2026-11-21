@@ -4,6 +4,8 @@ All notable changes to the Artemis VS Code extension will be documented in this 
 
 ## [Unreleased]
 
+## [1.2.9] - 2026-11-21
+
 ### Security
 
 - **An opened repository can no longer choose the Artemis server.** A `.vscode/settings.json` in the folder could set `artemis.serverUrl`, and the extension then sent your Artemis login to that server when the window opened. Workspace and folder settings no longer change the server URL, whether Iris sees your uncommitted changes, the proactive help and data collection consents, or developer mode. Set them in your user settings.
