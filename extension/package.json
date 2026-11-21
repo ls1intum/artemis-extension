@@ -192,16 +192,19 @@
       "properties": {
         "artemis.serverUrl": {
           "type": "string",
+          "scope": "application",
           "default": "https://artemis.tum.de",
           "markdownDescription": "The URL of the Artemis server to connect to.\n\nUse the command **[Artemis: Set Server URL](command:artemis.setServerUrl)** to pick from known servers or enter a custom URL."
         },
         "artemis.iris.sendUncommittedChanges": {
           "type": "boolean",
+          "scope": "application",
           "default": true,
           "markdownDescription": "Allow Iris to access your uncommitted file changes (unsaved, unstaged, and unpushed files). When enabled, Iris can see your current work-in-progress code to provide better assistance. **Privacy**: Only files from your current workspace are sent, and only when you send a message to Iris."
         },
         "artemis.iris.proactiveCodeEgress": {
           "type": "string",
+          "scope": "application",
           "enum": [
             "ask",
             "enabled",
@@ -217,6 +220,7 @@
         },
         "artemis.developerMode": {
           "type": "boolean",
+          "scope": "application",
           "default": false,
           "markdownDescription": "Enable developer mode to show debugging tools, including debug buttons in views, the live struggle detection score, and the WebSocket connection status (with diagnostics on hover) in the status bar."
         },
@@ -266,6 +270,7 @@
         },
         "artemis.dataCollectionConsent": {
           "type": "string",
+          "scope": "application",
           "enum": [
             "pending",
             "declined",
