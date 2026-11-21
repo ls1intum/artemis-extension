@@ -454,7 +454,7 @@
     "streamdown": "2.8.0",
     "use-stick-to-bottom": "1.1.6",
     "ws": "8.21.3",
-    "zustand": "5.0.14"
+    "zustand": "5.1.0"
   },
   "overrides": {
     "minimatch": "11.0.9",
